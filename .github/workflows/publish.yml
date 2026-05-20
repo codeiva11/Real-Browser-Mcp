@@ -1,0 +1,135 @@
+name: 🚀 Build, Version & Publish to NPM
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE.md'
+      - '.gitignore'
+
+  workflow_dispatch:
+    inputs:
+      increment_type:
+        description: '📈 Version increment type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: '🧪 Dry run (check build/test without publishing to NPM)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  publish:
+    name: 🚀 Publish to NPM
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN || github.token }}
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: ⚙️ Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: 📦 Install Dependencies
+        run: npm ci || npm install
+
+      - name: 🧪 Pre-Publish Verification
+        run: |
+          echo "💡 Running basic syntax and file checks..."
+          node -c lib/cjs/index.js
+          node -c lib/esm/index.mjs
+          echo "✅ Code syntax is valid."
+
+      - name: 📈 Increment Version
+        id: versioning
+        run: |
+          # Determine the increment type (major, minor, or patch)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            INCREMENT_TYPE="${{ github.event.inputs.increment_type }}"
+          else
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+            if echo "$COMMIT_MSG" | grep -qE "\[major\]|BREAKING CHANGE"; then
+              INCREMENT_TYPE="major"
+            elif echo "$COMMIT_MSG" | grep -qE "\[minor\]|feat:"; then
+              INCREMENT_TYPE="minor"
+            else
+              INCREMENT_TYPE="patch"
+            fi
+          fi
+
+          echo "📈 Selected increment type: $INCREMENT_TYPE"
+          
+          # Bump version, commit changes and create tag
+          npm version $INCREMENT_TYPE -m "🔖 Release: v%s [skip ci]"
+          
+          # Capture new version for subsequent steps
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          echo "version=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: 🚀 Push Version Bump & Tag
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          git push origin HEAD --follow-tags
+
+      - name: 📦 Publish Package to NPM
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: 📋 Create GitHub Release
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          TAG="v${{ env.NEW_VERSION }}"
+          
+          cat > release_body.md << EOF
+          ## 🚀 Real Browser MCP Server v${{ env.NEW_VERSION }}
+          
+          ### 📦 Published Packages
+          - **NPM Package**: [real-browser-mcp-server](https://www.npmjs.com/package/real-browser-mcp-server)
+          - **Stealth automation**: Powered by Patchright (undetected Playwright fork).
+          
+          ### 🛠️ Key Capabilities
+          * **Turnstile Bypass**: Solves Cloudflare Turnstile automatically.
+          * **Ad Blocker**: Integrated `@ghostery/adblocker-playwright` with binary caching.
+          * **Stealth Evasion**: Passes advanced bot checkers like CreepJS, Datadome, Pixelscan, and FingerprintJS.
+          
+          ### 📥 Installation
+          \`\`\`bash
+          npm install real-browser-mcp-server@${{ env.NEW_VERSION }}
+          \`\`\`
+          
+          ---
+          *Auto-generated with ❤️ by GitHub Actions*
+          EOF
+          
+          gh release create "$TAG" \
+            --title "Release $TAG" \
+            --notes-file release_body.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
