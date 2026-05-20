@@ -7,7 +7,7 @@
 
 A production-ready **Model Context Protocol (MCP)** server that equips AI agents with a fully undetected, high-stealth web browser. Built on **Patchright** (the advanced undetected Playwright fork) and integrated with **Ghostery Adblocker**, **Ghost Cursor** (human-like mouse dynamics), and an automatic **Cloudflare Turnstile bypass**.
 
-This server is **100% compatible with all major AI IDEs** (Cursor, VS Code, Cline, Roo Code, Windsurf, PearAI, and Claude Desktop) using standard **STDIO** communication.
+This server is **100% compatible with all major AI IDEs** (Cursor, VS Code, Cline, Roo Code, Windsurf, PearAI, OpenCode, and Claude Desktop) using standard **STDIO** communication.
 
 ---
 
@@ -15,7 +15,7 @@ This server is **100% compatible with all major AI IDEs** (Cursor, VS Code, Clin
 
 * **Undetected Browser Engine**: Powered by **Patchright Chromium**, bypassing modern fingerprinting checks (does not expose automation indicators or Webdriver/BiDi flags).
 * **Integrated Ad & Tracker Blocker**: Utilizes `@ghostery/adblocker-playwright` with asynchronous pre-compiled filter caching to `adblocker.bin`, blocking ads and speed-bumps completely offline.
-* **Human-like Interactions**: Integrates `ghost-cursor` (with a custom Playwright compatibility shim) to simulate human mouse movements, velocity, and natural hover-before-click behaviors.
+* **Human-like Interactions**: Integrates **playwright-ghost** (Bézier curves auto-hooking) to transparently simulate human mouse movements, velocity, and natural hover-before-click behaviors.
 * **Turnstile Auto-Solver**: Seamlessly detects and bypasses Cloudflare Turnstile widgets.
 * **Anti-Race Condition Guards**: Robust state-guards ensure popup blockers, shims, and adblockers attach exactly once per page, preventing context destruction.
 
@@ -94,6 +94,25 @@ Configure the server in your `~/.codeium/windsurf/mcp_config.json`:
 
 ### 5. PearAI
 Add the configurations via **PearAI Settings** ➔ **MCP Servers** using the standard `command` configuration pointing to `node` and the path to `src/index.js`.
+
+### 6. OpenCode AI IDE
+Configure the server in your `opencode.jsonc` or standard MCP settings configuration:
+
+```jsonc
+{
+  "mcpServers": {
+    "real-browser-mcp-server": {
+      "command": "node",
+      "args": [
+        "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/src/index.js"
+      ],
+      "env": {
+        "HEADLESS": "false"
+      }
+    }
+  }
+}
+```
 
 ---
 
