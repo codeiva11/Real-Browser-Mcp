@@ -1,6 +1,6 @@
-declare module "brave-real-browser-mcp-server" {
-	import type { Browser, Page } from "brave-real-puppeteer-core";
-	import type { GhostCursor } from "ghost-cursor";
+declare module "real-browser-mcp-server" {
+	import type { Browser, Page } from "patchright";
+	import type { GhostCursor } from "ghost-cursor-patchright";
 
 	export function connect(options?: Options): Promise<ConnectResult>;
 
@@ -19,12 +19,12 @@ declare module "brave-real-browser-mcp-server" {
 	interface Options {
 		args?: string[];
 		headless?: boolean;
-		customConfig?: import("brave-real-launcher").Options;
+		customConfig?: any;
 		proxy?: ProxyOptions;
 		turnstile?: boolean;
-		connectOption?: import("brave-real-puppeteer-core").ConnectOptions;
+		connectOption?: any;
 		disableXvfb?: boolean;
-		plugins?: import("puppeteer-extra").PuppeteerExtraPlugin[];
+		plugins?: any[];
 		ignoreAllFlags?: boolean;
 		/** Enable blocker on all pages (default: true) */
 		enableBlocker?: boolean;

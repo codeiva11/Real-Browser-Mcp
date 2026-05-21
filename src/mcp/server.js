@@ -7,7 +7,7 @@
 
 // CRITICAL: Redirect ALL console.log to STDERR before ANY imports
 // MCP uses STDIO transport — STDOUT must contain ONLY JSON-RPC messages.
-// Any console.log from this code or ANY dependency (puppeteer, blocker, etc.)
+// Any console.log from this code or ANY dependency (browser, blocker, etc.)
 // will corrupt the JSON-RPC stream and cause parsing errors.
 const _originalConsoleLog = console.log;
 console.log = function (...args) {

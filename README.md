@@ -15,7 +15,7 @@ This server is **100% compatible with all major AI IDEs** (Cursor, VS Code, Clin
 
 * **Undetected Browser Engine**: Powered by **Patchright Chromium**, bypassing modern fingerprinting checks (does not expose automation indicators or Webdriver/BiDi flags).
 * **Integrated Ad & Tracker Blocker**: Utilizes `@ghostery/adblocker-playwright` with asynchronous pre-compiled filter caching to `adblocker.bin`, blocking ads and speed-bumps completely offline.
-* **Human-like Interactions**: Integrates **playwright-ghost** (Bézier curves auto-hooking) to transparently simulate human mouse movements, velocity, and natural hover-before-click behaviors.
+* **Human-like Interactions**: Integrates **ghost-cursor-patchright** (Bézier curves) to transparently simulate human mouse movements, velocity, and natural hover-before-click behaviors.
 * **Turnstile Auto-Solver**: Seamlessly detects and bypasses Cloudflare Turnstile widgets.
 * **Anti-Race Condition Guards**: Robust state-guards ensure popup blockers, shims, and adblockers attach exactly once per page, preventing context destruction.
 

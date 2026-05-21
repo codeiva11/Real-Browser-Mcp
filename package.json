@@ -46,7 +46,7 @@
     "@ghostery/adblocker-playwright": "latest",
     "@modelcontextprotocol/sdk": "latest",
     "patchright": "latest",
-    "playwright-ghost": "latest",
+    "ghost-cursor-patchright": "file:../ghost-cursor",
     "xvfb": "latest"
   }
 }

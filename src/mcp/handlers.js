@@ -595,7 +595,7 @@ const handlers = {
     // ═══════════════════════════════════════════════════════════════
     // INJECTED SCRIPT - Silent Handling of Popups
     // Override window.confirm/alert to handle them inside the page context
-    // Note: Using evaluateOnNewDocument (Puppeteer) instead of addInitScript (Playwright)
+    // Note: Using evaluateOnNewDocument shim instead of raw addInitScript
     // ═══════════════════════════════════════════════════════════════
     await pageInstance.evaluateOnNewDocument(() => {
       window.originalConfirm = window.confirm;
