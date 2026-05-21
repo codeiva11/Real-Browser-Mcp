@@ -90,7 +90,7 @@ class AICore {
       if (element) {
         if (humanLike) {
           try {
-            const { createCursor } = require('ghost-cursor');
+            const { createCursor } = require('ghost-cursor-patchright');
             const cursor = createCursor(page);
             await cursor.click(selector);
           } catch {

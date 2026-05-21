@@ -1239,7 +1239,7 @@ const handlers = {
             notifyProgress('click', 'progress', 'Used force click (JS)');
           } else if (humanLike) {
             try {
-              const { createCursor } = require('ghost-cursor');
+              const { createCursor } = require('ghost-cursor-patchright');
               const cursor = createCursor(page);
 
               if (context !== page) {
@@ -2002,7 +2002,7 @@ const handlers = {
 
       // Click submit button with human-like behavior
       try {
-        const { createCursor } = require('ghost-cursor');
+        const { createCursor } = require('ghost-cursor-patchright');
         const cursor = createCursor(page);
         await cursor.click(submitSelector);
       } catch (e) {
@@ -4768,7 +4768,7 @@ const handlers = {
             }, identity, String(value));
           } else {
             // Smart Type
-            const { createCursor } = require('ghost-cursor');
+            const { createCursor } = require('ghost-cursor-patchright');
             const cursor = createCursor(page);
 
             // Click center of element
@@ -4835,7 +4835,7 @@ const handlers = {
       });
 
       if (submitSelector) {
-        const { createCursor } = require('ghost-cursor');
+        const { createCursor } = require('ghost-cursor-patchright');
         const cursor = createCursor(page);
         await cursor.click(submitSelector);
 
