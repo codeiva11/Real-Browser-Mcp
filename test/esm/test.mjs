@@ -4,7 +4,7 @@ import { connect } from '../../lib/esm/index.mjs';
 
 const realBrowserOption = {
     turnstile: true,
-    headless: true,
+    headless: false,
     customConfig: {}
 }
 
@@ -29,6 +29,126 @@ test.after(async () => {
         console.log('✅ Browser closed successfully');
     }
 });
+
+test('Human-like Move & Click', async () => {
+    await page.goto("https://www.google.com", { timeout: 40000 });
+    const selector = 'textarea[name="q"], input[name="q"]';
+    await page.realCursor.move(selector);
+    await page.realClick(selector);
+    assert.ok(true);
+})
+
+test('Human-like Typing', async () => {
+    await page.goto("https://www.google.com", { timeout: 40000 });
+    const selector = 'textarea[name="q"], input[name="q"]';
+    await page.realCursor.move(selector);
+    await page.realClick(selector);
+    await page.type(selector, 'Real Browser MCP Server', { delay: 150 });
+    const val = await page.inputValue(selector);
+    assert.strictEqual(val, 'Real Browser MCP Server');
+})
+
+test('Human-like Scrolling', async () => {
+    await page.goto("https://www.google.com/search?q=Real+Browser+MCP+Server", { timeout: 40000, waitUntil: 'domcontentloaded' });
+    await new Promise(r => setTimeout(r, 2000));
+    
+    console.log('📜 Scrolling down smoothly and fast (400px)...');
+    await page.realScroll(400, 500);
+    await new Promise(r => setTimeout(r, 600));
+    
+    console.log('📜 Scrolling down smoothly and fast (300px)...');
+    await page.realScroll(300, 400);
+    await new Promise(r => setTimeout(r, 600));
+    
+    console.log('📜 Scrolling up smoothly and fast (-500px)...');
+    await page.realScroll(-500, 600);
+    await new Promise(r => setTimeout(r, 1000));
+    
+    assert.ok(true);
+})
+
+test('Form Automation Demonstration', async () => {
+  console.log('\n🎬 DEMO: Form Automation');
+  try {
+    await page.goto('https://httpbin.org/forms/post', { timeout: 30000 });
+    console.log('\n4️⃣ Filling out form...');
+    
+    // 1. Customer Name
+    await page.type('input[name="custname"]', 'John Doe', { delay: 100 });
+    console.log('✅ Customer Name filled');
+
+    // 2. Telephone
+    await page.type('input[name="custtel"]', '+1-555-0199', { delay: 100 });
+    console.log('✅ Telephone filled');
+
+    // 3. Email address
+    await page.type('input[name="custemail"]', 'john.doe@example.com', { delay: 100 });
+    console.log('✅ Email field filled');
+
+    // 4. Pizza Size (Radio Button)
+    await page.realClick('input[value="medium"]');
+    console.log('✅ Pizza Size selected (Medium)');
+
+    // 5. Pizza Toppings (Checkboxes)
+    await page.realClick('input[value="bacon"]');
+    await page.realClick('input[value="onion"]');
+    console.log('✅ Toppings selected (Bacon, Onion)');
+
+    // 6. Preferred Delivery Time
+    await page.type('input[name="delivery"]', '13:00', { delay: 100 });
+    console.log('✅ Delivery time filled');
+
+    // 7. Delivery Instructions (Comments)
+    await page.type('textarea[name="comments"]', 'Leave at the front door, please.', { delay: 100 });
+    console.log('✅ Delivery instructions filled');
+
+    // Wait 2 seconds for visual demonstration
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // 8. Submit Order
+    await page.realClick('form button');
+    console.log('✅ Form submitted successfully');
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log('\n🎉 FORM AUTOMATION COMPLETE!');
+  } catch (error) {
+    console.error('❌ Form automation test failed:', error);
+    throw error;
+  }
+})
+
+test('Content Strategy Demonstration', async () => {
+  console.log('\n🎬 DEMO: Content Analysis & Token Management');
+  console.log('👀 Watch browser analyze content from different websites');
+  try {
+    const testSites = [
+      { url: 'https://httpbin.org/html', description: 'Simple HTML page' },
+      { url: 'https://example.com', description: 'Minimal content page' }
+    ];
+
+    for (const [index, site] of testSites.entries()) {
+      console.log(`\n${index + 2}️⃣ Testing ${site.description}: ${site.url}`);
+      await page.goto(site.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      console.log(`   📄 Getting HTML content...`);
+      const htmlContent = await page.content();
+      console.log(`   ✅ HTML analyzed: ${htmlContent.length} characters`);
+      
+      console.log(`   📝 Getting text content...`);
+      const textContent = await page.evaluate(() => document.body.innerText);
+      console.log(`   ✅ Text analyzed: ${textContent.length} characters`);
+      
+      assert.ok(htmlContent.length > 0);
+      assert.ok(textContent.length > 0);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+    console.log('\n🎉 CONTENT ANALYSIS COMPLETE!');
+  } catch (error) {
+    console.error('❌ Content strategy test failed:', error);
+    throw error;
+  }
+})
 
 test('DrissionPage Detector', async () => {
     await page.goto("https://web.archive.org/web/20240913054632/https://drissionpage.pages.dev/", { timeout: 70000 });
@@ -173,3 +293,7 @@ test('Pixelscan Fingerprint Check', async () => {
 
     assert.strictEqual(result, true, "Pixelscan Fingerprint Check failed! Browser fingerprint is inconsistent or masking was detected.");
 })
+
+
+
+

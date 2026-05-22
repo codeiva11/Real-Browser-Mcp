@@ -35,7 +35,7 @@ npx patchright install chromium
 
 * **Undetected Browser Engine**: Powered by **Patchright Chromium**, bypassing modern fingerprinting checks (does not expose automation indicators or Webdriver/BiDi flags).
 * **Integrated Ad & Tracker Blocker**: Utilizes `@ghostery/adblocker-playwright` with asynchronous pre-compiled filter caching to `adblocker.bin`, blocking ads and speed-bumps completely offline.
-* **Human-like Interactions**: Integrates **ghost-cursor-patchright** (Bézier curves) to transparently simulate human mouse movements, velocity, and natural hover-before-click behaviors.
+* **Human-like Interactions**: Integrates **ghost-cursor-patchright** (Bézier curves) to transparently simulate human mouse movements, velocity, and natural hover-before-click behaviors. Features **Physics-based Smooth Scrolling** (`page.realScroll`) utilizing real mouse-wheel events and Cubic Ease-Out deceleration to perfectly mimic manual trackpad/mouse flicks, bypassing advanced behavioral detectors.
 * **Turnstile Auto-Solver**: Seamlessly detects and bypasses Cloudflare Turnstile widgets.
 * **Anti-Race Condition Guards**: Robust state-guards ensure popup blockers, shims, and adblockers attach exactly once per page, preventing context destruction.
 
@@ -158,7 +158,7 @@ The server exposes 22 highly optimized tools categorized into functional units:
 | `click` | Human-like click using AI healing, ghost cursor, and iframe support. | `selector` (string), `hoverFirst` (boolean) |
 | `type` | Type text with human speed variation, smart clearing, and iframe support. | `selector` (string), `text` (string) |
 | `solve_captcha` | Auto-solve CAPTCHAs (Turnstile, reCAPTCHA, hCaptcha, OCR). | `selector` (string) |
-| `random_scroll` | Simulated human scrolling with natural patterns and lazy-load triggers. | `direction` (string), `amount` (number) |
+| `random_scroll` | Simulated human scrolling with natural patterns and lazy-load triggers. | `direction` (string), `amount` (number), `smooth` (boolean) |
 | `press_key` | Press keyboard keys with modifier key support (Ctrl/Shift/Alt). | `key` (string), `modifiers` (array) |
 | `execute_js` | Run custom asynchronous/synchronous JavaScript inside a page or iframe. | `code` (string), `iframeIndex` (number) |
 
@@ -213,6 +213,11 @@ Both the CommonJS and ES Module test suites execute and pass successfully under 
 | **CommonJS (`cjs_test`)** | Fingerprint JS Bot Detector | ✅ Passed |
 | **CommonJS (`cjs_test`)** | Recaptcha V3 Score | ✅ Passed |
 | **CommonJS (`cjs_test`)** | Pixelscan Fingerprint Check | ✅ Passed |
+| **CommonJS (`cjs_test`)** | Human-like Move & Click | ✅ Passed |
+| **CommonJS (`cjs_test`)** | Human-like Typing | ✅ Passed |
+| **CommonJS (`cjs_test`)** | Human-like Scrolling | ✅ Passed |
+| **CommonJS (`cjs_test`)** | Form Automation Demonstration | ✅ Passed |
+| **CommonJS (`cjs_test`)** | Content Strategy Demonstration | ✅ Passed |
 | **ES Module (`esm_test`)** | DrissionPage Detector | ✅ Passed |
 | **ES Module (`esm_test`)** | Sannysoft WebDriver Detector | ✅ Passed |
 | **ES Module (`esm_test`)** | Cloudflare WAF | ✅ Passed |
@@ -220,6 +225,11 @@ Both the CommonJS and ES Module test suites execute and pass successfully under 
 | **ES Module (`esm_test`)** | Fingerprint JS Bot Detector | ✅ Passed |
 | **ES Module (`esm_test`)** | Recaptcha V3 Score | ✅ Passed |
 | **ES Module (`esm_test`)** | Pixelscan Fingerprint Check | ✅ Passed |
+| **ES Module (`esm_test`)** | Human-like Move & Click | ✅ Passed |
+| **ES Module (`esm_test`)** | Human-like Typing | ✅ Passed |
+| **ES Module (`esm_test`)** | Human-like Scrolling | ✅ Passed |
+| **ES Module (`esm_test`)** | Form Automation Demonstration | ✅ Passed |
+| **ES Module (`esm_test`)** | Content Strategy Demonstration | ✅ Passed |
 
 ---
 
@@ -244,6 +254,9 @@ const { connect } = require('real-browser-mcp-server');
   // Real mouse movement and click
   await page.realClick('#my-button');
   
+  // Real human-like smooth scrolling (60FPS Cubic Ease-Out physics)
+  await page.realScroll(400); // scrolls down 400px smoothly
+  
   await browser.close();
 })();
 ```
@@ -259,6 +272,10 @@ const { browser, page } = await connect({
 
 await page.goto('https://example.com');
 await page.realClick('#my-button');
+
+// Real human-like smooth scrolling (60FPS Cubic Ease-Out physics)
+await page.realScroll(400); // scrolls down 400px smoothly
+
 await browser.close();
 ```
 

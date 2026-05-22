@@ -68,13 +68,25 @@ function notifyProgress(toolName, status, message, data = {}) {
 function getHeadlessFromEnv() {
   const envHeadless = process.env.HEADLESS;
 
-  if (envHeadless === undefined || envHeadless === null || envHeadless === '') {
-    return false; // Default: GUI mode
+  if (envHeadless !== undefined && envHeadless !== null && envHeadless !== '') {
+    const value = envHeadless.toLowerCase().trim();
+    return value === 'true' || value === '1' || value === 'yes';
   }
 
-  // Parse string to boolean
-  const value = envHeadless.toLowerCase().trim();
-  return value === 'true' || value === '1' || value === 'yes';
+  // Auto-detect CI environments
+  if (process.env.CI || process.env.GITHUB_ACTIONS || process.env.TRAVIS || process.env.CIRCLECI) {
+    return true;
+  }
+
+  // Auto-detect headless Linux environments without X11 or Wayland
+  if (process.platform === 'linux') {
+    const hasDisplay = process.env.DISPLAY || process.env.WAYLAND_DISPLAY;
+    if (!hasDisplay) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -2049,10 +2061,14 @@ const handlers = {
 
     notifyProgress('random_scroll', 'started', `Scrolling ${scrollDirection} ${scrollAmount}px`);
 
-    await page.evaluate(({ scrollAmount, scrollDirection, smooth }) => {
-      const y = scrollDirection === 'down' ? scrollAmount : -scrollAmount;
-      window.scrollBy({ top: y, behavior: smooth ? 'smooth' : 'auto' });
-    }, { scrollAmount, scrollDirection, smooth });
+    const y = scrollDirection === 'down' ? scrollAmount : -scrollAmount;
+    if (smooth && page.realScroll) {
+      await page.realScroll(y, 600);
+    } else {
+      await page.evaluate(({ y, smooth }) => {
+        window.scrollBy({ top: y, behavior: smooth ? 'smooth' : 'auto' });
+      }, { y, smooth });
+    }
 
     notifyProgress('random_scroll', 'completed', `Scrolled ${scrollDirection} ${scrollAmount}px`, { direction: scrollDirection, amount: scrollAmount });
 
