@@ -38,7 +38,7 @@ test('DrissionPage Detector', async () => {
 })
 
 test('Sannysoft WebDriver Detector', async () => {
-    await page.goto("https://bot.sannysoft.com/", { timeout: 60000 });
+    await page.goto("https://bot.sannysoft.com/", { timeout: 70000 });
     await new Promise(r => setTimeout(r, 3000));
     let result = await page.evaluate(() => {
         const webdriverEl = document.getElementById('webdriver-result');
@@ -48,7 +48,7 @@ test('Sannysoft WebDriver Detector', async () => {
 })
 
 test('Cloudflare WAF', async () => {
-    await page.goto("https://nopecha.com/demo/cloudflare", { timeout: 60000 });
+    await page.goto("https://nopecha.com/demo/cloudflare", { timeout: 70000 });
     let verify = null
     let startDate = Date.now()
     // Increased timeout to 60 seconds to allow turnstile to be solved
@@ -64,7 +64,7 @@ test('Cloudflare WAF', async () => {
 
 
 test('Cloudflare Turnstile', async () => {
-    await page.goto("https://2captcha.com/demo/cloudflare-turnstile", { timeout: 60000 });
+    await page.goto("https://2captcha.com/demo/cloudflare-turnstile", { timeout: 70000 });
     await page.waitForSelector('.cf-turnstile')
     let token = null
     let startDate = Date.now()
@@ -86,7 +86,7 @@ test('Cloudflare Turnstile', async () => {
 
 test('Fingerprint JS Bot Detector', async () => {
     // Use domcontentloaded + higher timeout to avoid timeout on heavy pages
-    await page.goto("https://fingerprint.com/products/bot-detection/", { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.goto("https://fingerprint.com/products/bot-detection/", { waitUntil: 'domcontentloaded', timeout: 70000 });
     await new Promise(r => setTimeout(r, 5000));
     const detect = await page.evaluate(() => {
         // Check for bot detection result in page content
@@ -130,7 +130,7 @@ test('Fingerprint JS Bot Detector', async () => {
 // Note: ReCAPTCHA V3 score depends heavily on IP reputation, browser history, and Google's algorithms.
 // A score >= 0.3 indicates the browser is not detected as an obvious bot.
 test('Recaptcha V3 Score', async () => {
-    await page.goto("https://antcpt.com/score_detector/", { timeout: 60000 });
+    await page.goto("https://antcpt.com/score_detector/", { timeout: 70000 });
 
     // Human-like warm-up interactions before clicking
     // 1. Random mouse movements using realCursor (Bézier curves via ghost-cursor)
@@ -159,7 +159,7 @@ test('Recaptcha V3 Score', async () => {
 // Pixelscan Fingerprint Consistency Check
 // Checks browser fingerprint consistency, automation detection, and proxy detection
 test('Pixelscan Fingerprint Check', async () => {
-    await page.goto("https://pixelscan.net/fingerprint-check", { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.goto("https://pixelscan.net/fingerprint-check", { waitUntil: 'domcontentloaded', timeout: 70000 });
 
     // Poll for the final status. We look specifically at the green header and the fingerprint checker card.
     let result = false;

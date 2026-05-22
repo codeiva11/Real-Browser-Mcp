@@ -31,14 +31,14 @@ test.after(async () => {
 });
 
 test('DrissionPage Detector', async () => {
-    await page.goto("https://web.archive.org/web/20240913054632/https://drissionpage.pages.dev/", { timeout: 60000 });
+    await page.goto("https://web.archive.org/web/20240913054632/https://drissionpage.pages.dev/", { timeout: 70000 });
     await page.realClick("#detector")
     let result = await page.evaluate(() => { return document.querySelector('#isBot span').textContent.includes("not") ? true : false })
     assert.strictEqual(result, true, "DrissionPage Detector test failed!")
 })
 
 test('Sannysoft WebDriver Detector', async () => {
-    await page.goto("https://bot.sannysoft.com/", { timeout: 60000 });
+    await page.goto("https://bot.sannysoft.com/", { timeout: 70000 });
     await new Promise(r => setTimeout(r, 3000));
     let result = await page.evaluate(() => {
         const webdriverEl = document.getElementById('webdriver-result');
@@ -48,7 +48,7 @@ test('Sannysoft WebDriver Detector', async () => {
 })
 
 test('Cloudflare WAF', async () => {
-    await page.goto("https://nopecha.com/demo/cloudflare", { timeout: 60000 });
+    await page.goto("https://nopecha.com/demo/cloudflare", { timeout: 70000 });
     let verify = null
     let startDate = Date.now()
     while (!verify && (Date.now() - startDate) < 50000) {
@@ -62,7 +62,7 @@ test('Cloudflare WAF', async () => {
 
 
 test('Cloudflare Turnstile', async () => {
-    await page.goto("https://2captcha.com/demo/cloudflare-turnstile", { timeout: 60000 });
+    await page.goto("https://2captcha.com/demo/cloudflare-turnstile", { timeout: 70000 });
     await page.waitForSelector('.cf-turnstile')
     let token = null
     let startDate = Date.now()
@@ -83,7 +83,7 @@ test('Cloudflare Turnstile', async () => {
 
 
 test('Fingerprint JS Bot Detector', async () => {
-    await page.goto("https://fingerprint.com/products/bot-detection/", { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.goto("https://fingerprint.com/products/bot-detection/", { waitUntil: 'domcontentloaded', timeout: 70000 });
     await new Promise(r => setTimeout(r, 5000));
     const detect = await page.evaluate(() => {
         const pageText = document.body.innerText.toLowerCase();
@@ -93,8 +93,8 @@ test('Fingerprint JS Bot Detector', async () => {
                              document.querySelector('h1') !== null;
         
         const isNotBlocked = !pageText.includes('access denied') &&
-                            !pageText.includes('blocked') &&
-                            !pageText.includes('captcha');
+                             !pageText.includes('blocked') &&
+                             !pageText.includes('captcha');
         
         const preElements = document.querySelectorAll('pre, code');
         for (const el of preElements) {
@@ -117,7 +117,7 @@ test('Fingerprint JS Bot Detector', async () => {
 })
 
 test('Recaptcha V3 Score', async () => {
-    await page.goto("https://antcpt.com/score_detector/", { timeout: 60000 });
+    await page.goto("https://antcpt.com/score_detector/", { timeout: 70000 });
 
     await page.realCursor.move('body', { paddingPercentage: 20 });
     await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
@@ -138,7 +138,7 @@ test('Recaptcha V3 Score', async () => {
 })
 
 test('Pixelscan Fingerprint Check', async () => {
-    await page.goto("https://pixelscan.net/fingerprint-check", { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.goto("https://pixelscan.net/fingerprint-check", { waitUntil: 'domcontentloaded', timeout: 70000 });
 
     // Poll for the final status. We look specifically at the green header and the fingerprint checker card.
     let result = false;
@@ -173,4 +173,3 @@ test('Pixelscan Fingerprint Check', async () => {
 
     assert.strictEqual(result, true, "Pixelscan Fingerprint Check failed! Browser fingerprint is inconsistent or masking was detected.");
 })
-
