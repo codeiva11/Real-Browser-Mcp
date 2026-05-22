@@ -4,7 +4,7 @@ const { connect } = require('../../lib/cjs/index.js');
 
 const realBrowserOption = {
     turnstile: true,
-    headless: false,
+    headless: true,
     customConfig: {}
 }
 

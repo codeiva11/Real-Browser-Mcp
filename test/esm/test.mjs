@@ -4,7 +4,7 @@ import { connect } from '../../lib/esm/index.mjs';
 
 const realBrowserOption = {
     turnstile: true,
-    headless: false,
+    headless: true,
     customConfig: {}
 }
 

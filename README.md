@@ -180,6 +180,29 @@ Our test suites run headless/headed simulations against all major fingerprinting
 | **CreepJS Fingerprinting** | Advanced trust rating and fingerprint check | ✅ Pass |
 | **Pixelscan Fingerprint** | Masque & Canvas fingerprint masking check | ✅ Pass (No Masking Detected) |
 
+### 🧪 Local Test Suite Execution Status
+
+Both the CommonJS and ES Module test suites execute and pass successfully under Node.js:
+
+| Test Suite / Environment | Test Case | Status |
+|:---|:---|:---|
+| **CommonJS (`cjs_test`)** | DrissionPage Detector | ✅ Passed |
+| **CommonJS (`cjs_test`)** | Sannysoft WebDriver Detector | ✅ Passed |
+| **CommonJS (`cjs_test`)** | Cloudflare WAF | ✅ Passed |
+| **CommonJS (`cjs_test`)** | Cloudflare Turnstile | ✅ Passed |
+| **CommonJS (`cjs_test`)** | Fingerprint JS Bot Detector | ✅ Passed |
+| **CommonJS (`cjs_test`)** | Recaptcha V3 Score | ✅ Passed |
+| **CommonJS (`cjs_test`)** | Pixelscan Fingerprint Check | ✅ Passed |
+| **ES Module (`esm_test`)** | DrissionPage Detector | ✅ Passed |
+| **ES Module (`esm_test`)** | Sannysoft WebDriver Detector | ✅ Passed |
+| **ES Module (`esm_test`)** | Cloudflare WAF | ✅ Passed |
+| **ES Module (`esm_test`)** | Cloudflare Turnstile | ✅ Passed |
+| **ES Module (`esm_test`)** | Fingerprint JS Bot Detector | ✅ Passed |
+| **ES Module (`esm_test`)** | Recaptcha V3 Score | ✅ Passed |
+| **ES Module (`esm_test`)** | Pixelscan Fingerprint Check | ✅ Passed |
+
+---
+
 ---
 
 ## 💻 Programmatic Usage (Node.js SDK)
