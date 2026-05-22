@@ -1,0 +1,24 @@
+node_modules
+dist
+test_results*.txt
+*.log
+*.vtt
+.DS_Store
+Thumbs.db
+nul
+.env
+.env.*
+coverage
+.nyc_output
+*.tgz
+
+# Cache files (regenerated at runtime)
+**/cache/filter-cache.json
+
+# Build artifacts
+dist-esm
+
+# Test artifacts
+dhurandhar_*.md
+moviesdrive_*.md
+test_*.md
