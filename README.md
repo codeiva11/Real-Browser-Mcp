@@ -11,6 +11,26 @@ This server is **100% compatible with all major AI IDEs** (Cursor, VS Code, Clin
 
 ---
 
+## ⚙️ Installation & Setup
+
+To install and run the server locally, clone the repository, install NPM dependencies, and configure the undetected browser binary using **Patchright**:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/codeiva4u/Real-Browser-Mcp-Server.git
+
+# 2. Navigate to the project directory
+cd Real-Browser-Mcp-Server
+
+# 3. Install dependencies
+npm install
+
+# 4. Install Chromium-Driver for Patchright (Undetected Browser binary)
+npx patchright install chromium
+```
+
+---
+
 ## 🚀 Key Evasion & Stealth Features
 
 * **Undetected Browser Engine**: Powered by **Patchright Chromium**, bypassing modern fingerprinting checks (does not expose automation indicators or Webdriver/BiDi flags).
