@@ -80,14 +80,17 @@ Add the server entry to your global MCP settings file (typically found at `%APPD
 {
   "mcpServers": {
     "real-browser-mcp-server": {
-      "command": "node",
+      "type": "stdio",
+      "command": "C:/Program Files/nodejs/node.exe",
       "args": [
         "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/src/index.js"
       ],
       "env": {
         "HEADLESS": "false"
       },
-      "disabled": false
+      "disabled": false,
+      "autoApprove": [],
+      "timeout": 120
     }
   }
 }
