@@ -1,13 +1,3 @@
-/**
- * Brave Real Browser MCP Server - Tool Handlers
- * 
- * Implementation of all 23 browser automation tools (optimized from 28)
- * 
- * Environment Variables:
- *   HEADLESS=true   - Run browser in headless mode
- *   HEADLESS=false  - Run browser in GUI mode (visible)
- */
-
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -104,6 +94,16 @@ function requireBrowser() {
     throw new Error('Browser not initialized. Call browser_init first.');
   }
   return { browser: browserInstance, page: pageInstance };
+}
+
+/**
+ * Validate the waitUntil value for Playwright/Patchright.
+ * Only these states are supported: load | domcontentloaded | networkidle | commit.
+ * Any unsupported value safely falls back to 'networkidle'.
+ */
+function resolveWaitUntil(value) {
+  const allowed = ['load', 'domcontentloaded', 'networkidle', 'commit'];
+  return allowed.includes(value) ? value : 'networkidle';
 }
 
 /**
@@ -636,7 +636,7 @@ const handlers = {
       };
     });
 
-    const pid = browserInstance.process()?.pid;
+    const pid = (typeof browserInstance.process === 'function') ? browserInstance.process()?.pid : null;
 
     notifyProgress('browser_init', 'completed', `Browser started (PID: ${pid})`, {
       headless,
@@ -656,7 +656,9 @@ const handlers = {
   // 2. Navigate (ENHANCED - handles context destroyed errors, retries)
   async navigate(params) {
     const { page } = requireBrowser();
-    const { url, waitUntil = 'networkidle2', timeout = 30000, retries = 2 } = params;
+    let { url, waitUntil = 'networkidle', timeout = 30000, retries = 2 } = params;
+    // Playwright/Patchright wait states: load | domcontentloaded | networkidle | commit
+    waitUntil = resolveWaitUntil(waitUntil);
 
     notifyProgress('navigate', 'started', `Navigating to: ${url}`);
 
@@ -766,7 +768,7 @@ const handlers = {
       const url = rawHttpUrl || page.url();
       notifyProgress('get_content', 'in_progress', `Fetching raw HTTP (no JS) from: ${url}`);
       try {
-        const cookies = await page.cookies(url);
+        const cookies = await page.context().cookies(url);
         const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
         const response = await fetch(url, {
           headers: {
@@ -797,7 +799,59 @@ const handlers = {
 
     let content;
 
-    if (selector) {
+    // === markdown: real HTML→Markdown conversion (no external deps) ===
+    if (format === 'markdown') {
+      if (selector) {
+        const exists = await page.$(selector);
+        if (!exists) {
+          notifyProgress('get_content', 'error', `Element not found: ${selector}`);
+          return { success: false, error: `Element not found: ${selector}` };
+        }
+      }
+      content = await page.evaluate((sel) => {
+        const root = sel ? document.querySelector(sel) : document.body;
+        if (!root) return '';
+        const skip = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'IFRAME', 'SVG', 'CANVAS']);
+        const inline = (node) => {
+          let out = '';
+          node.childNodes.forEach(c => {
+            if (c.nodeType === 3) { out += c.textContent.replace(/\s+/g, ' '); return; }
+            if (c.nodeType !== 1 || skip.has(c.tagName)) return;
+            const t = c.tagName;
+            if (t === 'A') { const h = c.getAttribute('href') || ''; const x = inline(c).trim(); out += h ? `[${x}](${h})` : x; }
+            else if (t === 'STRONG' || t === 'B') out += `**${inline(c).trim()}**`;
+            else if (t === 'EM' || t === 'I') out += `*${inline(c).trim()}*`;
+            else if (t === 'CODE') out += '`' + c.textContent.trim() + '`';
+            else if (t === 'IMG') { const a = c.getAttribute('alt') || ''; const s = c.getAttribute('src') || ''; if (s) out += `![${a}](${s})`; }
+            else if (t === 'BR') out += '\n';
+            else out += inline(c);
+          });
+          return out;
+        };
+        const lines = [];
+        const walk = (node) => {
+          node.childNodes.forEach(c => {
+            if (c.nodeType === 3) { const x = c.textContent.trim(); if (x) lines.push(x); return; }
+            if (c.nodeType !== 1 || skip.has(c.tagName)) return;
+            const t = c.tagName;
+            if (/^H[1-6]$/.test(t)) lines.push('\n' + '#'.repeat(+t[1]) + ' ' + inline(c).trim() + '\n');
+            else if (t === 'P') { const x = inline(c).trim(); if (x) lines.push(x + '\n'); }
+            else if (t === 'UL' || t === 'OL') {
+              let i = 1;
+              c.querySelectorAll(':scope > li').forEach(li => lines.push((t === 'OL' ? (i++) + '. ' : '- ') + inline(li).trim()));
+              lines.push('');
+            }
+            else if (t === 'BLOCKQUOTE') lines.push('> ' + inline(c).trim() + '\n');
+            else if (t === 'PRE') lines.push('```\n' + c.textContent.trim() + '\n```\n');
+            else if (t === 'HR') lines.push('\n---\n');
+            else if (['A', 'STRONG', 'B', 'EM', 'I', 'CODE', 'IMG', 'SPAN', 'LABEL'].includes(t)) { const x = inline(c).trim(); if (x) lines.push(x); }
+            else walk(c);
+          });
+        };
+        walk(root);
+        return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+      }, selector || null);
+    } else if (selector) {
       const element = await page.$(selector);
       if (!element) {
         notifyProgress('get_content', 'error', `Element not found: ${selector}`);
@@ -812,11 +866,6 @@ const handlers = {
     } else {
       if (format === 'html') {
         content = await page.content();
-      } else if (format === 'markdown') {
-        content = await page.evaluate(() => {
-          const body = document.body.innerText;
-          return body;
-        });
       } else {
         content = await page.evaluate(() => document.body.innerText);
       }
@@ -847,7 +896,7 @@ const handlers = {
         await page.waitForNavigation({ timeout });
         break;
       case 'networkidle':
-        await page.waitForNetworkIdle({ timeout });
+        await page.waitForLoadState('networkidle', { timeout });
         break;
       case 'timeout':
       default:
@@ -1404,7 +1453,9 @@ const handlers = {
         notifyProgress('browser_close', 'progress', 'Browser closed gracefully');
       } catch (e) {
         if (force) {
-          browserInstance.process()?.kill('SIGKILL');
+          if (typeof browserInstance.process === 'function') {
+            browserInstance.process()?.kill('SIGKILL');
+          }
           notifyProgress('browser_close', 'progress', 'Browser force killed');
         }
       }
@@ -1640,12 +1691,12 @@ const handlers = {
           try {
             const captchaEl = await targetFrame.$(detectedCaptchaSelector);
             if (captchaEl) {
-              captchaImageBase64 = await captchaEl.screenshot({ encoding: 'base64' });
+              captchaImageBase64 = (await captchaEl.screenshot()).toString('base64');
             }
           } catch(e) {}
 
           // Take full context screenshot for host LLM fallback
-          const screenshotBase64 = await targetHandle.screenshot({ encoding: 'base64' });
+          const screenshotBase64 = (await targetHandle.screenshot()).toString('base64');
 
           // ═══════════════════════════════════════════════════════════
           // STEP A: Server-Side Vision API (if aiMode enabled)
@@ -2104,7 +2155,7 @@ const handlers = {
         }
       }
     } else if (xpath) {
-      const handles = await page.$x(xpath);
+      const handles = await page.$$(`xpath=${xpath}`);
       elements = await Promise.all(handles.map(h => h.evaluate(el => ({
         tag: el.tagName,
         text: el.textContent?.substring(0, 100)
@@ -2198,7 +2249,7 @@ const handlers = {
     page.on('framenavigated', frameNavigatedHandler);
 
     try {
-      await page.goto(url, { waitUntil: 'networkidle2', timeout });
+      await page.goto(url, { waitUntil: 'networkidle', timeout });
 
       // If followJS is enabled, wait a bit and check for meta refreshes and JS redirects
       if (followJS) {
@@ -2938,29 +2989,51 @@ const handlers = {
 
     notifyProgress('cookie_manager', 'started', `Cookie action: ${action}`);
 
+    // Playwright/Patchright: cookies are managed via the BrowserContext, not the page
+    const context = page.context();
+
     switch (action) {
-      case 'get':
-        const cookies = await page.cookies();
+      case 'get': {
+        const cookies = await context.cookies();
         notifyProgress('cookie_manager', 'completed', `Retrieved ${cookies.length} cookies`);
         return { success: true, cookies: name ? cookies.filter(c => c.name === name) : cookies };
+      }
 
-      case 'set':
-        await page.setCookie({ name, value, domain: domain || new URL(page.url()).hostname, expires });
+      case 'set': {
+        await context.addCookies([{
+          name,
+          value,
+          domain: domain || new URL(page.url()).hostname,
+          path: '/',
+          ...(expires ? { expires } : {})
+        }]);
         notifyProgress('cookie_manager', 'completed', `Cookie set: ${name}`);
         return { success: true, message: `Cookie ${name} set` };
+      }
 
-      case 'delete':
-        const toDelete = await page.cookies();
-        const filtered = name ? toDelete.filter(c => c.name === name) : toDelete;
-        await page.deleteCookie(...filtered);
-        notifyProgress('cookie_manager', 'completed', `Deleted ${filtered.length} cookie(s)`);
-        return { success: true, message: `Deleted ${filtered.length} cookie(s)` };
+      case 'delete': {
+        // Playwright has no per-cookie delete: clear all, then re-add the ones we keep
+        const toDelete = await context.cookies();
+        const remaining = name ? toDelete.filter(c => c.name !== name) : [];
+        const removedCount = toDelete.length - remaining.length;
+        await context.clearCookies();
+        if (remaining.length) {
+          await context.addCookies(remaining.map(c => ({
+            name: c.name, value: c.value, domain: c.domain, path: c.path,
+            ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
+            httpOnly: c.httpOnly, secure: c.secure, sameSite: c.sameSite
+          })));
+        }
+        notifyProgress('cookie_manager', 'completed', `Deleted ${removedCount} cookie(s)`);
+        return { success: true, message: `Deleted ${removedCount} cookie(s)` };
+      }
 
-      case 'clear':
-        const allCookies = await page.cookies();
-        await page.deleteCookie(...allCookies);
+      case 'clear': {
+        const allCookies = await context.cookies();
+        await context.clearCookies();
         notifyProgress('cookie_manager', 'completed', `Cleared ${allCookies.length} cookies`);
         return { success: true, message: `Cleared ${allCookies.length} cookies` };
+      }
     }
 
     return { success: false, error: 'Invalid action' };
@@ -2977,8 +3050,8 @@ const handlers = {
       fs.mkdirSync(directory, { recursive: true });
     }
 
-    const response = await page.goto(url, { waitUntil: 'networkidle2' });
-    const buffer = await response.buffer();
+    const response = await page.goto(url, { waitUntil: 'networkidle' });
+    const buffer = await response.body();
 
     const outputFilename = filename || path.basename(new URL(url).pathname) || 'download';
     const outputPath = path.join(directory, outputFilename);
@@ -3516,7 +3589,7 @@ const handlers = {
           const inputType = await input.evaluate(el => el.type);
 
           if (tagName === 'select') {
-            await page.select(inputSelector, value);
+            await page.selectOption(inputSelector, value);
           } else if (inputType === 'checkbox' || inputType === 'radio') {
             if (value) await input.click();
           } else {
@@ -3969,8 +4042,8 @@ const handlers = {
             notifyProgress('media_extractor', 'progress', `Processing ${i + 1}/${urls.length}: ${url}`);
 
             // Navigate to URL
-            await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
-            await page.waitForTimeout(2000); // Wait for media to load
+            await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+            await new Promise(r => setTimeout(r, 2000)); // Wait for media to load
 
             // Extract streams
             const streams = await extractStreamsFromContext(page, 'main');
@@ -4871,6 +4944,241 @@ const handlers = {
       filledFields,
       message: `Form filled: ${filledFields.join(', ')}`
     };
+  },
+
+  // 23. Screenshot - capture viewport / full page / element (returns image to AI)
+  async screenshot(params = {}) {
+    const { page } = requireBrowser();
+    const {
+      fullPage = false,
+      selector,
+      format = 'png',
+      quality,
+      path: savePath,
+      returnBase64 = true,
+      omitBackground = false
+    } = params;
+
+    notifyProgress('screenshot', 'started',
+      `Capturing ${selector ? 'element' : (fullPage ? 'full page' : 'viewport')} screenshot`);
+
+    const opts = { type: format, fullPage: selector ? false : fullPage };
+    if (format === 'jpeg' && typeof quality === 'number') opts.quality = quality;
+    if (format === 'png' && omitBackground) opts.omitBackground = true;
+
+    let buffer;
+    if (selector) {
+      const element = await page.$(selector);
+      if (!element) {
+        notifyProgress('screenshot', 'error', `Element not found: ${selector}`);
+        return { success: false, error: `Element not found: ${selector}` };
+      }
+      buffer = await element.screenshot(opts);
+    } else {
+      buffer = await page.screenshot(opts);
+    }
+
+    let savedTo = null;
+    if (savePath) {
+      const dir = path.dirname(savePath);
+      if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(savePath, buffer);
+      savedTo = savePath;
+    }
+
+    notifyProgress('screenshot', 'completed',
+      `Screenshot captured (${buffer.length} bytes)${savedTo ? ' → ' + savedTo : ''}`);
+
+    const meta = { success: true, format, bytes: buffer.length, savedTo, url: page.url() };
+
+    if (returnBase64) {
+      const base64 = Buffer.from(buffer).toString('base64');
+      // mcpContent is returned directly to the AI agent (image + text summary)
+      meta.mcpContent = [
+        { type: 'image', data: base64, mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png' },
+        { type: 'text', text: JSON.stringify({ success: true, format, bytes: buffer.length, savedTo, url: page.url() }, null, 2) }
+      ];
+    }
+
+    return meta;
+  },
+
+  // 24. Save as PDF - Chromium print-to-PDF (headless mode only)
+  async save_as_pdf(params = {}) {
+    const { page } = requireBrowser();
+    const {
+      path: savePath = './downloads/page.pdf',
+      format = 'A4',
+      landscape = false,
+      printBackground = true
+    } = params;
+
+    notifyProgress('save_as_pdf', 'started', `Saving page as PDF: ${savePath}`);
+
+    const dir = path.dirname(savePath);
+    if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    try {
+      await page.pdf({ path: savePath, format, landscape, printBackground });
+    } catch (e) {
+      notifyProgress('save_as_pdf', 'error', e.message);
+      return {
+        success: false,
+        error: `PDF generation failed (page.pdf() works only in headless mode): ${e.message}`
+      };
+    }
+
+    const stats = fs.existsSync(savePath) ? fs.statSync(savePath) : null;
+    notifyProgress('save_as_pdf', 'completed', `PDF saved: ${savePath}`);
+
+    return {
+      success: true,
+      savedTo: savePath,
+      bytes: stats ? stats.size : null,
+      url: page.url()
+    };
+  },
+
+  // 25. See Page (AI Vision — "eyes": screenshot + visual map of interactive elements)
+  async see_page(params = {}) {
+    const { page } = requireBrowser();
+    const {
+      fullPage = false,
+      format = 'jpeg',
+      quality = 70,
+      includeElements = true,
+      maxElements = 60,
+      path: savePath
+    } = params;
+
+    notifyProgress('see_page', 'started', `👁️ Looking at the page (${fullPage ? 'full page' : 'viewport'})...`);
+
+    // 1. Capture what the page looks like (the "eyes")
+    const shotOpts = { type: format, fullPage };
+    if (format === 'jpeg' && typeof quality === 'number') shotOpts.quality = quality;
+
+    let buffer;
+    try {
+      buffer = await page.screenshot(shotOpts);
+    } catch (e) {
+      return { success: false, error: `Vision capture failed: ${e.message}` };
+    }
+
+    // 2. Build a "visual map" of visible interactive elements (what a human can act on)
+    let elements = [];
+    let pageInfo = {};
+    if (includeElements) {
+      const data = await page.evaluate((maxEls) => {
+        const out = [];
+        const seen = new Set();
+        const sel = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [onclick], [tabindex]';
+        const nodes = document.querySelectorAll(sel);
+
+        const cssPath = (el) => {
+          if (el.id) return `#${CSS.escape(el.id)}`;
+          if (el.name) return `${el.tagName.toLowerCase()}[name="${el.name}"]`;
+          const parts = [];
+          let node = el;
+          while (node && node.nodeType === 1 && parts.length < 4) {
+            let part = node.tagName.toLowerCase();
+            if (node.classList.length) {
+              const cls = Array.from(node.classList).slice(0, 2).map(c => '.' + CSS.escape(c)).join('');
+              part += cls;
+            }
+            const parent = node.parentElement;
+            if (parent) {
+              const sibs = Array.from(parent.children).filter(c => c.tagName === node.tagName);
+              if (sibs.length > 1) part += `:nth-of-type(${sibs.indexOf(node) + 1})`;
+            }
+            parts.unshift(part);
+            node = node.parentElement;
+          }
+          return parts.join(' > ');
+        };
+
+        for (const el of nodes) {
+          if (out.length >= maxEls) break;
+          const rect = el.getBoundingClientRect();
+          // Only elements actually visible on screen
+          if (rect.width < 2 || rect.height < 2) continue;
+          const style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+          if (rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth) {
+            // outside current viewport — skip (we report what is seen)
+            continue;
+          }
+
+          const tag = el.tagName.toLowerCase();
+          let label = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('alt') || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+          let kind = tag;
+          if (tag === 'a') kind = 'link';
+          else if (tag === 'button' || el.getAttribute('role') === 'button') kind = 'button';
+          else if (tag === 'input') kind = `input:${el.type || 'text'}`;
+          else if (tag === 'select') kind = 'select';
+          else if (tag === 'textarea') kind = 'textarea';
+
+          const selector = cssPath(el);
+          if (seen.has(selector + '|' + label)) continue;
+          seen.add(selector + '|' + label);
+
+          out.push({
+            kind,
+            text: label,
+            selector,
+            href: tag === 'a' ? el.href : undefined,
+            box: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) }
+          });
+        }
+
+        return {
+          elements: out,
+          info: {
+            title: document.title,
+            url: location.href,
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+            scrollY: Math.round(window.scrollY),
+            scrollHeight: document.body ? document.body.scrollHeight : 0
+          }
+        };
+      }, maxElements).catch(() => ({ elements: [], info: {} }));
+
+      elements = data.elements || [];
+      pageInfo = data.info || {};
+    }
+
+    // 3. Optionally save the image too
+    let savedTo = null;
+    if (savePath) {
+      const dir = path.dirname(savePath);
+      if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(savePath, buffer);
+      savedTo = savePath;
+    }
+
+    notifyProgress('see_page', 'completed',
+      `👁️ Saw the page: ${elements.length} interactive elements visible${savedTo ? ' (saved ' + savedTo + ')' : ''}`);
+
+    const base64 = Buffer.from(buffer).toString('base64');
+    const summary = {
+      success: true,
+      url: pageInfo.url || page.url(),
+      title: pageInfo.title,
+      viewport: pageInfo.viewport,
+      scroll: { y: pageInfo.scrollY, pageHeight: pageInfo.scrollHeight },
+      visibleInteractiveElements: elements.length,
+      elements,
+      savedTo
+    };
+
+    // Return BOTH the actual image (so the AI literally "sees" it) and the visual map text
+    return {
+      success: true,
+      mcpContent: [
+        { type: 'image', data: base64, mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png' },
+        { type: 'text', text: JSON.stringify(summary, null, 2) }
+      ],
+      ...summary
+    };
   }
 };
 
@@ -4950,7 +5258,7 @@ async function aiEnhancedSelector(page, selector, operation, options = {}) {
  * AI Features automatically applied:
  * - Auto-healing: If selector fails, AI tries to find alternatives
  * - Smart retry: Failed operations are retried with AI assistance
- * - All 28 tools benefit from AI without any changes
+ * - All tools benefit from AI without any changes
  */
 async function executeTool(name, params = {}) {
   const handler = handlers[name];
@@ -5063,7 +5371,9 @@ async function cleanup() {
     try {
       await browserInstance.close();
     } catch (e) {
-      browserInstance.process()?.kill('SIGKILL');
+      if (typeof browserInstance.process === 'function') {
+        browserInstance.process()?.kill('SIGKILL');
+      }
     }
     browserInstance = null;
     pageInstance = null;

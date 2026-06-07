@@ -242,7 +242,8 @@ class AICore {
         return await this.smartType(page, action.target, action.text, { humanLike });
       
       case 'navigate':
-        await page.goto(action.url, { waitUntil: 'networkidle2' });
+        // Playwright/Patchright waitUntil: load|domcontentloaded|networkidle|commit
+        await page.goto(action.url, { waitUntil: 'networkidle' });
         return { success: true, url: action.url };
       
       case 'scroll':

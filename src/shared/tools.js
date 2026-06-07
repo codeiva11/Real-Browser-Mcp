@@ -1,21 +1,3 @@
-/**
- * Brave Real Browser MCP Server - Shared Tool Definitions
- * 
- * OPTIMIZED: 22 tools (merged from 28)
- * 
- * Merges Applied:
- * - iframe_handler + stream_extractor + player_api_hook → media_extractor
- * - get_content + js_scrape → get_content (enhanced)
- * - search_regex + extract_json + scrape_meta_tags → extract_data
- * - solve_captcha + form_automator → solve_captcha (enhanced)
- * 
- * New Features:
- * - URL/Base64/AES Decoders built into media_extractor
- * - AI Auto-Healing Selectors
- * - Smart Retry Mechanisms
- * - Batch Operations
- */
-
 const TOOLS = [
   // 1. Browser Init
   {
@@ -59,7 +41,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         url: { type: 'string' },
-        waitUntil: { type: 'string', enum: ['load', 'domcontentloaded', 'networkidle0', 'networkidle2'], default: 'networkidle2' },
+        waitUntil: { type: 'string', enum: ['load', 'domcontentloaded', 'networkidle', 'commit'], default: 'networkidle' },
         timeout: { type: 'number', default: 30000 },
         retries: { type: 'number', default: 3, description: 'Auto-retry on failures' },
         smartWait: { type: 'boolean', default: true, description: 'AI-powered smart waiting' }
@@ -575,6 +557,71 @@ const TOOLS = [
       },
       required: ['code']
     }
+  },
+
+  // 23. Screenshot
+  {
+    name: 'screenshot',
+    emoji: '📸',
+    description: 'Capture a screenshot of the viewport, the full scrollable page, or a specific element. Returns the image directly to the AI agent (base64) and can optionally save it to a file.',
+    descriptionHindi: 'स्क्रीनशॉट लेना — viewport, पूरा पेज, या किसी element का। Image सीधे AI को मिलती है + file में save हो सकती है।',
+    category: 'capture',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        fullPage: { type: 'boolean', default: false, description: 'Capture the full scrollable page' },
+        selector: { type: 'string', description: 'CSS selector to screenshot a specific element only' },
+        format: { type: 'string', enum: ['png', 'jpeg'], default: 'png' },
+        quality: { type: 'number', description: 'JPEG quality 0-100 (jpeg only)' },
+        path: { type: 'string', description: 'Optional file path to save the screenshot' },
+        returnBase64: { type: 'boolean', default: true, description: 'Return image to AI as base64 (MCP image content)' },
+        omitBackground: { type: 'boolean', default: false, description: 'Transparent background (png only)' }
+      }
+    }
+  },
+
+  // 24. Save as PDF
+  {
+    name: 'save_as_pdf',
+    emoji: '📑',
+    description: 'Save the current page as a PDF file using Chromium print-to-PDF. Note: works only in headless mode.',
+    descriptionHindi: 'पेज को PDF में सेव करना (Chromium print-to-PDF)। ध्यान: सिर्फ़ headless mode में काम करता है।',
+    category: 'capture',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', default: './downloads/page.pdf', description: 'File path to save the PDF' },
+        format: { type: 'string', default: 'A4', description: 'Paper format: A4, Letter, Legal, etc.' },
+        landscape: { type: 'boolean', default: false },
+        printBackground: { type: 'boolean', default: true, description: 'Include background graphics' }
+      }
+    }
+  },
+
+  // 25. See Page (AI Vision — "eyes")
+  {
+    name: 'see_page',
+    emoji: '👁️',
+    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does. Captures a screenshot and returns the actual image to the AI agent so it can visually understand the layout, AND returns a "visual map" of all visible interactive elements (buttons, links, inputs) with their on-screen position (x/y/width/height), text label, and a click-ready selector. Use this to look at a page before deciding where to click/type.',
+    descriptionHindi: 'AI विज़न ("आँखें"): पेज को इंसान की तरह देखना। स्क्रीनशॉट image सीधे AI को भेजता है ताकि वह layout देख सके + सभी दिखने वाले clickable elements का visual map (position + text + selector) देता है — ताकि AI देखकर तय करे कहाँ क्लिक/टाइप करना है।',
+    category: 'vision',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        fullPage: { type: 'boolean', default: false, description: 'See the entire scrollable page (true) or just the current viewport (false)' },
+        format: { type: 'string', enum: ['png', 'jpeg'], default: 'jpeg', description: 'Image format (jpeg = smaller, faster for vision)' },
+        quality: { type: 'number', default: 70, description: 'JPEG quality 0-100 (lower = smaller image to the AI)' },
+        includeElements: { type: 'boolean', default: true, description: 'Include the visual map of interactive elements' },
+        maxElements: { type: 'number', default: 60, description: 'Max number of interactive elements to map' },
+        path: { type: 'string', description: 'Optional file path to also save the captured image' }
+      }
+    }
   }
 ];
 
@@ -586,6 +633,8 @@ const CATEGORIES = {
   extraction: { name: 'Extraction', emoji: '📄', description: 'Content extraction and scraping' },
   network: { name: 'Network', emoji: '📡', description: 'Network operations' },
   analysis: { name: 'Analysis', emoji: '🧠', description: 'Page analysis' },
+  capture: { name: 'Capture', emoji: '📸', description: 'Screenshots and PDF capture' },
+  vision: { name: 'Vision', emoji: '👁️', description: 'AI visual perception (sees pages like human eyes)' },
   utility: { name: 'Utility', emoji: '🛠️', description: 'Utility tools' }
 };
 

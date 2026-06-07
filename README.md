@@ -139,9 +139,9 @@ Configure the server in your `opencode.jsonc` or standard MCP settings configura
 
 ---
 
-## 🌐 Complete MCP Tool Reference (22 Tools)
+## 🌐 Complete MCP Tool Reference (25 Tools)
 
-The server exposes 22 highly optimized tools categorized into functional units:
+The server exposes 25 highly optimized tools categorized into functional units:
 
 ### 🌐 Browser & Session
 | Tool Name | Description | Parameters |
@@ -184,6 +184,17 @@ The server exposes 22 highly optimized tools categorized into functional units:
 | `deep_analysis` | Detailed analysis of DOM structure, scripts, anti-bots, and stack. | None |
 | `wait` | Smart delay with AI prediction or static timeout. | `duration` (number) |
 | `progress_tracker` | Track running automation progress with AI-estimated remaining times. | `step` (string), `percentage` (number) |
+
+### 📸 Capture
+| Tool Name | Description | Parameters |
+|:---|:---|:---|
+| `screenshot` | Capture viewport, full page, or a specific element. Returns the image to the AI agent (base64) and can save to a file. | `fullPage` (boolean), `selector` (string), `format` (png/jpeg), `path` (string) |
+| `save_as_pdf` | Save the current page as a PDF via Chromium print-to-PDF (headless mode only). | `path` (string), `format` (string), `landscape` (boolean) |
+
+### 👁️ AI Vision (Eyes)
+| Tool Name | Description | Parameters |
+|:---|:---|:---|
+| `see_page` | Lets the AI **visually SEE** the page like human eyes: returns the actual screenshot image to the agent **plus** a "visual map" of every visible interactive element (button/link/input) with its on-screen position, text label, and a click-ready selector. Use it to look before deciding where to click/type. | `fullPage` (boolean), `format` (png/jpeg), `includeElements` (boolean), `maxElements` (number) |
 
 ---
 
@@ -294,11 +305,12 @@ Run these scripts from the project root directory:
 | `npm run dev` | Alias to start the MCP server. |
 | `npm run mcp` | Start the MCP server. |
 | `npm run mcp:verbose` | Start the MCP server with verbose logging on `stderr`. |
-| `npm run list` | Clean list of all 22 tools with emojis and categories. |
+| `npm run list` | Clean list of all 25 tools with emojis and categories. |
 | `npm run build` | Validate workspace structure and confirm library status. |
 | `npm test` | Execute the full test suite (CJS & ESM). |
 | `npm run cjs_test` | Run CommonJS test scripts. |
 | `npm run esm_test` | Run ECMAScript Module test scripts. |
+| `npm run mcp_test` | Fast, network-independent MCP smoke test (handshake + tool registry validation). |
 
 ---
 

@@ -1,13 +1,3 @@
-/**
- * AI Page Analyzer - Understand page structure and content
- * 
- * Analyzes page to identify:
- * - Interactive elements (buttons, links, inputs)
- * - Forms and form fields
- * - Navigation structure
- * - Main content areas
- * - Media elements
- */
 
 class PageAnalyzer {
   constructor() {
@@ -274,8 +264,9 @@ class PageAnalyzer {
 
     // Add screenshot if requested
     if (includeScreenshot) {
-      const screenshot = await page.screenshot({ encoding: 'base64', type: 'jpeg', quality: 50 });
-      analysis.screenshot = screenshot;
+      // Playwright/Patchright returns a Buffer; convert to base64 ourselves
+      const buf = await page.screenshot({ type: 'jpeg', quality: 50 });
+      analysis.screenshot = Buffer.from(buf).toString('base64');
     }
 
     return analysis;

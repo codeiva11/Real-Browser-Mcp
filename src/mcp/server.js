@@ -1,14 +1,3 @@
-/**
- * Brave Real Browser MCP Server
- * 
- * Model Context Protocol Server with STDIO Transport
- * Supports: Claude, Cursor, Copilot, and other MCP-compatible AI assistants
- */
-
-// CRITICAL: Redirect ALL console.log to STDERR before ANY imports
-// MCP uses STDIO transport — STDOUT must contain ONLY JSON-RPC messages.
-// Any console.log from this code or ANY dependency (playwright, blocker, etc.)
-// will corrupt the JSON-RPC stream and cause parsing errors.
 const _originalConsoleLog = console.log;
 console.log = function (...args) {
   console.error(...args);
@@ -26,6 +15,14 @@ const {
 const { TOOLS } = require('./tools.js');
 const { executeTool, cleanup } = require('./handlers.js');
 
+// Single source of truth: read version from package.json (avoids version drift)
+let PKG_VERSION = '0.0.0';
+try {
+  PKG_VERSION = require('../../package.json').version || PKG_VERSION;
+} catch (e) {
+  console.error('⚠️  Could not read version from package.json:', e.message);
+}
+
 /**
  * Create and configure MCP Server
  */
@@ -33,7 +30,7 @@ function createServer() {
   const server = new Server(
     {
       name: 'real-browser-mcp-server',
-      version: '2.48.36',
+      version: PKG_VERSION,
     },
     {
       capabilities: {

@@ -22,3 +22,12 @@ dist-esm
 dhurandhar_*.md
 moviesdrive_*.md
 test_*.md
+
+# Runtime output artifacts (screenshots, PDFs, downloads)
+downloads/
+*.pdf
+*.png
+*.jpeg
+*.jpg
+session.json
+cookies.json
