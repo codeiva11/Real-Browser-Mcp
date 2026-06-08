@@ -563,8 +563,8 @@ const TOOLS = [
   {
     name: 'screenshot',
     emoji: '📸',
-    description: 'Capture a screenshot of the viewport, the full scrollable page, or a specific element. Returns the image directly to the AI agent (base64) and can optionally save it to a file.',
-    descriptionHindi: 'स्क्रीनशॉट लेना — viewport, पूरा पेज, या किसी element का। Image सीधे AI को मिलती है + file में save हो सकती है।',
+    description: 'Capture a screenshot of the viewport, the full scrollable page, or a specific element. Returns the image directly to the AI agent (base64) and can optionally save it to a file. EFFICIENCY RULE: PREFER a single FULL-PAGE screenshot (set fullPage: true) so the entire page is captured in one shot, then complete ALL related work for that page from this single capture (read, click, type, extract). Take a SECOND screenshot ONLY IF the work genuinely cannot be finished from the first one, OR after the page actually changes (navigation, modal/popup, or new dynamic content loads). Do NOT take repeated screenshots of the SAME unchanged page.',
+    descriptionHindi: 'स्क्रीनशॉट लेना — viewport, पूरा पेज, या किसी element का। Image सीधे AI को मिलती है + file में save हो सकती है। नियम: पहले पूरे पेज का full-page (लॉन्ग) स्क्रीनशॉट लें (fullPage: true) ताकि पूरा पेज एक ही बार में दिख जाए, फिर उसी एक image से उस पेज का सारा काम (पढ़ना, क्लिक, टाइप, data निकालना) एक साथ complete करें। दूसरा स्क्रीनशॉट सिर्फ़ तभी लें जब पहले वाले से काम पूरा न हो पाए, या पेज सच में बदल जाए (navigation, modal/popup, या नया dynamic content)। बिना बदलाव के उसी पेज का बार-बार स्क्रीनशॉट न लें।',
     category: 'capture',
     requiresBrowser: true,
     requiresPage: true,
@@ -606,8 +606,8 @@ const TOOLS = [
   {
     name: 'see_page',
     emoji: '👁️',
-    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does. Captures a screenshot and returns the actual image to the AI agent so it can visually understand the layout, AND returns a "visual map" of all visible interactive elements (buttons, links, inputs) with their on-screen position (x/y/width/height), text label, and a click-ready selector. Use this to look at a page before deciding where to click/type.',
-    descriptionHindi: 'AI विज़न ("आँखें"): पेज को इंसान की तरह देखना। स्क्रीनशॉट image सीधे AI को भेजता है ताकि वह layout देख सके + सभी दिखने वाले clickable elements का visual map (position + text + selector) देता है — ताकि AI देखकर तय करे कहाँ क्लिक/टाइप करना है।',
+    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does. Captures a screenshot and returns the actual image to the AI agent so it can visually understand the layout, AND returns a "visual map" of all visible interactive elements (buttons, links, inputs) with their on-screen position (x/y/width/height), text label, and a click-ready selector. Use this to look at a page before deciding where to click/type. EFFICIENCY RULE: PREFER a single FULL-PAGE view (set fullPage: true) so the whole page and all its interactive elements are mapped in one shot, then plan and perform ALL needed actions for that page (read, click, type, extract) from this single view. Call see_page a SECOND time ONLY IF the task genuinely cannot be completed from the first view, OR after the page actually changes — navigation, a modal/popup opens, or new dynamic content loads. Do NOT re-capture the SAME unchanged page repeatedly.',
+    descriptionHindi: 'AI विज़न ("आँखें"): पेज को इंसान की तरह देखना। स्क्रीनशॉट image सीधे AI को भेजता है ताकि वह layout देख सके + सभी दिखने वाले clickable elements का visual map (position + text + selector) देता है। नियम: पहले पूरे पेज का full-page view लें (fullPage: true) ताकि पूरा पेज और उसके सारे elements एक ही बार में map हो जाएँ, फिर उसी एक view से उस पेज के सारे ज़रूरी काम (पढ़ना, क्लिक, टाइप, data निकालना) एक साथ पूरे करें। दूसरी बार see_page सिर्फ़ तभी लें जब पहले view से काम पूरा न हो पाए, या पेज सच में बदल जाए (navigation, modal/popup खुले, या नया dynamic content load हो)। बिना बदलाव के उसी पेज का दोबारा स्क्रीनशॉट न लें।',
     category: 'vision',
     requiresBrowser: true,
     requiresPage: true,
