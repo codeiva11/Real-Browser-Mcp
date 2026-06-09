@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Real Browser - Unified Entry Point
+ * Real Browser MCP Server
  * 
  * Usage:
  *   node src/index.js             - Start MCP Server (default)
@@ -28,7 +28,7 @@ const colors = {
  */
 function showHelp() {
   console.log(`
-${colors.bright}${colors.cyan}🦁 Real Browser - Unified Server${colors.reset}
+${colors.bright}${colors.cyan}🦁 Real Browser MCP Server${colors.reset}
 
 ${colors.bright}USAGE:${colors.reset}
   node src/index.js [options]
@@ -99,7 +99,7 @@ async function main() {
   
   console.error('');
   console.error(`${colors.bright}${colors.cyan}╔════════════════════════════════════════════════════════════╗${colors.reset}`);
-  console.error(`${colors.bright}${colors.cyan}║${colors.reset}  ${colors.bright}${colors.magenta}🦁 Real Browser - Unified Server${colors.reset}                          ${colors.cyan}║${colors.reset}`);
+  console.error(`${colors.bright}${colors.cyan}║${colors.reset}  ${colors.bright}${colors.magenta}🦁 Real Browser MCP Server${colors.reset}                                ${colors.cyan}║${colors.reset}`);
   console.error(`${colors.bright}${colors.cyan}║${colors.reset}  ${colors.dim}MCP (AI Agents) Server running on STDIO${colors.reset}                  ${colors.cyan}║${colors.reset}`);
   console.error(`${colors.bright}${colors.cyan}╚════════════════════════════════════════════════════════════╝${colors.reset}`);
   console.error('');

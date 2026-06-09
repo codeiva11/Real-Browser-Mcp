@@ -108,12 +108,7 @@ class ActionParser {
         type: 'submit',
         extract: (match) => ({ target: match[1].trim() || 'form' })
       },
-      // Screenshot patterns
-      {
-        pattern: /^(take|capture)\s+(?:a\s+)?screenshot/i,
-        type: 'screenshot',
-        extract: () => ({})
-      },
+
       // Go back/forward patterns
       {
         pattern: /^go\s+(back|forward)/i,

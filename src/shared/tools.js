@@ -559,48 +559,6 @@ const TOOLS = [
     }
   },
 
-  // 23. Screenshot
-  {
-    name: 'screenshot',
-    emoji: '📸',
-    description: 'Capture a screenshot of the viewport, the full scrollable page, or a specific element. Returns the image directly to the AI agent (base64) and can optionally save it to a file. EFFICIENCY RULE: PREFER a single FULL-PAGE screenshot (set fullPage: true) so the entire page is captured in one shot, then complete ALL related work for that page from this single capture (read, click, type, extract). Take a SECOND screenshot ONLY IF the work genuinely cannot be finished from the first one, OR after the page actually changes (navigation, modal/popup, or new dynamic content loads). Do NOT take repeated screenshots of the SAME unchanged page.',
-    descriptionHindi: 'स्क्रीनशॉट लेना — viewport, पूरा पेज, या किसी element का। Image सीधे AI को मिलती है + file में save हो सकती है। नियम: पहले पूरे पेज का full-page (लॉन्ग) स्क्रीनशॉट लें (fullPage: true) ताकि पूरा पेज एक ही बार में दिख जाए, फिर उसी एक image से उस पेज का सारा काम (पढ़ना, क्लिक, टाइप, data निकालना) एक साथ complete करें। दूसरा स्क्रीनशॉट सिर्फ़ तभी लें जब पहले वाले से काम पूरा न हो पाए, या पेज सच में बदल जाए (navigation, modal/popup, या नया dynamic content)। बिना बदलाव के उसी पेज का बार-बार स्क्रीनशॉट न लें।',
-    category: 'capture',
-    requiresBrowser: true,
-    requiresPage: true,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        fullPage: { type: 'boolean', default: false, description: 'Capture the full scrollable page' },
-        selector: { type: 'string', description: 'CSS selector to screenshot a specific element only' },
-        format: { type: 'string', enum: ['png', 'jpeg'], default: 'png' },
-        quality: { type: 'number', description: 'JPEG quality 0-100 (jpeg only)' },
-        path: { type: 'string', description: 'Optional file path to save the screenshot' },
-        returnBase64: { type: 'boolean', default: true, description: 'Return image to AI as base64 (MCP image content)' },
-        omitBackground: { type: 'boolean', default: false, description: 'Transparent background (png only)' }
-      }
-    }
-  },
-
-  // 24. Save as PDF
-  {
-    name: 'save_as_pdf',
-    emoji: '📑',
-    description: 'Save the current page as a PDF file using Chromium print-to-PDF. Note: works only in headless mode.',
-    descriptionHindi: 'पेज को PDF में सेव करना (Chromium print-to-PDF)। ध्यान: सिर्फ़ headless mode में काम करता है।',
-    category: 'capture',
-    requiresBrowser: true,
-    requiresPage: true,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', default: './downloads/page.pdf', description: 'File path to save the PDF' },
-        format: { type: 'string', default: 'A4', description: 'Paper format: A4, Letter, Legal, etc.' },
-        landscape: { type: 'boolean', default: false },
-        printBackground: { type: 'boolean', default: true, description: 'Include background graphics' }
-      }
-    }
-  },
 
   // 25. See Page (AI Vision — "eyes")
   {
@@ -633,7 +591,7 @@ const CATEGORIES = {
   extraction: { name: 'Extraction', emoji: '📄', description: 'Content extraction and scraping' },
   network: { name: 'Network', emoji: '📡', description: 'Network operations' },
   analysis: { name: 'Analysis', emoji: '🧠', description: 'Page analysis' },
-  capture: { name: 'Capture', emoji: '📸', description: 'Screenshots and PDF capture' },
+
   vision: { name: 'Vision', emoji: '👁️', description: 'AI visual perception (sees pages like human eyes)' },
   utility: { name: 'Utility', emoji: '🛠️', description: 'Utility tools' }
 };
