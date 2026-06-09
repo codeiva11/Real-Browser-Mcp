@@ -1,6 +1,6 @@
 {
   "name": "real-browser-mcp-server",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "MCP Server for Real Browser - Patchright (undetected Playwright fork) with Stealth Mode, Ad Blocker, and Turnstile Auto-Solver for undetectable web automation.",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.mjs",
