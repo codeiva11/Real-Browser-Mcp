@@ -12,6 +12,11 @@
       "require": "./dist/lib/cjs/index.js"
     }
   },
+  "files": [
+    "dist",
+    "lib/esm",
+    "typings.d.ts"
+  ],
   "typings": "typings.d.ts",
   "engines": {
     "node": ">=18.0.0"
@@ -20,6 +25,7 @@
     "real-browser-mcp": "./dist/src/index.js"
   },
   "scripts": {
+    "prepublishOnly": "npm run build",
     "build": "tsc",
     "start": "node dist/src/index.js",
     "dev": "npm run build && node dist/src/index.js",
