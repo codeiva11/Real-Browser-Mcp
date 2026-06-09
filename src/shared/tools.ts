@@ -577,6 +577,7 @@ const TOOLS = [
         format: { type: 'string', enum: ['png', 'jpeg'], default: 'jpeg', description: 'Image format (jpeg = smaller, faster for vision)' },
         quality: { type: 'number', default: 70, description: 'JPEG quality 0-100 (lower = smaller image to the AI)' },
         includeElements: { type: 'boolean', default: true, description: 'Include the visual map of interactive elements' },
+        includeDomText: { type: 'boolean', default: false, description: 'Include the full text content of the page (DOM reading)' },
         maxElements: { type: 'number', default: 60, description: 'Max number of interactive elements to map' },
         path: { type: 'string', description: 'Optional file path to also save the captured image' }
       }

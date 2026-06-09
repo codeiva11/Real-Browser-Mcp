@@ -358,6 +358,7 @@ export const visionHandlers = {
       format = 'jpeg',
       quality = 70,
       includeElements = true,
+      includeDomText = false,
       maxElements = 60,
       path: savePath
     } = params;
@@ -379,7 +380,7 @@ export const visionHandlers = {
     let elements = [];
     let pageInfo: any = {};
     if (includeElements) {
-      const data = await page.evaluate((maxEls) => {
+      const data = await page.evaluate(({ maxEls, isFullPage }) => {
         const out = [];
         const seen = new Set();
         const sel = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [onclick], [tabindex]';
@@ -414,9 +415,11 @@ export const visionHandlers = {
           if (rect.width < 2 || rect.height < 2) continue;
           const style = window.getComputedStyle(el);
           if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
-          if (rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth) {
-            // outside current viewport — skip (we report what is seen)
-            continue;
+          if (!isFullPage) {
+            if (rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth) {
+              // outside current viewport — skip (we report what is seen)
+              continue;
+            }
           }
 
           const tag = el.tagName.toLowerCase();
@@ -451,10 +454,17 @@ export const visionHandlers = {
             scrollHeight: document.body ? document.body.scrollHeight : 0
           }
         };
-      }, maxElements).catch(() => ({ elements: [], info: {} }));
+      }, { maxEls: maxElements, isFullPage: fullPage }).catch(() => ({ elements: [], info: {} }));
 
       elements = data.elements || [];
       pageInfo = data.info || {};
+    }
+
+    let domText = undefined;
+    if (includeDomText) {
+      domText = await page.evaluate(() => {
+         return document.body ? document.body.innerText : '';
+      }).catch(() => '');
     }
 
     // 3. Optionally save the image too
@@ -477,6 +487,7 @@ export const visionHandlers = {
       viewport: pageInfo.viewport,
       scroll: { y: pageInfo.scrollY, pageHeight: pageInfo.scrollHeight },
       visibleInteractiveElements: elements.length,
+      domText,
       elements,
       savedTo
     };
