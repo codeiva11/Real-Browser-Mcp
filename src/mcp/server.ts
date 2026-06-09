@@ -1,3 +1,4 @@
+// @ts-nocheck
 const _originalConsoleLog = console.log;
 console.log = function (...args) {
   console.error(...args);
@@ -12,8 +13,8 @@ const {
   McpError,
 } = require('@modelcontextprotocol/sdk/types.js');
 
-const { TOOLS } = require('./tools.js');
-const { executeTool, cleanup } = require('./handlers.js');
+const { TOOLS } = require('./tools');
+const { executeTool, cleanup } = require('./handlers');
 
 // Single source of truth: read version from package.json (avoids version drift)
 let PKG_VERSION = '0.0.0';
@@ -139,3 +140,5 @@ module.exports = {
   startServer,
   shutdownServer,
 };
+
+export {}

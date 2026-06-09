@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { chromium } = require("patchright");
 const { createCursor } = require("ghost-cursor-patchright");
 const { PlaywrightBlocker } = require("@ghostery/adblocker-playwright");

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AI Core Module - Foundation for all AI-powered features
  * 
@@ -18,6 +19,8 @@ const ElementFinder = require('./element-finder');
 const SelectorHealer = require('./selector-healer');
 const PageAnalyzer = require('./page-analyzer');
 const ActionParser = require('./action-parser');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * AI Core class - Central AI intelligence for the browser automation
@@ -39,8 +42,50 @@ class AICore {
       maxCacheAge: 30000, // 30 seconds
       enableAutoHeal: true,
       enableSmartFind: true,
-      logLevel: 'info' // 'debug' | 'info' | 'warn' | 'error'
+      logLevel: 'info', // 'debug' | 'info' | 'warn' | 'error'
+      cacheFile: path.join(process.cwd(), '.cache', 'ai_cache.json')
     };
+
+    this.loadCache();
+  }
+
+  /**
+   * Load cache from disk
+   */
+  loadCache() {
+    try {
+      if (fs.existsSync(this.config.cacheFile)) {
+        const data = JSON.parse(fs.readFileSync(this.config.cacheFile, 'utf8'));
+        if (data.pageCache) {
+          this.pageCache = new Map(Object.entries(data.pageCache));
+        }
+        if (data.selectorCache) {
+          this.selectorCache = new Map(Object.entries(data.selectorCache));
+        }
+        this.log('info', 'Loaded AI cache from disk');
+      }
+    } catch (e) {
+      this.log('warn', `Failed to load cache: ${e.message}`);
+    }
+  }
+
+  /**
+   * Save cache to disk
+   */
+  saveCache() {
+    try {
+      const dir = path.dirname(this.config.cacheFile);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const data = {
+        pageCache: Object.fromEntries(this.pageCache),
+        selectorCache: Object.fromEntries(this.selectorCache)
+      };
+      fs.writeFileSync(this.config.cacheFile, JSON.stringify(data, null, 2));
+    } catch (e) {
+      this.log('warn', `Failed to save cache: ${e.message}`);
+    }
   }
 
   /**
@@ -166,6 +211,7 @@ class AICore {
             healed: alt.selector,
             timestamp: Date.now()
           });
+          this.saveCache();
 
           // Execute action
           if (action === 'click') {
@@ -206,6 +252,7 @@ class AICore {
       analysis,
       timestamp: Date.now()
     });
+    this.saveCache();
 
     return analysis;
   }
@@ -345,6 +392,7 @@ class AICore {
   clearCache() {
     this.pageCache.clear();
     this.selectorCache.clear();
+    this.saveCache();
     this.log('info', 'AI caches cleared');
   }
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 const TOOLS = [
   // 1. Browser Init
   {
@@ -623,3 +624,4 @@ module.exports = {
   getToolNames,
   getRequiredParams
 };
+export {}

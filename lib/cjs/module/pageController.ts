@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { checkTurnstile } = require('./turnstile.js');
 
 async function pageController({ browser, page, proxy, turnstile }) {
@@ -24,7 +25,9 @@ async function pageController({ browser, page, proxy, turnstile }) {
 
     // === POPUP AD BLOCKING ===
     const context = page.context();
-    context.on('page', async (newPage) => {
+    if (!context._popupBlockerApplied) {
+        context._popupBlockerApplied = true;
+        context.on('page', async (newPage) => {
         try {
             const opener = await newPage.opener();
             if (opener) {
@@ -44,6 +47,7 @@ async function pageController({ browser, page, proxy, turnstile }) {
             // Ignore errors
         }
     });
+    }
 
     // NOTE: JS stealth overrides are commented out because Patchright natively handles automation hiding.
     // Manual JS overrides trigger Pixelscan fingerprint masking detectors.

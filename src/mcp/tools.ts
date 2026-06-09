@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Brave Real Browser MCP Server - Tool Definitions
  * 
@@ -16,3 +17,5 @@ module.exports = {
   getToolNames,
   getRequiredParams
 };
+
+export {}

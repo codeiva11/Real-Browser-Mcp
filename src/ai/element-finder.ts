@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AI Element Finder - Smart element finding with multiple strategies
  * 

@@ -1,0 +1,538 @@
+// @ts-nocheck
+// Auto-generated helpers handlers
+
+export const helpersHandlers = {
+  async _handleBlockingModals(page) {
+    try {
+      const closed = await page.evaluate(() => {
+        // Selectors for common modal close buttons
+        const closeSelectors = [
+          // Bootstrap/Standard Modals
+          '.modal.show .btn-close',
+          '.modal.show .close',
+          '.modal.in .close',
+          '.modal-footer .btn-primary', // "OK" button usually
+          '.modal-footer .btn-secondary', // "Close" button
+          // Custom Overlays
+          '#modal-close',
+          '.popup-close',
+          '.overlay-close',
+          // Generic "X" buttons in overlays
+          'div[role="dialog"] button[aria-label="Close"]',
+          'div[role="dialog"] .close',
+          // SweetAlert / specific libraries
+          '.swal2-confirm',
+          '.swal2-cancel',
+          '.ui-dialog-titlebar-close',
+          // eCourts specific if known (generic fallback)
+          '.modal-header .close',
+          'button[data-dismiss="modal"]'
+        ];
+
+        let clicked = false;
+        // Check if any modal is visible (display block/flex and opacity > 0)
+        const modals = document.querySelectorAll('.modal, .popup, .overlay, .dialog, [role="dialog"]');
+        for (const modal of modals) {
+          const style = window.getComputedStyle(modal);
+          if (style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0') {
+            // Modal is visible, find a close button inside
+            for (const selector of closeSelectors) {
+              const btn = modal.querySelector(selector);
+              if (btn && btn.offsetParent !== null) { // Visible button
+                btn.click();
+                clicked = true;
+                break; // Clicked one, break inner loop
+              }
+            }
+            if (clicked) break; // Handled one modal, break outer loop
+          }
+        }
+        return clicked;
+      });
+
+      if (closed) {
+        // notifyProgress('helper', 'progress', '🧹 Auto-closed a blocking modal/popup');
+        await new Promise(r => setTimeout(r, 500)); // Wait for animation
+      }
+      return closed;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  async _analyzeFullPage(page) {
+    return await page.evaluate(() => {
+      const inputs = [];
+      const allInputs = document.querySelectorAll('input, textarea, select');
+
+      allInputs.forEach((el, index) => {
+        if (el.type === 'hidden' || el.offsetParent === null) return;
+
+        // Find associated label
+        let label = '';
+        if (el.id) {
+          const labelEl = document.querySelector(`label[for="${el.id}"]`);
+          if (labelEl) label = labelEl.textContent.trim();
+        }
+        if (!label) {
+          const parent = el.closest('label, .form-group, .field');
+          if (parent) label = parent.textContent?.split('\n')[0]?.trim() || '';
+        }
+
+        inputs.push({
+          index,
+          tag: el.tagName.toLowerCase(),
+          type: el.type || 'text',
+          name: el.name || '',
+          id: el.id || '',
+          placeholder: el.placeholder || '',
+          label: label,
+          required: el.required,
+          value: el.value || '',
+          selector: el.id ? `#${el.id}` : (el.name ? `[name="${el.name}"]` : `input[type="${el.type}"]:nth-of-type(${index + 1})`)
+        });
+      });
+
+      // Detect captcha elements
+      const captcha = {
+        image: document.querySelector('img[src*="captcha"], img[id*="captcha"], .captcha-image')?.src || null,
+        input: document.querySelector('input[name*="captcha"], input[id*="captcha"]')?.id || null
+      };
+
+      // Detect submit button
+      const submitBtn = document.querySelector('button[type="submit"], input[type="submit"], button.submit');
+
+      return {
+        inputs,
+        captcha,
+        submitButton: submitBtn ? (submitBtn.id ? `#${submitBtn.id}` : 'button[type="submit"]') : null,
+        totalInputs: inputs.length
+      };
+    });
+  },
+
+  async _fillFormFields(page, formData, formSelector, humanLike = true, aiMatch = true) {
+    const targetForm = formSelector || 'form';
+    const fields = Object.keys(formData || {});
+    let filledCount = 0;
+    const filledFields = [];
+    const unfilledFields = [];
+
+    // First, analyze the full page
+    const pageInfo = await handlers._analyzeFullPage(page);
+    notifyProgress('solve_captcha', 'progress', `🔍 Page analyzed: ${pageInfo.totalInputs} inputs found`);
+
+    for (const [field, value] of Object.entries(formData || {})) {
+      // Enhanced AI Field Matching - uses pageInfo for better matching
+      let bestMatch = null;
+      let bestScore = 0;
+
+      for (const input of pageInfo.inputs) {
+        let score = 0;
+        const fieldLower = field.toLowerCase();
+
+        // Exact matches
+        if (input.name.toLowerCase() === fieldLower) score = 100;
+        else if (input.id.toLowerCase() === fieldLower) score = 95;
+        // Partial matches
+        else if (input.name.toLowerCase().includes(fieldLower)) score = 80;
+        else if (input.id.toLowerCase().includes(fieldLower)) score = 75;
+        else if (input.placeholder.toLowerCase().includes(fieldLower)) score = 70;
+        else if (input.label.toLowerCase().includes(fieldLower)) score = 65;
+        // Type-based matching
+        else if (fieldLower.includes('email') && input.type === 'email') score = 60;
+        else if (fieldLower.includes('pass') && input.type === 'password') score = 60;
+        else if (fieldLower.includes('phone') && input.type === 'tel') score = 60;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = input;
+        }
+      }
+
+      if (!bestMatch || bestScore < 50) {
+        unfilledFields.push(field);
+        continue;
+      }
+
+      try {
+        const element = await page.$(bestMatch.selector);
+        if (!element) {
+          unfilledFields.push(field);
+          continue;
+        }
+
+        // Focus element first (human-like)
+        await element.focus();
+        await new Promise(r => setTimeout(r, 100 + Math.random() * 150));
+
+        if (bestMatch.tag === 'select') {
+          // Smart Select
+          await page.evaluate((sel, val) => {
+            const el = document.querySelector(sel);
+            if (!el) return;
+            el.value = val;
+            if (el.value !== val) {
+              for (const opt of el.options) {
+                if (opt.text.toLowerCase().includes(val.toLowerCase())) {
+                  el.value = opt.value;
+                  break;
+                }
+              }
+            }
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }, bestMatch.selector, String(value));
+        } else if (bestMatch.type === 'checkbox' || bestMatch.type === 'radio') {
+          if (value) await element.click();
+        } else {
+          // Text input - clear and type with human behavior
+          await element.click({ clickCount: 3 });
+          await page.keyboard.press('Backspace');
+          await new Promise(r => setTimeout(r, 50));
+
+          if (humanLike) {
+            // Human-like typing with variable delays
+            for (let i = 0; i < String(value).length; i++) {
+              const char = String(value)[i];
+              await page.keyboard.type(char);
+              // Variable delay based on character type
+              const delay = char === ' ' ? 80 : (30 + Math.random() * 70);
+              await new Promise(r => setTimeout(r, delay));
+            }
+          } else {
+            await page.type(bestMatch.selector, String(value));
+          }
+        }
+
+        // Tab to next field (human-like navigation)
+        if (humanLike) {
+          await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
+          await page.keyboard.press('Tab');
+          await new Promise(r => setTimeout(r, 50));
+        }
+
+        filledCount++;
+        filledFields.push({ field, selector: bestMatch.selector, matchScore: bestScore });
+        notifyProgress('solve_captcha', 'progress', `📝 Filled: ${field} (score: ${bestScore})`, { field, filledCount });
+      } catch (e) {
+        unfilledFields.push(field);
+      }
+    }
+
+    return {
+      success: filledCount > 0,
+      filledCount,
+      filledFields,
+      unfilledFields,
+      totalFields: fields.length,
+      pageInfo
+    };
+  },
+
+  async _validateBeforeSubmit(page) {
+    return await page.evaluate(() => {
+      const errors = [];
+      const requiredFields = document.querySelectorAll('[required], .required input');
+
+      requiredFields.forEach(field => {
+        if (!field.value || field.value.trim() === '') {
+          const label = field.name || field.id || field.placeholder || 'Unknown';
+          errors.push({ field: label, error: 'Required field is empty' });
+        }
+      });
+
+      // Check for visible error messages
+      const errorMsgs = document.querySelectorAll('.error, .error-message, .invalid-feedback, [class*="error"]');
+      errorMsgs.forEach(el => {
+        if (el.offsetParent !== null && el.textContent.trim()) {
+          errors.push({ field: 'form', error: el.textContent.trim() });
+        }
+      });
+
+      return { valid: errors.length === 0, errors };
+    });
+  },
+
+  async _detectPostSubmitErrors(page) {
+    await new Promise(r => setTimeout(r, 1500)); // Wait for page response
+
+    return await page.evaluate(() => {
+      const errors = [];
+
+      // Check for error messages
+      const errorSelectors = [
+        '.error', '.error-message', '.alert-danger', '.invalid',
+        '[class*="error"]', '[class*="invalid"]', '.captcha-error'
+      ];
+
+      for (const sel of errorSelectors) {
+        document.querySelectorAll(sel).forEach(el => {
+          if (el.offsetParent !== null && el.textContent.trim()) {
+            errors.push(el.textContent.trim());
+          }
+        });
+      }
+
+      // Check if captcha input is still visible (might indicate wrong captcha)
+      const captchaInput = document.querySelector('input[name*="captcha"], input[id*="captcha"]');
+      if (captchaInput && captchaInput.offsetParent !== null && !captchaInput.value) {
+        errors.push('Captcha may have failed - input is empty');
+      }
+
+      return {
+        hasErrors: errors.length > 0,
+        errors: [...new Set(errors)].slice(0, 5) // Unique errors, max 5
+      };
+    });
+  },
+
+  async _solveWithVisionAPI(imageBase64, langHint = '') {
+    if (process.env.NVIDIA_API_KEY) {
+      try {
+        return await handlers._solveWithNvidia(imageBase64, langHint);
+      } catch (e) {
+        notifyProgress('solve_captcha', 'progress', `⚠️ NVIDIA API error: ${e.message}`);
+      }
+    }
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        return await handlers._solveWithOpenRouter(imageBase64, langHint);
+      } catch (e) {
+        notifyProgress('solve_captcha', 'progress', `⚠️ OpenRouter API error: ${e.message}`);
+      }
+    }
+    return null; // No API configured — fallback to host LLM
+  },
+
+  async _solveWithNvidia(imageBase64, langHint = '') {
+    const https = require('https');
+    const apiKey = process.env.NVIDIA_API_KEY;
+
+    // NVIDIA vision models sorted by speed & reliability
+    const models = [
+      'z-ai/glm-4.7',
+      'deepseek-ai/deepseek-v4-pro',
+      'meta/llama-3.2-11b-vision-instruct',
+      'meta/llama-4-maverick-17b-128e-instruct',
+      'microsoft/phi-4-multimodal-instruct'
+    ];
+
+    for (const model of models) {
+      notifyProgress('solve_captcha', 'progress', `🟢 NVIDIA: Trying ${model}...`);
+
+      const requestBody = JSON.stringify({
+        model,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'This is a CAPTCHA image. Read ONLY the text/characters shown. Return ONLY the exact characters, nothing else.' + langHint
+            },
+            {
+              type: 'image_url',
+              image_url: { url: `data:image/png;base64,${imageBase64}` }
+            }
+          ]
+        }],
+        max_tokens: 30,
+        temperature: 0.1
+      });
+
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'integrate.api.nvidia.com',
+            path: '/v1/chat/completions',
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Length': Buffer.byteLength(requestBody)
+            }
+          };
+
+          const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+              try {
+                const json = JSON.parse(data);
+                if (json.error) {
+                  notifyProgress('solve_captcha', 'progress', `⏭️ NVIDIA ${model}: ${(json.error.message || '').substring(0, 60)}`);
+                  return resolve(null); // Try next model
+                }
+                const text = json?.choices?.[0]?.message?.content?.trim();
+                if (!text) return resolve(null);
+                const cleaned = text.replace(/[\s"'\n\r`]/g, '');
+                notifyProgress('solve_captcha', 'progress', `✨ NVIDIA [${model.split('/')[1]}] extracted: "${cleaned}"`);
+                resolve(cleaned || null);
+              } catch (e) {
+                resolve(null);
+              }
+            });
+          });
+
+          req.on('error', () => resolve(null));
+          req.setTimeout(20000, () => { req.destroy(); resolve(null); });
+          req.write(requestBody);
+          req.end();
+        });
+
+        if (result) return result;
+      } catch (e) {
+        // Try next model
+      }
+    }
+
+    throw new Error('All NVIDIA models failed');
+  },
+
+  async _solveWithOpenRouter(imageBase64, langHint = '') {
+    const https = require('https');
+    const apiKey = process.env.OPENROUTER_API_KEY;
+
+    // Best free vision models on OpenRouter (auto-fallback)
+    const models = [
+      'google/gemini-2.5-pro-free', // Insanely smart & free
+      'meta-llama/llama-3.2-90b-vision-instruct:free',
+      'qwen/qwen-vl-plus:free'
+    ];
+
+    for (const model of models) {
+      notifyProgress('solve_captcha', 'progress', `🟢 OpenRouter: Trying ${model}...`);
+
+      const requestBody = JSON.stringify({
+        model,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: 'This is a CAPTCHA image. Read ONLY the text/characters shown. Return ONLY the exact characters, nothing else.' + langHint },
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } }
+          ]
+        }],
+        max_tokens: 30,
+        temperature: 0.1
+      });
+
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'openrouter.ai',
+            path: '/api/v1/chat/completions',
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+              'HTTP-Referer': 'https://github.com/brave-browser',
+              'X-Title': 'Brave MCP',
+              'Content-Length': Buffer.byteLength(requestBody)
+            }
+          };
+
+          const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+              try {
+                const json = JSON.parse(data);
+                if (json.error) {
+                  notifyProgress('solve_captcha', 'progress', `⏭️ OpenRouter ${model}: ${(json.error.message || '').substring(0, 60)}`);
+                  return resolve(null); // Try next model
+                }
+                const text = json?.choices?.[0]?.message?.content?.trim();
+                if (!text) return resolve(null);
+                const cleaned = text.replace(/[\s"'\n\r`]/g, '');
+                notifyProgress('solve_captcha', 'progress', `✨ OpenRouter [${model.split('/')[1]}] extracted: "${cleaned}"`);
+                resolve(cleaned || null);
+              } catch (e) {
+                resolve(null);
+              }
+            });
+          });
+
+          req.on('error', () => resolve(null));
+          req.setTimeout(20000, () => { req.destroy(); resolve(null); });
+          req.write(requestBody);
+          req.end();
+        });
+
+        if (result) return result;
+      } catch (e) {
+        // Try next model
+      }
+    }
+
+    throw new Error('All OpenRouter models failed');
+  },
+
+  async _submitForm(page, validateFirst = true, maxRetries = 1) {
+    try {
+      // Pre-submit validation
+      if (validateFirst) {
+        const validation = await handlers._validateBeforeSubmit(page);
+        if (!validation.valid) {
+          notifyProgress('solve_captcha', 'warn', `⚠️ Validation failed: ${validation.errors.length} issue(s)`);
+          return { success: false, message: 'Pre-submit validation failed', errors: validation.errors };
+        }
+        notifyProgress('solve_captcha', 'progress', '✅ Pre-submit validation passed');
+      }
+
+      const submitSelector = await page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a.btn'));
+        const candidates = buttons.filter(b => {
+          const text = (b.innerText || b.value || '').toLowerCase();
+          return text.includes('submit') || text.includes('go') || text.includes('search') ||
+            text.includes('view') || text.includes('login') || text.includes('sign in') ||
+            text.includes('register') || text.includes('send');
+        });
+        const best = candidates.find(b => b.offsetParent !== null);
+        if (best) {
+          return best.id ? `#${best.id}` : (best.name ? `[name="${best.name}"]` : 'button[type="submit"]');
+        }
+        // Fallback to any submit button
+        const fallback = document.querySelector('button[type="submit"], input[type="submit"]');
+        return fallback ? (fallback.id ? `#${fallback.id}` : 'button[type="submit"]') : null;
+      });
+
+      if (!submitSelector) {
+        notifyProgress('solve_captcha', 'warn', '⚠️ Could not auto-detect submit button');
+        return { success: false, message: 'Could not auto-detect submit button' };
+      }
+
+      // Click submit button with human-like behavior
+      try {
+        const { createCursor } = require('ghost-cursor-patchright');
+        const cursor = createCursor(page);
+        await cursor.click(submitSelector);
+      } catch (e) {
+        await page.click(submitSelector);
+      }
+
+      // Wait for response
+      try {
+        await page.waitForNavigation({ timeout: 5000, waitUntil: 'domcontentloaded' });
+        notifyProgress('solve_captcha', 'completed', '✅ Form submitted and navigation complete');
+        return { success: true, message: 'Form submitted and navigation complete', navigated: true };
+      } catch (e) {
+        // No navigation - check for errors on same page
+        const postErrors = await handlers._detectPostSubmitErrors(page);
+
+        if (postErrors.hasErrors) {
+          notifyProgress('solve_captcha', 'warn', `⚠️ Submit detected errors: ${postErrors.errors[0]}`);
+          return {
+            success: false,
+            message: 'Form submitted but errors detected',
+            errors: postErrors.errors,
+            needsRetry: postErrors.errors.some(e => e.toLowerCase().includes('captcha'))
+          };
+        }
+
+        notifyProgress('solve_captcha', 'completed', '✅ Form submitted (no navigation detected)');
+        return { success: true, message: 'Form submitted (no navigation detected)', navigated: false };
+      }
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+};

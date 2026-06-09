@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-nocheck
 // CRITICAL: Redirect ALL console.log to STDERR BEFORE any imports.
 // MCP uses STDIO transport — STDOUT must contain ONLY JSON-RPC messages.
 // Any console.log from ANY dependency will corrupt the JSON-RPC stream.
@@ -15,9 +16,9 @@ console.log = function (...args) { console.error(...args); };
  *   Claude Desktop, Cursor, Copilot, etc.
  */
 
-const { TOOL_DISPLAY } = require('./tools.js');
-const { startServer, shutdownServer } = require('./server.js');
-const { cleanup } = require('./handlers.js');
+const { TOOL_DISPLAY } = require('./tools');
+const { startServer, shutdownServer } = require('./server');
+const { cleanup } = require('./handlers');
 
 // ANSI colors for terminal
 const colors = {
@@ -188,3 +189,5 @@ main().catch(error => {
   console.error(`${colors.bright}${colors.red}❌ Fatal error:${colors.reset}`, error.message);
   process.exit(1);
 });
+
+export {}

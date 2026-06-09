@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-nocheck
 /**
  * Real Browser MCP Server
  * 
@@ -8,7 +9,7 @@
  *   node src/index.js --list      - List all available tools
  */
 
-const { TOOLS, TOOL_DISPLAY, CATEGORIES } = require('./shared/tools.js');
+const { TOOLS, TOOL_DISPLAY, CATEGORIES } = require('./shared/tools');
 
 // ANSI colors for terminal
 const colors = {
@@ -107,7 +108,7 @@ async function main() {
   console.error(`${colors.bright}${colors.blue}🚀 Starting MCP Server...${colors.reset}`);
   
   // Import and run MCP server
-  require('./mcp/index.js');
+  require('./mcp/index');
 }
 
 // Export for programmatic use
@@ -115,8 +116,8 @@ module.exports = {
   TOOLS,
   TOOL_DISPLAY,
   CATEGORIES,
-  startMCP: () => require('./mcp/index.js'),
-  startBoth: () => require('./mcp/index.js'),
+  startMCP: () => require('./mcp/index'),
+  startBoth: () => require('./mcp/index'),
 };
 
 // Run if called directly
@@ -126,3 +127,5 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+
+export {}

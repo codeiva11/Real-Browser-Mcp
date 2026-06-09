@@ -2,14 +2,14 @@
   "name": "real-browser-mcp-server",
   "version": "1.1.7",
   "description": "MCP Server for Real Browser - Patchright (undetected Playwright fork) with Stealth Mode, Ad Blocker, and Turnstile Auto-Solver for undetectable web automation.",
-  "main": "lib/cjs/index.js",
+  "main": "dist/lib/cjs/index.js",
   "module": "lib/esm/index.mjs",
   "type": "commonjs",
   "exports": {
     ".": {
       "types": "./typings.d.ts",
       "import": "./lib/esm/index.mjs",
-      "require": "./lib/cjs/index.js"
+      "require": "./dist/lib/cjs/index.js"
     }
   },
   "typings": "typings.d.ts",
@@ -17,18 +17,19 @@
     "node": ">=18.0.0"
   },
   "bin": {
-    "real-browser-mcp": "./src/index.js"
+    "real-browser-mcp": "./dist/src/index.js"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node src/index.js",
-    "mcp": "node src/index.js mcp",
-    "mcp:verbose": "node src/index.js mcp --verbose",
-    "list": "node src/index.js --list",
+    "build": "tsc",
+    "start": "node dist/src/index.js",
+    "dev": "npm run build && node dist/src/index.js",
+    "mcp": "node dist/src/index.js mcp",
+    "mcp:verbose": "node dist/src/index.js mcp --verbose",
+    "list": "node dist/src/index.js --list",
     "test": "npm run cjs_test && npm run esm_test",
     "esm_test": "node ./test/esm/test.mjs",
-    "cjs_test": "node ./test/cjs/test.js",
-    "mcp_test": "node ./test/mcp/smoke-test.js"
+    "cjs_test": "node ./dist/test/cjs/test.js",
+    "mcp_test": "node ./dist/test/mcp/smoke-test.js"
   },
   "keywords": [
     "mcp-server",
@@ -46,5 +47,9 @@
     "@modelcontextprotocol/sdk": "latest",
     "ghost-cursor-patchright": "^1.0.2",
     "patchright": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "typescript": "^6.0.3"
   }
 }

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AI Action Parser - Parse natural language commands into actions
  * 

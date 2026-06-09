@@ -1,7 +1,15 @@
+// @ts-nocheck
 const checkTurnstile = async ({ page }) => {
     try {
         const elements = await page.locator('[name="cf-turnstile-response"]').all();
         if (elements.length <= 0) {
+            const isChallenge = await page.evaluate(() => {
+                return document.title.includes('Just a moment') || 
+                       document.querySelector('#challenge-stage') !== null ||
+                       document.querySelector('.cf-turnstile') !== null;
+            });
+            if (!isChallenge) return false;
+
             const coordinates = await page.evaluate(() => {
                 let coordinates = [];
                 document.querySelectorAll('div').forEach(item => {

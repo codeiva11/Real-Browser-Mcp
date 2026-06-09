@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AI Selector Healer - Auto-fix broken CSS selectors
  * 

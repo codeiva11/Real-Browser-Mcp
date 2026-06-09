@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-nocheck
 /**
  * MCP Smoke Test — network-independent, fast.
  *
