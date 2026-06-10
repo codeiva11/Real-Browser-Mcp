@@ -12,8 +12,37 @@ This server is **100% compatible with all major AI IDEs** (Cursor, VS Code, Clin
 ---
 
 ## ⚙️ Installation & Setup
+Since this project is published on NPM, the easiest way to use it is via `npx` (which handles downloading and executing automatically).
 
-To install and run the server locally, clone the repository, install NPM dependencies, and configure the undetected browser binary using **Patchright**:
+### ⚡ Quick Start (Using npx)
+
+Add the following to your MCP Configuration file (e.g. `cline_mcp_settings.json` or `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "real-browser": {
+      "command": "npx",
+      "args": ["-y", "real-browser-mcp-server@latest", "mcp"]
+    }
+  }
+}
+```
+
+### 🌍 Global Installation
+
+You can also install it globally on your system:
+
+```bash
+npm install -g real-browser-mcp-server
+
+# Run the MCP server
+real-browser-mcp mcp
+```
+
+### 🛠️ Local Development & Build (Git Clone)
+
+If you want to clone the repository and run it locally, follow these exact steps:
 
 ```bash
 # 1. Clone the repository
@@ -25,9 +54,19 @@ cd Real-Browser-Mcp-Server
 # 3. Install dependencies
 npm install
 
-# 4. Install Chromium-Driver for Patchright (Undetected Browser binary)
+# 4. IMPORTANT: Install Chromium-Driver for Patchright (Undetected Browser binary)
 npx patchright install chromium
+
+# 5. Build the TypeScript files
+npm run build
+
+# 6. Start the MCP server
+npm run mcp
 ```
+
+> [!NOTE]
+> *Why does `npm run build` not build the entire project alone?* 
+> `npm run build` only compiles the TypeScript code into JavaScript (`dist/`). However, the undetected browser engine (`patchright`) requires you to explicitly download its browser binaries using `npx patchright install chromium`. Without this step, the server will crash trying to find Chromium.
 
 ### 🐳 Run via Docker (Recommended for Servers)
 
