@@ -20,8 +20,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Fetching all releases..."
-          # Get all release tags that start with v2.
-          RELEASES=$(gh release list --limit 1000 | awk '{print $1}' | grep '^v2\.')
+          # Get all releases EXCEPT v1.4.* and v1.3.*
+          RELEASES=$(gh release list --limit 1000 --json tagName --jq '.[].tagName' | grep -vE '^v1\.[34]\.')
           
           if [ -z "$RELEASES" ]; then
             echo "No v2.* releases found!"
