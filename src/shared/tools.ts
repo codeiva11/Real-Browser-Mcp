@@ -111,6 +111,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         selector: { type: 'string', description: 'CSS selector (AI auto-heals if element not found)' },
+        annotationId: { type: 'number', description: 'Alternative to selector: Pass the number from see_page(annotate: true) to click instantly' },
         humanLike: { type: 'boolean', default: true, description: 'Ghost cursor human movement' },
         aiHeal: { type: 'boolean', default: true, description: 'Auto-find alternative selector if broken' },
         autoAcceptDialogs: { type: 'boolean', default: true, description: 'Auto-accept alerts/confirms to prevent blocking' },
@@ -151,6 +152,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         selector: { type: 'string' },
+        annotationId: { type: 'number', description: 'Alternative to selector: Pass the number from see_page(annotate: true) to type instantly' },
         text: { type: 'string' },
         delay: { type: 'number', default: 50, description: 'Keystroke delay with natural variation' },
         clear: { type: 'boolean', default: true },
@@ -576,6 +578,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
+        annotate: { type: 'boolean', default: false, description: 'Super Vision: Draw red bounding boxes with numbers over all interactive elements for instant click/type targeting' },
         fullPage: { type: 'boolean', default: false, description: 'See the entire scrollable page (true) or just the current viewport (false)' },
         format: { type: 'string', enum: ['png', 'jpeg'], default: 'jpeg', description: 'Image format (jpeg = smaller, faster for vision)' },
         quality: { type: 'number', default: 70, description: 'JPEG quality 0-100 (lower = smaller image to the AI)' },

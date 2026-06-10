@@ -357,29 +357,21 @@ export const visionHandlers = {
       format = 'jpeg',
       quality = 70,
       includeElements = true,
+      annotate = false,
       includeDomText = false,
       maxElements = 60,
       path: savePath
     } = params;
 
-    notifyProgress('see_page', 'started', `👁️ Looking at the page (${fullPage ? 'full page' : 'viewport'})...`);
+    notifyProgress('see_page', 'started', `👁️ Looking at the page (${fullPage ? 'full page' : 'viewport'})${annotate ? ' with Super Annotations' : ''}...`);
 
-    // 1. Capture what the page looks like (the "eyes")
-    const shotOpts: any = { type: format, fullPage };
-    if (format === 'jpeg' && typeof quality === 'number') shotOpts.quality = quality;
-
-    let buffer;
-    try {
-      buffer = await page.screenshot(shotOpts);
-    } catch (e: any) {
-      return { success: false, error: `Vision capture failed: ${e.message}` };
-    }
-
-    // 2. Build a "visual map" of visible interactive elements (what a human can act on)
-    let elements = [];
+    let elements: any[] = [];
     let pageInfo: any = {};
-    if (includeElements) {
-      const data = await page.evaluate(({ maxEls, isFullPage }: any) => {
+
+    // 1. Build a "visual map" of visible interactive elements (what a human can act on)
+    // If annotate=true, this also injects visual bounding boxes into the DOM
+    if (includeElements || annotate) {
+      const data = await page.evaluate(({ maxEls, isFullPage, doAnnotate }: any) => {
         const out: any[] = [];
         const seen = new Set();
         const sel = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [onclick], [tabindex]';
@@ -406,6 +398,9 @@ export const visionHandlers = {
           }
           return parts.join(' > ');
         };
+
+        let elementIdCounter = 1;
+        const boxesToInject = [];
 
         for (const el of nodes) {
           if (out.length >= maxEls) break;
@@ -434,13 +429,70 @@ export const visionHandlers = {
           if (seen.has(selector + '|' + label)) continue;
           seen.add(selector + '|' + label);
 
+          const annotationId = elementIdCounter++;
+
+          if (doAnnotate) {
+            boxesToInject.push({ id: annotationId, rect, tag: kind });
+          }
+
           out.push({
+            id: annotationId,
             kind,
             text: label,
             selector,
-            href: tag === 'a' ? el.href : undefined,
+            href: tag === 'a' ? (el as any).href : undefined,
             box: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) }
           });
+        }
+
+        // Inject the boxes into the DOM
+        if (doAnnotate && boxesToInject.length > 0) {
+          let container = document.getElementById('real-browser-annotations');
+          if (container) container.remove();
+          
+          container = document.createElement('div');
+          container.id = 'real-browser-annotations';
+          // Ensure container sits exactly on top of the document without affecting layout
+          container.style.position = 'absolute';
+          container.style.top = '0';
+          container.style.left = '0';
+          container.style.width = '100%';
+          container.style.height = '100%';
+          container.style.pointerEvents = 'none';
+          container.style.zIndex = '2147483647'; // Max z-index
+
+          for (const box of boxesToInject) {
+            // Adjust box coordinates by scroll position because container is absolute (document relative)
+            const absoluteY = box.rect.y + window.scrollY;
+            const absoluteX = box.rect.x + window.scrollX;
+
+            const div = document.createElement('div');
+            div.style.position = 'absolute';
+            div.style.border = '2px solid red';
+            div.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
+            div.style.left = absoluteX + 'px';
+            div.style.top = absoluteY + 'px';
+            div.style.width = box.rect.width + 'px';
+            div.style.height = box.rect.height + 'px';
+            div.style.boxSizing = 'border-box';
+
+            const label = document.createElement('div');
+            label.innerText = String(box.id);
+            label.style.position = 'absolute';
+            label.style.top = '-2px';
+            label.style.left = '-2px';
+            label.style.backgroundColor = 'red';
+            label.style.color = 'white';
+            label.style.fontSize = '12px';
+            label.style.fontWeight = 'bold';
+            label.style.padding = '1px 4px';
+            label.style.fontFamily = 'monospace';
+            label.style.borderBottomRightRadius = '4px';
+
+            div.appendChild(label);
+            container.appendChild(div);
+          }
+          document.body.appendChild(container);
         }
 
         return {
@@ -453,10 +505,35 @@ export const visionHandlers = {
             scrollHeight: document.body ? document.body.scrollHeight : 0
           }
         };
-      }, { maxEls: maxElements, isFullPage: fullPage }).catch(() => ({ elements: [], info: {} }));
+      }, { maxEls: maxElements, isFullPage: fullPage, doAnnotate: annotate }).catch((e: any) => { console.error(e); return { elements: [], info: {} } });
 
       elements = data.elements || [];
       pageInfo = data.info || {};
+      
+      // Save elements to state for quick annotation ID mapping
+      state.activeAnnotations = {};
+      for (const el of elements) {
+        state.activeAnnotations[el.id] = { selector: el.selector, text: el.text, type: el.kind };
+      }
+    }
+
+    // 2. Capture what the page looks like (with annotations if injected)
+    const shotOpts: any = { type: format, fullPage };
+    if (format === 'jpeg' && typeof quality === 'number') shotOpts.quality = quality;
+
+    let buffer;
+    try {
+      buffer = await page.screenshot(shotOpts);
+    } catch (e: any) {
+      return { success: false, error: `Vision capture failed: ${e.message}` };
+    }
+
+    // 2.1 Cleanup annotations if we injected them
+    if (annotate) {
+      await page.evaluate(() => {
+        const container = document.getElementById('real-browser-annotations');
+        if (container) container.remove();
+      }).catch(() => {});
     }
 
     let domText = undefined;

@@ -15,6 +15,7 @@ export const state: BrowserState = {
   pageInstance: null,
   blockerInstance: null,
   setupPageFn: null,
+  activeAnnotations: undefined,
   networkRecords: [],
   isRecordingNetwork: false,
   progressTasks: {},

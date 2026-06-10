@@ -10,7 +10,8 @@ export const domHandlers = {
   async click(params: any) {
     const { page } = requireBrowser();
     const {
-      selector,
+      selector: providedSelector,
+      annotationId,
       humanLike = true,
       clickCount = 1,
       delay = 0,
@@ -33,6 +34,20 @@ export const domHandlers = {
       waitForPlay = false,
       playerTimeout = 15000
     } = params;
+
+    let selector = providedSelector;
+    if (annotationId !== undefined) {
+      if (state.activeAnnotations && state.activeAnnotations[annotationId]) {
+        selector = state.activeAnnotations[annotationId].selector;
+        notifyProgress('click', 'progress', `🎯 Using annotated selector for ID ${annotationId}: ${selector}`);
+      } else {
+        return { success: false, error: `Annotation ID ${annotationId} not found. Please run see_page(annotate: true) first.` };
+      }
+    }
+
+    if (!selector) {
+      return { success: false, error: 'You must provide either a selector or an annotationId.' };
+    }
 
     notifyProgress('click', 'started', `${hoverOnly ? 'Hovering' : 'Clicking'}: ${selector}${iframe !== undefined ? ` (iframe ${iframe})` : ''}${autoDetectPlayer ? ' (auto-detect player)' : ''}`);
 
@@ -459,7 +474,8 @@ export const domHandlers = {
   async type(params: any) {
     const { page } = requireBrowser();
     const {
-      selector,
+      selector: providedSelector,
+      annotationId,
       text,
       delay = 50,
       clear = false,
@@ -470,6 +486,20 @@ export const domHandlers = {
       pressEnter = false,
       waitForSelector = true
     } = params;
+
+    let selector = providedSelector;
+    if (annotationId !== undefined) {
+      if (state.activeAnnotations && state.activeAnnotations[annotationId]) {
+        selector = state.activeAnnotations[annotationId].selector;
+        notifyProgress('type', 'progress', `🎯 Using annotated selector for ID ${annotationId}: ${selector}`);
+      } else {
+        return { success: false, error: `Annotation ID ${annotationId} not found. Please run see_page(annotate: true) first.` };
+      }
+    }
+
+    if (!selector) {
+      return { success: false, error: 'You must provide either a selector or an annotationId.' };
+    }
 
     notifyProgress('type', 'started', `Typing ${text.length} characters into ${selector}${iframe !== undefined ? ` (iframe ${iframe})` : ''}`);
 

@@ -28,6 +28,8 @@ export interface BrowserState {
   pageInstance: Page | null;
   blockerInstance: PlaywrightBlocker | null;
   setupPageFn: ((page: Page) => Promise<void>) | null;
+  currentSessionName?: string;
+  activeAnnotations?: Record<number, { selector: string; text?: string; type?: string }>;
   networkRecords: NetworkRecord[];
   isRecordingNetwork: boolean;
   progressTasks: Record<string, ProgressTask>;
@@ -177,7 +179,8 @@ export interface WaitParams {
 }
 
 export interface ClickParams {
-  selector: string;
+  selector?: string;
+  annotationId?: number;
   humanLike?: boolean;
   clickCount?: number;
   delay?: number;
@@ -198,7 +201,8 @@ export interface ClickParams {
 }
 
 export interface TypeParams {
-  selector: string;
+  selector?: string;
+  annotationId?: number;
   text: string;
   delay?: number;
   clear?: boolean;
@@ -413,6 +417,7 @@ export interface SolveCaptchaParams {
 export interface SeePageParams {
   action?: 'screenshot' | 'analyze' | 'forms' | 'full';
   selector?: string;
+  annotate?: boolean;
   fullPage?: boolean;
   quality?: number;
 }
