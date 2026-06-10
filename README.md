@@ -29,6 +29,20 @@ npm install
 npx patchright install chromium
 ```
 
+### 🐳 Run via Docker (Recommended for Servers)
+
+We automatically build and publish a production-ready Docker image to GitHub Container Registry (GHCR).
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/codeiva4u/real-browser-mcp-server:latest
+
+# Run the MCP Server (Interactive stdio mode for AI IDEs)
+docker run -i --rm ghcr.io/codeiva4u/real-browser-mcp-server:latest
+```
+
+*(Note: When running via Docker, it automatically runs in headless mode.)*
+
 ---
 
 ## 🚀 Key Evasion & Stealth Features
