@@ -17,13 +17,14 @@ export const browserHandlers = {
     const envHeadless = getHeadlessFromEnv();
     const headless = params.headless !== undefined ? params.headless : envHeadless;
 
-    const { proxy = {}, turnstile = false, enableBlocker = true } = params;
+    const { proxy = {}, contextOptions = {}, turnstile = false, enableBlocker = true } = params;
 
     notifyProgress('browser_init', 'progress', `Mode: ${headless ? 'Headless' : 'GUI (Visible)'}`, { headless });
 
     const result = await connect({
       headless,
       proxy,
+      contextOptions,
       turnstile,
       enableBlocker,
     });

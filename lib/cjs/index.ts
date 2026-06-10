@@ -267,6 +267,7 @@ async function connect({
   args = [],
   headless = getDefaultHeadless(),
   proxy = {} as any,
+  contextOptions = {},
   turnstile = false,
   executablePath = undefined,
 } = {}) {
@@ -363,6 +364,7 @@ async function connect({
 
   const context = await browser.newContext({
     viewport: null,
+    ...contextOptions,
   });
 
   let page = await context.newPage();

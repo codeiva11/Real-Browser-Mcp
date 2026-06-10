@@ -21,6 +21,10 @@ const TOOLS = [
             password: { type: 'string' }
           }
         },
+        contextOptions: {
+          type: 'object',
+          description: 'Universal Playwright BrowserContext options (e.g. httpCredentials, geolocation, extraHTTPHeaders, permissions, viewport, userAgent, etc.)'
+        },
         turnstile: { type: 'boolean', default: true, description: 'Auto-solve Cloudflare Turnstile' },
         enableBlocker: { type: 'boolean', default: true, description: 'Block ads and trackers' },
         aiHealing: { type: 'boolean', default: true, description: 'Enable AI auto-healing for broken selectors' }

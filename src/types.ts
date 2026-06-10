@@ -147,6 +147,7 @@ export type HandlerMap = Record<string, HandlerFunction>;
 export interface BrowserInitParams {
   headless?: boolean;
   proxy?: ProxyConfig;
+  contextOptions?: Record<string, unknown>;
   turnstile?: boolean;
   enableBlocker?: boolean;
   aiHealing?: boolean;
@@ -453,6 +454,7 @@ export interface ConnectOptions {
   args?: string[];
   headless?: boolean;
   proxy?: ProxyConfig;
+  contextOptions?: Record<string, unknown>;
   turnstile?: boolean;
   executablePath?: string;
   enableBlocker?: boolean;
