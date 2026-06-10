@@ -26,7 +26,7 @@
   },
   "scripts": {
     "prepublishOnly": "npm run build",
-    "build": "tsc",
+    "build": "tsc && node -e \"console.log('\\n✅ Build Successful! The dist/ folder is ready.\\n')\"",
     "start": "node dist/src/index.js",
     "dev": "npm run build && node dist/src/index.js",
     "mcp": "node dist/src/index.js mcp",
