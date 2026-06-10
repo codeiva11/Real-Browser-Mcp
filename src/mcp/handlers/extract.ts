@@ -1,4 +1,3 @@
-// @ts-nocheck
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
@@ -8,7 +7,7 @@ import { handlers } from './index';
 // Auto-generated extract handlers
 
 export const extractHandlers = {
-  async get_content(params = {}) {
+  async get_content(params: any = {}) {
     const { page } = requireBrowser();
     const { format = 'text', selector, rawHttpUrl } = params;
 
@@ -43,7 +42,7 @@ export const extractHandlers = {
           success: true, rawHtml, renderedHtml, diff,
           url, finalUrl: response.url, statusCode: response.status, format: 'rawHttp'
         };
-      } catch (e) {
+      } catch (e: any) {
         return { success: false, error: `Raw HTTP fetch failed: ${e.message}` };
       }
     }
@@ -63,9 +62,9 @@ export const extractHandlers = {
         const root = sel ? document.querySelector(sel) : document.body;
         if (!root) return '';
         const skip = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'IFRAME', 'SVG', 'CANVAS']);
-        const inline = (node) => {
+        const inline = (node: any) => {
           let out = '';
-          node.childNodes.forEach(c => {
+          node.childNodes.forEach((c: any) => {
             if (c.nodeType === 3) { out += c.textContent.replace(/\s+/g, ' '); return; }
             if (c.nodeType !== 1 || skip.has(c.tagName)) return;
             const t = c.tagName;
@@ -79,9 +78,9 @@ export const extractHandlers = {
           });
           return out;
         };
-        const lines = [];
-        const walk = (node) => {
-          node.childNodes.forEach(c => {
+        const lines: any[] = [];
+        const walk = (node: any) => {
+          node.childNodes.forEach((c: any) => {
             if (c.nodeType === 3) { const x = c.textContent.trim(); if (x) lines.push(x); return; }
             if (c.nodeType !== 1 || skip.has(c.tagName)) return;
             const t = c.tagName;
@@ -89,7 +88,7 @@ export const extractHandlers = {
             else if (t === 'P') { const x = inline(c).trim(); if (x) lines.push(x + '\n'); }
             else if (t === 'UL' || t === 'OL') {
               let i = 1;
-              c.querySelectorAll(':scope > li').forEach(li => lines.push((t === 'OL' ? (i++) + '. ' : '- ') + inline(li).trim()));
+              c.querySelectorAll(':scope > li').forEach((li: any) => lines.push((t === 'OL' ? (i++) + '. ' : '- ') + inline(li).trim()));
               lines.push('');
             }
             else if (t === 'BLOCKQUOTE') lines.push('> ' + inline(c).trim() + '\n');
@@ -132,7 +131,7 @@ export const extractHandlers = {
     };
   },
 
-  async save_content_as_markdown(params) {
+  async save_content_as_markdown(params: any) {
     const { page } = requireBrowser();
     const { filename, selector, includeImages = true, includeMeta = true } = params;
 
@@ -161,7 +160,7 @@ export const extractHandlers = {
     return { success: true, filename: outputPath, size: markdown.length };
   },
 
-  async extract_json(params = {}) {
+  async extract_json(params: any = {}) {
     const { page } = requireBrowser();
     const { source = 'page', selector, jsonPath } = params;
 
@@ -192,14 +191,14 @@ export const extractHandlers = {
     return { success: true, source, count: jsonData.length, data: jsonData };
   },
 
-  async scrape_meta_tags(params = {}) {
+  async scrape_meta_tags(params: any = {}) {
     const { page } = requireBrowser();
     const { types = ['all'] } = params;
 
     notifyProgress('scrape_meta_tags', 'started', 'Extracting meta tags...');
 
     const meta = await page.evaluate(() => {
-      const result = { meta: {}, og: {}, twitter: {} };
+      const result: any = { meta: {}, og: {}, twitter: {} };
 
       document.querySelectorAll('meta').forEach(tag => {
         const name = tag.getAttribute('name') || tag.getAttribute('property');
@@ -227,7 +226,7 @@ export const extractHandlers = {
     return { success: true, ...meta };
   },
 
-  async link_harvester(params = {}) {
+  async link_harvester(params: any = {}) {
     const { page } = requireBrowser();
     const { types = ['all'], selector, includeText = true, includeHidden = true, searchIframes = false } = params;
 
@@ -236,12 +235,12 @@ export const extractHandlers = {
     const currentHost = new URL(page.url()).hostname;
 
     // Enhanced link extraction
-    const extractLinks = async (context) => {
-      return await context.evaluate(({ includeText, includeHidden }) => {
-        const allLinks = [];
+    const extractLinks = async (context: any) => {
+      return await context.evaluate(({ includeText, includeHidden }: any) => {
+        const allLinks: any[] = [];
         const seenUrls = new Set();
 
-        const addLink = (href, text, source, element) => {
+        const addLink = (href: any, text: any, source: any, element: any) => {
           if (!href || seenUrls.has(href)) return;
           if (!href.startsWith('http') && !href.startsWith('//')) return;
 
@@ -281,6 +280,7 @@ export const extractHandlers = {
         if (includeHidden) {
           document.querySelectorAll('[onclick]').forEach(el => {
             const onclick = el.getAttribute('onclick');
+            if (!onclick) return;
             // Look for URL patterns in onclick
             const urlMatches = onclick.match(/https?:\/\/[^\s"'<>]+/gi) || [];
             urlMatches.forEach(url => {
@@ -304,6 +304,7 @@ export const extractHandlers = {
         // 4. JavaScript href links
         document.querySelectorAll('a[href^="javascript:"]').forEach(a => {
           const href = a.getAttribute('href');
+          if (!href) return;
           const urlMatch = href.match(/https?:\/\/[^\s"'<>]+/gi);
           if (urlMatch) {
             urlMatch.forEach(url => addLink(url, a.textContent, 'javascript-href', a));
@@ -368,7 +369,7 @@ export const extractHandlers = {
           const frame = frames[i];
           if (frame.url() && frame.url() !== 'about:blank') {
             const frameLinks = await extractLinks(frame);
-            frameLinks.forEach(link => link.source = `iframe:${link.source}`);
+            frameLinks.forEach((link: any) => link.source = `iframe:${link.source}`);
             links = [...links, ...frameLinks];
           }
         } catch (e) { }
@@ -377,7 +378,7 @@ export const extractHandlers = {
 
     // Filter by type
     if (!types.includes('all')) {
-      links = links.filter(link => {
+      links = links.filter((link: any) => {
         const isInternal = link.href.includes(currentHost);
         const isMedia = /\.(jpg|jpeg|png|gif|mp4|mp3|mkv|avi|pdf|zip|rar|m3u8|mpd)/i.test(link.href);
         const isDownload = /download|file|drive/i.test(link.href);
@@ -393,12 +394,12 @@ export const extractHandlers = {
 
     // Remove hidden links if not requested
     if (!includeHidden) {
-      links = links.filter(link => !link.hidden);
+      links = links.filter((link: any) => !link.hidden);
     }
 
     // Deduplicate
     const seen = new Set();
-    links = links.filter(link => {
+    links = links.filter((link: any) => {
       if (seen.has(link.href)) return false;
       seen.add(link.href);
       return true;

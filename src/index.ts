@@ -51,7 +51,7 @@ ${colors.bright}ARCHITECTURE:${colors.reset}
   ${colors.cyan}MCP Server${colors.reset} → STDIO transport → AI Agents (Claude, Cursor, Copilot)
 
 ${colors.bright}TOOL CATEGORIES (${TOOLS.length} tools):${colors.reset}
-${Object.entries(CATEGORIES).map(([key, cat]) => {
+${Object.entries(CATEGORIES).map(([key, cat]: [string, any]) => {
   const count = TOOLS.filter(t => t.category === key).length;
   return `  ${cat.emoji} ${colors.yellow}${cat.name.padEnd(15)}${colors.reset} ${colors.dim}(${count} tools)${colors.reset}`;
 }).join('\n')}
@@ -64,7 +64,8 @@ ${Object.entries(CATEGORIES).map(([key, cat]) => {
 function listTools() {
   console.log(`\n${colors.bright}${colors.cyan}🦁 Available Tools (${TOOLS.length}):${colors.reset}\n`);
   
-  for (const [key, cat] of Object.entries(CATEGORIES)) {
+  for (const [key, category] of Object.entries(CATEGORIES)) {
+    const cat: any = category;
     const tools = TOOLS.filter(t => t.category === key);
     if (tools.length === 0) continue;
     

@@ -1,4 +1,5 @@
 // @ts-nocheck
+export {};
 const { chromium } = require("patchright");
 const { createCursor } = require("ghost-cursor-patchright");
 const { PlaywrightBlocker } = require("@ghostery/adblocker-playwright");
@@ -265,11 +266,11 @@ async function applyUserAgentOverride(page, userAgent, userAgentMetadata) {
 async function connect({
   args = [],
   headless = getDefaultHeadless(),
-  proxy = {},
+  proxy = {} as any,
   turnstile = false,
   executablePath = undefined,
 } = {}) {
-  let playwrightProxy = undefined;
+  let playwrightProxy: any = undefined;
   if (proxy && proxy.host && proxy.port) {
     playwrightProxy = {
       server: `${proxy.host}:${proxy.port}`
@@ -292,7 +293,7 @@ async function connect({
   let isBrave = false;
   try {
     nativeUa = await tempPage.evaluate(() => navigator.userAgent);
-    isBrave = await tempPage.evaluate(() => typeof navigator.brave !== 'undefined');
+    isBrave = await tempPage.evaluate(() => typeof (navigator as any).brave !== 'undefined');
   } catch (e) {
     nativeUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36';
     isBrave = executablePath && executablePath.toLowerCase().includes('brave');

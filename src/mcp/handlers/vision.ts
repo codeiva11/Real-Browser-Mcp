@@ -1,4 +1,3 @@
-// @ts-nocheck
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
@@ -8,7 +7,7 @@ import { handlers } from './index';
 // Auto-generated vision handlers
 
 export const visionHandlers = {
-  async solve_captcha(params = {}) {
+  async solve_captcha(params: any = {}) {
     const { page } = requireBrowser();
     const {
       type = 'auto',
@@ -38,15 +37,15 @@ export const visionHandlers = {
     } = params;
 
     // Resolve target frame
-    let targetFrame = page;
+    let targetFrame: any = page;
     if (iframe !== null && iframe !== undefined) {
-      targetFrame = page.frames()[iframe];
+      targetFrame = page.frames()[iframe] as any;
       if (!targetFrame) return { success: false, error: `Iframe index ${iframe} not found` };
       notifyProgress('solve_captcha', 'progress', `🎯 Targeting iframe index ${iframe}...`);
     } else if (iframeSelector) {
       const elementHandle = await page.$(iframeSelector);
       if (elementHandle) {
-        targetFrame = await elementHandle.contentFrame();
+        targetFrame = (await elementHandle.contentFrame()) as any;
       }
       if (!targetFrame) return { success: false, error: `Iframe selector ${iframeSelector} not found` };
       notifyProgress('solve_captcha', 'progress', `🎯 Targeting iframe selector ${iframeSelector}...`);
@@ -58,7 +57,7 @@ export const visionHandlers = {
     let formResult = null;
     if (formData && Object.keys(formData).length > 0) {
       notifyProgress('solve_captcha', 'started', `📋 Smart Form + Captcha Mode: Filling ${Object.keys(formData).length} fields...`);
-      formResult = await handlers._fillFormFields(page, formData, formSelector, humanLike, aiMatch);
+      formResult = await (handlers as any)._fillFormFields(page, formData, formSelector, humanLike, aiMatch);
     } else {
       notifyProgress('solve_captcha', 'started', `🎯 100% Accuracy Mode: Solving ${type} captcha...`);
     }
@@ -74,7 +73,7 @@ export const visionHandlers = {
       notifyProgress('solve_captcha', 'progress', '🔍 Analyzing page structure...');
 
       pageAnalysis = await targetFrame.evaluate(() => {
-        const result = {
+        const result: any = {
           captchas: [],
           captchaInputs: [],
           forms: [],
@@ -88,7 +87,7 @@ export const visionHandlers = {
         ];
 
         captchaSelectors.forEach(sel => {
-          document.querySelectorAll(sel).forEach(el => {
+          document.querySelectorAll(sel).forEach((el: any) => {
             if (el.offsetParent !== null) { // Visible
               // AI is smart: we don't need hardcoded filters. We just grab candidate images.
               // To avoid grabbing top-header logos, we can just check if the image is inside a form.
@@ -113,7 +112,7 @@ export const visionHandlers = {
         ];
 
         inputSelectors.forEach(sel => {
-          document.querySelectorAll(sel).forEach(el => {
+          document.querySelectorAll(sel).forEach((el: any) => {
             if (el.offsetParent !== null && el.type !== 'hidden') {
               result.captchaInputs.push({
                 selector: el.id ? `#${el.id}` : (el.name ? `[name="${el.name}"]` : sel),
@@ -173,7 +172,7 @@ export const visionHandlers = {
               notifyProgress('solve_captcha', 'progress', '🔄 Refreshing CAPTCHA...');
               await targetFrame.click(refreshSelector);
               await new Promise(r => setTimeout(r, 1500));
-            } catch (refreshErr) {
+            } catch (refreshErr: any) {
               notifyProgress('solve_captcha', 'progress', `⚠️ Could not refresh captcha: ${refreshErr.message}`);
             }
           }
@@ -183,13 +182,13 @@ export const visionHandlers = {
           // 1. SMART AI CONTEXT: Try to capture the form container so AI sees the full context
           if (detectedInputSelector) {
             try {
-              const containerHandle = await targetFrame.evaluateHandle((sel) => {
+              const containerHandle = await targetFrame.evaluateHandle((sel: string) => {
                 const input = document.querySelector(sel);
                 if (!input) return null;
-                return input.closest('form') || input.closest('div.captcha-wrapper') || input.parentElement.parentElement || input.parentElement;
+                return input.closest('form') || input.closest('div.captcha-wrapper') || input.parentElement?.parentElement || input.parentElement;
               }, detectedInputSelector);
 
-              if (containerHandle && await containerHandle.evaluate(n => n !== null)) {
+              if (containerHandle && await containerHandle.evaluate((n: any) => n !== null)) {
                 targetHandle = containerHandle.asElement();
               }
             } catch(e) {}
@@ -207,7 +206,7 @@ export const visionHandlers = {
           }
 
           // Scroll into view
-          await targetHandle.evaluate(el => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+          await targetHandle.evaluate((el: any) => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
           await new Promise(r => setTimeout(r, 500));
 
           // Take base64 screenshot of just the captcha image for Vision API
@@ -243,8 +242,8 @@ export const visionHandlers = {
                 notifyProgress('solve_captcha', 'progress', `🤖 Vision API solved: "${captchaText}" → typing...`);
 
                 // Clear existing value and type the answer
-                await targetFrame.evaluate((sel) => {
-                  const el = document.querySelector(sel);
+                await targetFrame.evaluate((sel: string) => {
+                  const el = document.querySelector(sel) as HTMLInputElement;
                   if (el) { el.value = ''; el.focus(); }
                 }, detectedInputSelector);
 
@@ -297,7 +296,7 @@ export const visionHandlers = {
             ]
           };
 
-        } catch (err) {
+        } catch (err: any) {
           notifyProgress('solve_captcha', 'error', `Vision capture error (attempt ${attempt}): ${err.message}`);
           if (attempt >= effectiveMaxRetries) {
             return { success: false, error: err.message, type: 'vision_capture', formResult };
@@ -351,7 +350,7 @@ export const visionHandlers = {
     return { success: false, error: 'Captcha solving timeout', formResult };
   },
 
-  async see_page(params = {}) {
+  async see_page(params: any = {}) {
     const { page } = requireBrowser();
     const {
       fullPage = false,
@@ -366,13 +365,13 @@ export const visionHandlers = {
     notifyProgress('see_page', 'started', `👁️ Looking at the page (${fullPage ? 'full page' : 'viewport'})...`);
 
     // 1. Capture what the page looks like (the "eyes")
-    const shotOpts = { type: format, fullPage };
+    const shotOpts: any = { type: format, fullPage };
     if (format === 'jpeg' && typeof quality === 'number') shotOpts.quality = quality;
 
     let buffer;
     try {
       buffer = await page.screenshot(shotOpts);
-    } catch (e) {
+    } catch (e: any) {
       return { success: false, error: `Vision capture failed: ${e.message}` };
     }
 
@@ -380,13 +379,13 @@ export const visionHandlers = {
     let elements = [];
     let pageInfo: any = {};
     if (includeElements) {
-      const data = await page.evaluate(({ maxEls, isFullPage }) => {
-        const out = [];
+      const data = await page.evaluate(({ maxEls, isFullPage }: any) => {
+        const out: any[] = [];
         const seen = new Set();
         const sel = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [onclick], [tabindex]';
         const nodes = document.querySelectorAll(sel);
 
-        const cssPath = (el) => {
+        const cssPath = (el: any) => {
           if (el.id) return `#${CSS.escape(el.id)}`;
           if (el.name) return `${el.tagName.toLowerCase()}[name="${el.name}"]`;
           const parts = [];
@@ -394,12 +393,12 @@ export const visionHandlers = {
           while (node && node.nodeType === 1 && parts.length < 4) {
             let part = node.tagName.toLowerCase();
             if (node.classList.length) {
-              const cls = Array.from(node.classList).slice(0, 2).map(c => '.' + CSS.escape(c)).join('');
+              const cls = Array.from(node.classList).slice(0, 2).map((c: any) => '.' + CSS.escape(c)).join('');
               part += cls;
             }
             const parent = node.parentElement;
             if (parent) {
-              const sibs = Array.from(parent.children).filter(c => c.tagName === node.tagName);
+              const sibs = Array.from(parent.children).filter((c: any) => c.tagName === node.tagName);
               if (sibs.length > 1) part += `:nth-of-type(${sibs.indexOf(node) + 1})`;
             }
             parts.unshift(part);
@@ -494,7 +493,6 @@ export const visionHandlers = {
 
     // Return BOTH the actual image (so the AI literally "sees" it) and the visual map text
     return {
-      success: true,
       mcpContent: [
         { type: 'image', data: base64, mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png' },
         { type: 'text', text: JSON.stringify(summary, null, 2) }

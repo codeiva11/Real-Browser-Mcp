@@ -1,4 +1,5 @@
 // @ts-nocheck
+export {};
 const checkTurnstile = async ({ page }) => {
     try {
         const elements = await page.locator('[name="cf-turnstile-response"]').all();

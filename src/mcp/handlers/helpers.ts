@@ -1,8 +1,8 @@
-// @ts-nocheck
 // Auto-generated helpers handlers
+import { requireBrowser, notifyProgress } from './state';
 
 export const helpersHandlers = {
-  async _handleBlockingModals(page) {
+  async _handleBlockingModals(page: any) {
     try {
       const closed = await page.evaluate(() => {
         // Selectors for common modal close buttons
@@ -60,12 +60,12 @@ export const helpersHandlers = {
     }
   },
 
-  async _analyzeFullPage(page) {
+  async _analyzeFullPage(page: any) {
     return await page.evaluate(() => {
-      const inputs = [];
+      const inputs: any[] = [];
       const allInputs = document.querySelectorAll('input, textarea, select');
 
-      allInputs.forEach((el, index) => {
+      allInputs.forEach((el: any, index: any) => {
         if (el.type === 'hidden' || el.offsetParent === null) return;
 
         // Find associated label
@@ -111,7 +111,7 @@ export const helpersHandlers = {
     });
   },
 
-  async _fillFormFields(page, formData, formSelector, humanLike = true, aiMatch = true) {
+  async _fillFormFields(page: any, formData: any, formSelector: any, humanLike = true, aiMatch = true) {
     const targetForm = formSelector || 'form';
     const fields = Object.keys(formData || {});
     let filledCount = 0;
@@ -119,7 +119,7 @@ export const helpersHandlers = {
     const unfilledFields = [];
 
     // First, analyze the full page
-    const pageInfo = await handlers._analyzeFullPage(page);
+    const pageInfo = await helpersHandlers._analyzeFullPage(page);
     notifyProgress('solve_captcha', 'progress', `🔍 Page analyzed: ${pageInfo.totalInputs} inputs found`);
 
     for (const [field, value] of Object.entries(formData || {})) {
@@ -168,7 +168,7 @@ export const helpersHandlers = {
 
         if (bestMatch.tag === 'select') {
           // Smart Select
-          await page.evaluate((sel, val) => {
+          await page.evaluate(({ sel, val }: any) => {
             const el = document.querySelector(sel);
             if (!el) return;
             el.value = val;
@@ -181,7 +181,7 @@ export const helpersHandlers = {
               }
             }
             el.dispatchEvent(new Event('change', { bubbles: true }));
-          }, bestMatch.selector, String(value));
+          }, { sel: bestMatch.selector, val: String(value) });
         } else if (bestMatch.type === 'checkbox' || bestMatch.type === 'radio') {
           if (value) await element.click();
         } else {
@@ -229,9 +229,9 @@ export const helpersHandlers = {
     };
   },
 
-  async _validateBeforeSubmit(page) {
+  async _validateBeforeSubmit(page: any) {
     return await page.evaluate(() => {
-      const errors = [];
+      const errors: any[] = [];
       const requiredFields = document.querySelectorAll('[required], .required input');
 
       requiredFields.forEach(field => {
@@ -253,11 +253,11 @@ export const helpersHandlers = {
     });
   },
 
-  async _detectPostSubmitErrors(page) {
+  async _detectPostSubmitErrors(page: any) {
     await new Promise(r => setTimeout(r, 1500)); // Wait for page response
 
     return await page.evaluate(() => {
-      const errors = [];
+      const errors: any[] = [];
 
       // Check for error messages
       const errorSelectors = [
@@ -286,25 +286,25 @@ export const helpersHandlers = {
     });
   },
 
-  async _solveWithVisionAPI(imageBase64, langHint = '') {
+  async _solveWithVisionAPI(imageBase64: any, langHint = '') {
     if (process.env.NVIDIA_API_KEY) {
       try {
-        return await handlers._solveWithNvidia(imageBase64, langHint);
-      } catch (e) {
+        return await helpersHandlers._solveWithNvidia(imageBase64, langHint);
+      } catch (e: any) {
         notifyProgress('solve_captcha', 'progress', `⚠️ NVIDIA API error: ${e.message}`);
       }
     }
     if (process.env.OPENROUTER_API_KEY) {
       try {
-        return await handlers._solveWithOpenRouter(imageBase64, langHint);
-      } catch (e) {
+        return await helpersHandlers._solveWithOpenRouter(imageBase64, langHint);
+      } catch (e: any) {
         notifyProgress('solve_captcha', 'progress', `⚠️ OpenRouter API error: ${e.message}`);
       }
     }
     return null; // No API configured — fallback to host LLM
   },
 
-  async _solveWithNvidia(imageBase64, langHint = '') {
+  async _solveWithNvidia(imageBase64: any, langHint = '') {
     const https = require('https');
     const apiKey = process.env.NVIDIA_API_KEY;
 
@@ -352,9 +352,9 @@ export const helpersHandlers = {
             }
           };
 
-          const req = https.request(options, (res) => {
+          const req = https.request(options, (res: any) => {
             let data = '';
-            res.on('data', chunk => data += chunk);
+            res.on('data', (chunk: any) => data += chunk);
             res.on('end', () => {
               try {
                 const json = JSON.parse(data);
@@ -388,7 +388,7 @@ export const helpersHandlers = {
     throw new Error('All NVIDIA models failed');
   },
 
-  async _solveWithOpenRouter(imageBase64, langHint = '') {
+  async _solveWithOpenRouter(imageBase64: any, langHint = '') {
     const https = require('https');
     const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -430,9 +430,9 @@ export const helpersHandlers = {
             }
           };
 
-          const req = https.request(options, (res) => {
+          const req = https.request(options, (res: any) => {
             let data = '';
-            res.on('data', chunk => data += chunk);
+            res.on('data', (chunk: any) => data += chunk);
             res.on('end', () => {
               try {
                 const json = JSON.parse(data);
@@ -466,11 +466,11 @@ export const helpersHandlers = {
     throw new Error('All OpenRouter models failed');
   },
 
-  async _submitForm(page, validateFirst = true, maxRetries = 1) {
+  async _submitForm(page: any, validateFirst = true, maxRetries = 1) {
     try {
       // Pre-submit validation
       if (validateFirst) {
-        const validation = await handlers._validateBeforeSubmit(page);
+        const validation = await helpersHandlers._validateBeforeSubmit(page);
         if (!validation.valid) {
           notifyProgress('solve_captcha', 'warn', `⚠️ Validation failed: ${validation.errors.length} issue(s)`);
           return { success: false, message: 'Pre-submit validation failed', errors: validation.errors };
@@ -514,9 +514,9 @@ export const helpersHandlers = {
         await page.waitForNavigation({ timeout: 5000, waitUntil: 'domcontentloaded' });
         notifyProgress('solve_captcha', 'completed', '✅ Form submitted and navigation complete');
         return { success: true, message: 'Form submitted and navigation complete', navigated: true };
-      } catch (e) {
+      } catch (e: any) {
         // No navigation - check for errors on same page
-        const postErrors = await handlers._detectPostSubmitErrors(page);
+        const postErrors = await helpersHandlers._detectPostSubmitErrors(page);
 
         if (postErrors.hasErrors) {
           notifyProgress('solve_captcha', 'warn', `⚠️ Submit detected errors: ${postErrors.errors[0]}`);
@@ -524,14 +524,14 @@ export const helpersHandlers = {
             success: false,
             message: 'Form submitted but errors detected',
             errors: postErrors.errors,
-            needsRetry: postErrors.errors.some(e => e.toLowerCase().includes('captcha'))
+            needsRetry: postErrors.errors.some((e: any) => e.toLowerCase().includes('captcha'))
           };
         }
 
         notifyProgress('solve_captcha', 'completed', '✅ Form submitted (no navigation detected)');
         return { success: true, message: 'Form submitted (no navigation detected)', navigated: false };
       }
-    } catch (error) {
+    } catch (error: any) {
       return { success: false, message: error.message };
     }
   }

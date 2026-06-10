@@ -1,4 +1,3 @@
-// @ts-nocheck
 const _originalConsoleLog = console.log;
 console.log = function (...args) {
   console.error(...args);
@@ -20,7 +19,7 @@ const { executeTool, cleanup } = require('./handlers');
 let PKG_VERSION = '0.0.0';
 try {
   PKG_VERSION = require('../../package.json').version || PKG_VERSION;
-} catch (e) {
+} catch (e: any) {
   console.error('⚠️  Could not read version from package.json:', e.message);
 }
 
@@ -43,7 +42,7 @@ function createServer() {
   // Handle list tools request
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
-      tools: TOOLS.map(tool => ({
+      tools: TOOLS.map((tool: any) => ({
         name: tool.name,
         description: `${tool.emoji} ${tool.description}`,
         inputSchema: tool.inputSchema,
@@ -52,11 +51,11 @@ function createServer() {
   });
 
   // Handle call tool request
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
     const { name, arguments: args } = request.params;
 
     // Find tool definition
-    const tool = TOOLS.find(t => t.name === name);
+    const tool = TOOLS.find((t: any) => t.name === name);
     if (!tool) {
       throw new McpError(
         ErrorCode.MethodNotFound,
@@ -93,7 +92,7 @@ function createServer() {
           },
         ],
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         content: [
           {
@@ -125,7 +124,7 @@ async function startServer() {
 /**
  * Graceful shutdown
  */
-async function shutdownServer(server) {
+async function shutdownServer(server: any) {
   // Cleanup browser resources
   await cleanup();
 

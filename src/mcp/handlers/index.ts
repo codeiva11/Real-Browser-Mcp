@@ -1,14 +1,14 @@
-// @ts-nocheck
+// Handler aggregation hub
 import { browserHandlers } from './browser';
 import { domHandlers } from './dom';
 import { networkHandlers } from './network';
 import { visionHandlers } from './vision';
 import { extractHandlers } from './extract';
 import { helpersHandlers } from './helpers';
-import { miscHandlers } from './misc';
-import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser } from './state';
-import { getAICore, aiEnhancedSelector } from '../../ai/core';
-
+import { utilityHandlers } from './utility-handlers';
+import { mediaHandlers } from './media-handlers';
+import { formHandlers } from './form-handlers';
+import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser, globalCache } from './state';
 export const handlers: any = {
   ...browserHandlers,
   ...domHandlers,
@@ -16,18 +16,15 @@ export const handlers: any = {
   ...visionHandlers,
   ...extractHandlers,
   ...helpersHandlers,
-  ...miscHandlers
+  ...utilityHandlers,
+  ...mediaHandlers,
+  ...formHandlers
 };
 
 export async function executeTool(name: string, args: any = {}) {
   if (handlers[name]) {
     try {
-      const aiCore = getAICore ? getAICore() : null;
-      let wrappedHandler = handlers[name];
-      if (aiCore && typeof aiCore.wrapHandler === 'function') {
-        wrappedHandler = aiCore.wrapHandler(handlers[name].bind(handlers), name);
-      }
-      return await wrappedHandler(args);
+      return await handlers[name](args);
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -40,8 +37,8 @@ export async function cleanup() {
     try {
       await state.browserInstance.close();
     } catch (e) {
-      if (typeof state.browserInstance.process === 'function') {
-        state.browserInstance.process()?.kill('SIGKILL');
+      if (typeof (state.browserInstance as any).process === 'function') {
+        (state.browserInstance as any).process()?.kill('SIGKILL');
       }
     }
     state.browserInstance = null;
@@ -51,4 +48,4 @@ export async function cleanup() {
   }
 }
 
-export { getState, requireBrowser, setProgressCallback, notifyProgress, getHeadlessFromEnv, getAICore, aiEnhancedSelector };
+export { getState, requireBrowser, setProgressCallback, notifyProgress, getHeadlessFromEnv, globalCache };

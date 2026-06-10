@@ -1,4 +1,3 @@
-// @ts-nocheck
 const TOOLS = [
   // 1. Browser Init
   {
@@ -599,10 +598,10 @@ const CATEGORIES = {
 };
 
 // Helper functions
-const getToolByName = (name) => TOOLS.find(t => t.name === name);
-const getToolsByCategory = (category) => TOOLS.filter(t => t.category === category);
+const getToolByName = (name: string) => TOOLS.find(t => t.name === name);
+const getToolsByCategory = (category: string) => TOOLS.filter(t => t.category === category);
 const getToolNames = () => TOOLS.map(t => t.name);
-const getRequiredParams = (toolName) => {
+const getRequiredParams = (toolName: string) => {
   const tool = getToolByName(toolName);
   return tool?.inputSchema?.required || [];
 };

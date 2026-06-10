@@ -38,6 +38,8 @@ npx patchright install chromium
 * **Human-like Interactions**: Integrates **ghost-cursor-patchright** (Bézier curves) to transparently simulate human mouse movements, velocity, and natural hover-before-click behaviors. Features **Physics-based Smooth Scrolling** (`page.realScroll`) utilizing real mouse-wheel events and Cubic Ease-Out deceleration to perfectly mimic manual trackpad/mouse flicks, bypassing advanced behavioral detectors.
 * **Turnstile Auto-Solver**: Seamlessly detects and bypasses Cloudflare Turnstile widgets.
 * **Anti-Race Condition Guards**: Robust state-guards ensure popup blockers, shims, and adblockers attach exactly once per page, preventing context destruction.
+* **100% Type-Safe**: Entire codebase is written in Strict Mode TypeScript (`strict: true`) ensuring maximum stability and zero runtime casting errors.
+* **Global Persistent Cache**: Internal `CacheManager` saves browser state and extracted data persistently across server restarts to `.cache/browser_state.json`.
 
 ---
 
@@ -158,7 +160,7 @@ The server exposes 23 highly optimized tools categorized into functional units:
 ### 👆 Human-like Interaction
 | Tool Name | Description | Parameters |
 |:---|:---|:---|
-| `click` | Human-like click using AI healing, ghost cursor, and iframe support. | `selector` (string), `hoverFirst` (boolean) |
+| `click` | Human-like click using ghost cursor and iframe support. | `selector` (string), `hoverFirst` (boolean) |
 | `type` | Type text with human speed variation, smart clearing, and iframe support. | `selector` (string), `text` (string) |
 | `solve_captcha` | Auto-solve CAPTCHAs (Turnstile, reCAPTCHA, hCaptcha, OCR). | `selector` (string) |
 | `random_scroll` | Simulated human scrolling with natural patterns and lazy-load triggers. | `direction` (string), `amount` (number), `smooth` (boolean) |
@@ -169,7 +171,7 @@ The server exposes 23 highly optimized tools categorized into functional units:
 | Tool Name | Description | Parameters |
 |:---|:---|:---|
 | `get_content` | Retrieve page content in `html`, `text`, `markdown`, or direct `rawHttp` modes. | `format` (string) |
-| `find_element` | Locate elements via CSS selectors, XPath, or exact text with selector healing. | `selector` (string), `strategy` (string) |
+| `find_element` | Locate elements via CSS selectors, XPath, or exact text. | `selector` (string), `strategy` (string) |
 | `save_content_as_markdown` | Export current page content as clean, readable Markdown, stripping ads. | `filename` (string) |
 | `extract_data` | Advanced 8-mode extractor (Regex, JSON, Meta tags, JS Deobfuscator, Cryptography). | `mode` (string), `target` (string) |
 | `link_harvester` | Scrapes all visible, hidden, iframe-nested, or encoded links on a page. | None |

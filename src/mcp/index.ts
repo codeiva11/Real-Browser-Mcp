@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 // CRITICAL: Redirect ALL console.log to STDERR BEFORE any imports.
 // MCP uses STDIO transport — STDOUT must contain ONLY JSON-RPC messages.
 // Any console.log from ANY dependency will corrupt the JSON-RPC stream.
@@ -104,10 +103,10 @@ function displayToolDetails() {
 /**
  * Setup graceful shutdown handlers
  */
-function setupShutdownHandlers(server) {
+function setupShutdownHandlers(server: any) {
   let isShuttingDown = false;
 
-  const gracefulShutdown = async (signal) => {
+  const gracefulShutdown = async (signal: string) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
 
@@ -178,14 +177,14 @@ async function main() {
     // Setup shutdown handlers
     setupShutdownHandlers(server);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(`${colors.bright}${colors.red}❌ Failed to start server:${colors.reset}`, error.message);
     process.exit(1);
   }
 }
 
 // Run main
-main().catch(error => {
+main().catch((error: any) => {
   console.error(`${colors.bright}${colors.red}❌ Fatal error:${colors.reset}`, error.message);
   process.exit(1);
 });

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
@@ -8,18 +7,18 @@ import { handlers } from './index';
 // Auto-generated network handlers
 
 export const networkHandlers = {
-  async redirect_tracer(params) {
+  async redirect_tracer(params: any) {
     const { page } = requireBrowser();
     const { url, maxRedirects = 20, includeHeaders = false, followJS = true, timeout = 30000 } = params;
 
     notifyProgress('redirect_tracer', 'started', `Tracing redirects for: ${url}`);
 
-    const redirects = [];
-    const jsNavigations = [];
+    const redirects: any[] = [];
+    const jsNavigations: any[] = [];
     let currentUrl = url;
 
     // HTTP redirect handler
-    const responseHandler = response => {
+    const responseHandler = (response: any) => {
       if ([301, 302, 303, 307, 308].includes(response.status())) {
         redirects.push({
           url: response.url(),
@@ -32,7 +31,7 @@ export const networkHandlers = {
     };
 
     // JS/Navigation handler for tracking window.location changes
-    const frameNavigatedHandler = frame => {
+    const frameNavigatedHandler = (frame: any) => {
       if (frame === page.mainFrame()) {
         const newUrl = frame.url();
         if (newUrl !== currentUrl && newUrl !== 'about:blank') {
@@ -77,7 +76,7 @@ export const networkHandlers = {
 
         // Extract any onclick/href javascript: URLs
         const jsLinks = await page.evaluate(() => {
-          const links = [];
+          const links: any[] = [];
           document.querySelectorAll('a[href^="javascript:"], [onclick]').forEach(el => {
             const onclick = el.getAttribute('onclick');
             const href = el.getAttribute('href');
@@ -94,7 +93,7 @@ export const networkHandlers = {
 
         jsNavigations.push(...jsLinks);
       }
-    } catch (e) {
+    } catch (e: any) {
       notifyProgress('redirect_tracer', 'progress', `Navigation error: ${e.message}`);
     }
 
@@ -121,7 +120,7 @@ export const networkHandlers = {
     };
   },
 
-  async network_recorder(params = {}) {
+  async network_recorder(params: any = {}) {
     const { page } = requireBrowser();
     const { action = 'get', filter = {}, captureResponses = false } = params;
 
@@ -139,7 +138,7 @@ export const networkHandlers = {
 
             // --- Monkey-patch fetch ---
             const origFetch = window.fetch;
-            window.fetch = function (...args) {
+            window.fetch = function (...args: any[]) {
               try {
                 const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || String(args[0]));
                 const opts = args[1] || {};
@@ -151,37 +150,37 @@ export const networkHandlers = {
                 };
                 window.__interceptedApis.push(entry);
               } catch (e) { }
-              return origFetch.apply(this, args);
+              return origFetch.apply(this, args as any);
             };
 
             // --- Monkey-patch XMLHttpRequest ---
             const origOpen = XMLHttpRequest.prototype.open;
             const origSend = XMLHttpRequest.prototype.send;
             const origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
-            XMLHttpRequest.prototype.open = function (method, url) {
-              this.__iUrl = url; this.__iMethod = method; this.__iHeaders = {};
-              return origOpen.apply(this, arguments);
+            XMLHttpRequest.prototype.open = function (method: string, url: string | URL, ...rest: any[]) {
+              (this as any).__iUrl = url; (this as any).__iMethod = method; (this as any).__iHeaders = {};
+              return origOpen.apply(this, [method, url, ...rest] as any);
             };
-            XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
-              if (this.__iHeaders) this.__iHeaders[name] = value;
-              return origSetHeader.apply(this, arguments);
+            XMLHttpRequest.prototype.setRequestHeader = function (name: string, value: string) {
+              if ((this as any).__iHeaders) (this as any).__iHeaders[name] = value;
+              return origSetHeader.apply(this, [name, value]);
             };
-            XMLHttpRequest.prototype.send = function (body) {
+            XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyInit | null) {
               try {
                 window.__interceptedApis.push({
-                  type: 'xhr', url: this.__iUrl, method: this.__iMethod,
-                  headers: this.__iHeaders || null,
+                  type: 'xhr', url: (this as any).__iUrl, method: (this as any).__iMethod,
+                  headers: (this as any).__iHeaders || null,
                   body: typeof body === 'string' ? body.substring(0, 2000) : null,
                   timestamp: Date.now()
                 });
               } catch (e) { }
-              return origSend.apply(this, arguments);
+              return origSend.apply(this, [body]);
             };
 
             // --- Monkey-patch navigator.sendBeacon ---
             if (navigator.sendBeacon) {
               const origBeacon = navigator.sendBeacon.bind(navigator);
-              navigator.sendBeacon = function (url, data) {
+              navigator.sendBeacon = function (url: string | URL, data?: BodyInit | null) {
                 try {
                   window.__interceptedApis.push({
                     type: 'beacon', url, method: 'POST',
@@ -194,17 +193,17 @@ export const networkHandlers = {
             }
 
             // ====== FEATURE 3: WebSocket Recording ======
-            const OrigWS = window.WebSocket;
-            window.WebSocket = function (url, protocols) {
+            const OrigWS: any = window.WebSocket;
+            window.WebSocket = function (url: string | URL, protocols?: string | string[]) {
               const ws = protocols ? new OrigWS(url, protocols) : new OrigWS(url);
               const wsId = window.__wsMessages.length;
-              const wsEntry = { id: wsId, url, openedAt: Date.now(), messages: [], status: 'connecting' };
+              const wsEntry: any = { id: wsId, url, openedAt: Date.now(), messages: [], status: 'connecting' };
               window.__wsMessages.push(wsEntry);
 
               ws.addEventListener('open', () => { wsEntry.status = 'open'; });
-              ws.addEventListener('close', (e) => { wsEntry.status = 'closed'; wsEntry.closedAt = Date.now(); wsEntry.closeCode = e.code; });
+              ws.addEventListener('close', (e: any) => { wsEntry.status = 'closed'; wsEntry.closedAt = Date.now(); wsEntry.closeCode = e.code; });
               ws.addEventListener('error', () => { wsEntry.status = 'error'; });
-              ws.addEventListener('message', (e) => {
+              ws.addEventListener('message', (e: any) => {
                 try {
                   let data = e.data;
                   let dataType = 'text';
@@ -217,7 +216,7 @@ export const networkHandlers = {
 
               // Intercept send
               const origWsSend = ws.send.bind(ws);
-              ws.send = function (data) {
+              ws.send = function (data: any) {
                 try {
                   let sendData = data;
                   let dataType = 'text';
@@ -230,12 +229,12 @@ export const networkHandlers = {
               };
 
               return ws;
-            };
+            } as any;
             window.WebSocket.prototype = OrigWS.prototype;
-            window.WebSocket.CONNECTING = OrigWS.CONNECTING;
-            window.WebSocket.OPEN = OrigWS.OPEN;
-            window.WebSocket.CLOSING = OrigWS.CLOSING;
-            window.WebSocket.CLOSED = OrigWS.CLOSED;
+            (window.WebSocket as any).CONNECTING = OrigWS.CONNECTING;
+            (window.WebSocket as any).OPEN = OrigWS.OPEN;
+            (window.WebSocket as any).CLOSING = OrigWS.CLOSING;
+            (window.WebSocket as any).CLOSED = OrigWS.CLOSED;
           });
         } catch (e) { /* addInitScript may fail on already-loaded pages, that's OK */ }
 
@@ -272,7 +271,7 @@ export const networkHandlers = {
               (res.request().resourceType() === 'xhr') ||
               (res.request().resourceType() === 'fetch');
 
-            const record = {
+            const record: any = {
               type: 'response',
               url: url,
               method: res.request().method(),
@@ -376,7 +375,7 @@ export const networkHandlers = {
             interceptedApis: intercepted,
             note: 'These are runtime-intercepted API calls captured via monkey-patched fetch/XHR/sendBeacon (pre-page-load injection)'
           };
-        } catch (e) {
+        } catch (e: any) {
           return { success: false, error: 'Failed to retrieve intercepted APIs: ' + e.message, interceptedApis: [] };
         }
       }
@@ -393,7 +392,7 @@ export const networkHandlers = {
             websockets: wsData,
             note: 'WebSocket connections and messages captured via constructor monkey-patch'
           };
-        } catch (e) {
+        } catch (e: any) {
           return { success: false, error: 'Failed to retrieve WebSocket data: ' + e.message, websockets: [] };
         }
       }
@@ -417,7 +416,7 @@ export const networkHandlers = {
     return { success: true, recording: state.isRecordingNetwork, count: records.length, records: records.slice(-200) };
   },
 
-  async cookie_manager(params = {}) {
+  async cookie_manager(params: any = {}) {
     const { page } = requireBrowser();
     const { action = 'get', name, value, domain, expires } = params;
 
@@ -473,7 +472,7 @@ export const networkHandlers = {
     return { success: false, error: 'Invalid action' };
   },
 
-  async extract_data(params = {}) {
+  async extract_data(params: any = {}) {
     const { page } = requireBrowser();
     const {
       type = 'auto',
@@ -494,7 +493,7 @@ export const networkHandlers = {
 
     notifyProgress('extract_data', 'started', `Extracting data (type: ${type})...`);
 
-    const results = {
+    const results: any = {
       success: true,
       type,
       url: page.url(),
@@ -502,7 +501,7 @@ export const networkHandlers = {
     };
 
     // Helper: Extract regex matches
-    const extractRegex = async (regexPattern, regexFlags, contentSource) => {
+    const extractRegex = async (regexPattern: any, regexFlags: any, contentSource: any) => {
       let content;
       if (contentSource === 'html') {
         content = await page.content();
@@ -529,7 +528,7 @@ export const networkHandlers = {
     };
 
     // Helper: Extract JSON data
-    const extractJson = async (jsonSource, sel, path) => {
+    const extractJson = async (jsonSource: any, sel?: any, path?: any) => {
       const jsonData = [];
 
       if (jsonSource === 'ld+json') {
@@ -582,7 +581,7 @@ export const networkHandlers = {
       // Apply JSONPath if specified
       if (path && jsonData.length > 0) {
         // Simple JSONPath implementation
-        const getPath = (obj, pathStr) => {
+        const getPath = (obj: any, pathStr: any) => {
           const parts = pathStr.replace(/^\$\./, '').split('.');
           let current = obj;
           for (const part of parts) {
@@ -608,9 +607,9 @@ export const networkHandlers = {
     };
 
     // Helper: Extract meta tags
-    const extractMeta = async (metaTypes) => {
-      const meta = await page.evaluate((includeTitle, includeCanonical) => {
-        const result = { meta: {}, og: {}, twitter: {} };
+    const extractMeta = async (metaTypes: any) => {
+      const meta = await page.evaluate(([includeTitle, includeCanonical]: any) => {
+        const result: any = { meta: {}, og: {}, twitter: {} };
 
         document.querySelectorAll('meta').forEach(tag => {
           const name = tag.getAttribute('name') || tag.getAttribute('property');
@@ -634,10 +633,10 @@ export const networkHandlers = {
         }
 
         return result;
-      }, includeTitle, includeCanonical);
+      }, [includeTitle, includeCanonical]);
 
       // Filter by requested types
-      const filtered = {};
+      const filtered: any = {};
       if (metaTypes.includes('all')) {
         return meta;
       }
@@ -651,7 +650,7 @@ export const networkHandlers = {
     };
 
     // Helper: Extract structured data from selector
-    const extractStructured = async (sel, wait = false, timeout = 10000) => {
+    const extractStructured = async (sel: any, wait = false, timeout = 10000) => {
       if (wait) {
         await page.waitForSelector(sel, { timeout });
       }
@@ -680,7 +679,7 @@ export const networkHandlers = {
 
     // Helper: Auto-detect and extract all
     const extractAuto = async () => {
-      const autoResults = {
+      const autoResults: any = {
         meta: null,
         json: null,
         structured: null,
@@ -737,7 +736,7 @@ export const networkHandlers = {
 
       case 'meta': {
         results.extracted = await extractMeta(types);
-        const tagCount = Object.values(results.extracted).reduce((sum, val) => {
+        const tagCount = Object.values(results.extracted as Record<string, any>).reduce((sum: number, val: any) => {
           if (typeof val === 'object' && val !== null) {
             return sum + Object.keys(val).length;
           }
@@ -785,7 +784,7 @@ export const networkHandlers = {
           try { const resp = await fetch(src); allJs += '\n' + await resp.text(); } catch (e) { }
         }
 
-        const deobfuscated = {
+        const deobfuscated: any = {
           stringArrays: [], decodedStrings: [], functionMappings: [],
           apiEndpoints: [], urls: [], fetchCalls: [],
           webpackModules: [], evalUnpacked: [], resolvedConcats: [], unicodeDecoded: []
@@ -869,7 +868,7 @@ export const networkHandlers = {
         // 6. NEW: Terser/UglifyJS single-letter variable mappings
         const terserPattern = /(?:var|let|const)\s+([a-z])\s*=\s*['"]([^'"]{2,})['"]/gi;
         let terserMatch;
-        const terserMappings = {};
+        const terserMappings: any = {};
         while ((terserMatch = terserPattern.exec(allJs)) !== null) {
           const varName = terserMatch[1], value = terserMatch[2];
           if (value.length > 2 && value.length < 200) {
@@ -898,10 +897,10 @@ export const networkHandlers = {
         }
 
         // Extract URLs and API endpoints from all decoded strings
-        deobfuscated.urls = [...new Set(deobfuscated.decodedStrings.filter(s =>
+        deobfuscated.urls = [...new Set(deobfuscated.decodedStrings.filter((s: any) =>
           s.match(/^(https?:\/\/|\/)/) || s.match(/\.(php|json|api|asp|jsp)$/i)
         ))].slice(0, 50);
-        deobfuscated.apiEndpoints = [...new Set(deobfuscated.decodedStrings.filter(s =>
+        deobfuscated.apiEndpoints = [...new Set(deobfuscated.decodedStrings.filter((s: any) =>
           s.match(/^\/[a-z]/i) && s.length > 3 && s.length < 100
         ))].slice(0, 30);
 
@@ -918,7 +917,7 @@ export const networkHandlers = {
 
       case 'apiDiscovery': {
         notifyProgress('extract_data', 'in_progress', 'Discovering hidden API endpoints...');
-        const apiResults = {
+        const apiResults: any = {
           fetchEndpoints: [], xhrEndpoints: [], formActions: [],
           scriptSources: [], inlineApiPatterns: [], postBodies: [], dynamicApis: []
         };
@@ -927,10 +926,10 @@ export const networkHandlers = {
         try {
           const runtimeApis = await page.evaluate(() => {
             return new Promise((resolve) => {
-              const found = [];
-              if (window.__capturedApis) { resolve(window.__capturedApis); return; }
+              const found: any[] = [];
+              if ((window as any).__capturedApis) { resolve((window as any).__capturedApis); return; }
               const origFetch = window.fetch;
-              window.fetch = function (...args) {
+              window.fetch = function (...args: any[]) {
                 try {
                   const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
                   const opts = args[1] || {};
@@ -939,23 +938,23 @@ export const networkHandlers = {
                     body: typeof opts.body === 'string' ? opts.body.substring(0, 500) : null
                   });
                 } catch (e) { }
-                return origFetch.apply(this, args);
+                return origFetch.apply(this, args as any);
               };
               const origOpen = XMLHttpRequest.prototype.open;
               const origSend = XMLHttpRequest.prototype.send;
-              XMLHttpRequest.prototype.open = function (method, url) { this.__apiUrl = url; this.__apiMethod = method; return origOpen.apply(this, arguments); };
-              XMLHttpRequest.prototype.send = function (body) {
+              XMLHttpRequest.prototype.open = function (method: string, url: string | URL, ...rest: any[]) { (this as any).__apiUrl = url; (this as any).__apiMethod = method; return origOpen.apply(this, [method, url, ...rest] as any); };
+              XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyInit | null) {
                 found.push({
-                  type: 'xhr', url: this.__apiUrl, method: this.__apiMethod,
+                  type: 'xhr', url: (this as any).__apiUrl, method: (this as any).__apiMethod,
                   body: typeof body === 'string' ? body.substring(0, 500) : null
                 });
-                return origSend.apply(this, arguments);
+                return origSend.apply(this, [body]);
               };
-              window.__capturedApis = found;
+              (window as any).__capturedApis = found;
               setTimeout(() => resolve(found), 3000);
             });
           });
-          apiResults.dynamicApis = runtimeApis;
+          apiResults.dynamicApis = runtimeApis as any;
         } catch (e) { apiResults.dynamicApis = []; }
 
         // 2. Static analysis
@@ -966,19 +965,19 @@ export const networkHandlers = {
         const fetchRegex = /fetch\s*\(\s*(?:['"`]([^'"`]+)['"`]|([a-zA-Z_$][a-zA-Z0-9_$]*))/g;
         let fMatch;
         while ((fMatch = fetchRegex.exec(allScriptContent)) !== null) {
-          apiResults.fetchEndpoints.push(fMatch[1] || fMatch[2]);
+          apiResults.fetchEndpoints.push((fMatch[1] || fMatch[2]) as never);
         }
         apiResults.fetchEndpoints = [...new Set(apiResults.fetchEndpoints)].slice(0, 30);
 
         const xhrRegex = /\.open\s*\(\s*['"](?:GET|POST|PUT|DELETE)['"]\s*,\s*['"`]([^'"`]+)['"`]/gi;
         let xMatch;
         while ((xMatch = xhrRegex.exec(allScriptContent)) !== null) {
-          apiResults.xhrEndpoints.push(xMatch[1]);
+          apiResults.xhrEndpoints.push(xMatch[1] as never);
         }
         apiResults.xhrEndpoints = [...new Set(apiResults.xhrEndpoints)].slice(0, 30);
 
         apiResults.formActions = await page.evaluate(() => {
-          return Array.from(document.querySelectorAll('form[action]')).map(f => ({ action: f.action, method: f.method || 'GET', id: f.id || null }));
+          return Array.from(document.querySelectorAll('form[action]')).map((f: any) => ({ action: f.action, method: f.method || 'GET', id: f.id || null }));
         }).catch(() => []);
 
         const postBodyPatterns = allScriptContent.match(/(?:URLSearchParams|FormData|JSON\.stringify)\s*\(\s*\{[^}]{5,200}\}/g) || [];
@@ -1006,7 +1005,7 @@ export const networkHandlers = {
       case 'decrypt': {
         notifyProgress('extract_data', 'in_progress', 'Auto-decrypting data...');
         const { encryptedData, autoFindKey = true } = params;
-        const decryptResults = {
+        const decryptResults: any = {
           original: null, decoded: [], detectedEncoding: [], extractedKeys: [], aesDecrypted: null
         };
 
@@ -1069,7 +1068,7 @@ export const networkHandlers = {
 
         // 4. ROT13
         try {
-          const rot13 = dataToDecrypt.replace(/[a-zA-Z]/g, c => {
+          const rot13 = dataToDecrypt.replace(/[a-zA-Z]/g, (c: any) => {
             const base = c <= 'Z' ? 65 : 97;
             return String.fromCharCode(((c.charCodeAt(0) - base + 13) % 26) + base);
           });
@@ -1084,7 +1083,7 @@ export const networkHandlers = {
           try {
             const keys = await page.evaluate(() => {
               const scripts = Array.from(document.querySelectorAll('script')).map(s => s.textContent).join('\n');
-              const found = [];
+              const found: any[] = [];
               // CryptoJS patterns
               const cryptoPatterns = [
                 /CryptoJS\.AES\.decrypt\s*\(\s*\w+\s*,\s*['"]([^'"]+)['"]/g,
@@ -1115,14 +1114,14 @@ export const networkHandlers = {
               try {
                 let keyBuf;
                 if (keyEncoding === 'utf8') keyBuf = Buffer.alloc(32); // pad to 32 bytes
-                else keyBuf = Buffer.from(aesKey, keyEncoding);
-                if (keyEncoding === 'utf8') { const kb = Buffer.from(aesKey, 'utf8'); kb.copy(keyBuf); }
+                else keyBuf = Buffer.from(aesKey as string, keyEncoding as BufferEncoding);
+                if (keyEncoding === 'utf8') { const kb = Buffer.from(aesKey as string, 'utf8'); kb.copy(keyBuf); }
 
                 // Try to decode the data from base64 first
-                const dataBuf = Buffer.from(dataToDecrypt, 'base64');
+                const dataBuf = Buffer.from(dataToDecrypt as string, 'base64');
                 if (dataBuf.length > 16) {
                   // IV might be first 16 bytes
-                  const iv = params.aesIV ? Buffer.from(params.aesIV, keyEncoding) : dataBuf.slice(0, 16);
+                  const iv = params.aesIV ? Buffer.from(params.aesIV as string, keyEncoding as BufferEncoding) : dataBuf.slice(0, 16);
                   const encrypted = params.aesIV ? dataBuf : dataBuf.slice(16);
                   const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuf, iv);
                   decipher.setAutoPadding(true);

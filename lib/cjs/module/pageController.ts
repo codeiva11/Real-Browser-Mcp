@@ -1,4 +1,5 @@
 // @ts-nocheck
+export {};
 const { checkTurnstile } = require('./turnstile.js');
 
 async function pageController({ browser, page, proxy, turnstile }) {

@@ -91,7 +91,7 @@ export const browserHandlers = {
       };
     });
 
-    const pid = (typeof state.browserInstance.process === 'function') ? state.browserInstance.process()?.pid : null;
+    const pid = (typeof (state.browserInstance as any).process === 'function') ? (state.browserInstance as any).process()?.pid : null;
 
     notifyProgress('browser_init', 'completed', `Browser started (PID: ${pid})`, {
       headless,
@@ -247,8 +247,8 @@ export const browserHandlers = {
         notifyProgress('browser_close', 'progress', 'Browser closed gracefully');
       } catch (e) {
         if (force) {
-          if (typeof state.browserInstance.process === 'function') {
-            state.browserInstance.process()?.kill('SIGKILL');
+          if (typeof (state.browserInstance as any).process === 'function') {
+            (state.browserInstance as any).process()?.kill('SIGKILL');
           }
           notifyProgress('browser_close', 'progress', 'Browser force killed');
         }

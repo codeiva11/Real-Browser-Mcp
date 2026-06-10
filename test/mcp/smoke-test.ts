@@ -27,7 +27,7 @@ const PKG = require(path.join(ROOT, 'package.json'));
 
 let passed = 0;
 let failed = 0;
-function check(name, fn) {
+function check(name: string, fn: any) {
   try {
     fn();
     console.log(`  \u2705 ${name}`);
@@ -38,7 +38,7 @@ function check(name, fn) {
   }
 }
 
-function rpc(child, obj) {
+function rpc(child: any, obj: any) {
   child.stdin.write(JSON.stringify(obj) + '\n');
 }
 
@@ -48,16 +48,16 @@ async function main() {
   // --- Static checks (no spawn needed) ---
   console.log('Static checks:');
   check('every registered tool has a handler', () => {
-    const missing = TOOLS.filter(t => typeof handlers[t.name] !== 'function').map(t => t.name);
+    const missing = TOOLS.filter((t: any) => typeof handlers[t.name] !== 'function').map((t: any) => t.name);
     assert.strictEqual(missing.length, 0, `missing handlers: ${missing.join(', ')}`);
   });
   check('every tool has name + inputSchema', () => {
-    const bad = TOOLS.filter(t => !t.name || !t.inputSchema || t.inputSchema.type !== 'object');
+    const bad = TOOLS.filter((t: any) => !t.name || !t.inputSchema || t.inputSchema.type !== 'object');
     assert.strictEqual(bad.length, 0, `invalid tool defs: ${bad.map(t => t.name).join(', ')}`);
   });
   check('no duplicate tool names', () => {
-    const names = TOOLS.map(t => t.name);
-    const dupes = names.filter((n, i) => names.indexOf(n) !== i);
+    const names = TOOLS.map((t: any) => t.name);
+    const dupes = names.filter((n: any, i: number) => names.indexOf(n) !== i);
     assert.strictEqual(dupes.length, 0, `duplicates: ${dupes.join(', ')}`);
   });
 
@@ -68,11 +68,11 @@ async function main() {
     env: { ...process.env, HEADLESS: 'true' },
   });
 
-  const responses = {};
+  const responses: Record<string, any> = {};
   let stdoutBuf = '';
   let nonJsonLines = 0;
 
-  child.stdout.on('data', (d) => {
+  child.stdout.on('data', (d: any) => {
     stdoutBuf += d.toString();
     let idx;
     while ((idx = stdoutBuf.indexOf('\n')) >= 0) {
@@ -82,13 +82,13 @@ async function main() {
       try {
         const msg = JSON.parse(line);
         if (msg.id !== undefined) responses[msg.id] = msg;
-      } catch (e) {
+      } catch (e: any) {
         nonJsonLines++;
       }
     }
   });
 
-  const wait = (ms) => new Promise(r => setTimeout(r, ms));
+  const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 
   await wait(1200);
   rpc(child, {
@@ -123,12 +123,12 @@ async function main() {
     assert.strictEqual(responses[2].result.tools.length, TOOLS.length);
   });
   check('tools/list names match registry', () => {
-    const live = responses[2].result.tools.map(t => t.name).sort();
-    const reg = TOOLS.map(t => t.name).sort();
+    const live = responses[2].result.tools.map((t: any) => t.name).sort();
+    const reg = TOOLS.map((t: any) => t.name).sort();
     assert.deepStrictEqual(live, reg);
   });
   check('every live tool has an inputSchema', () => {
-    const bad = responses[2].result.tools.filter(t => !t.inputSchema);
+    const bad = responses[2].result.tools.filter((t: any) => !t.inputSchema);
     assert.strictEqual(bad.length, 0, `missing inputSchema: ${bad.map(t => t.name).join(', ')}`);
   });
 
@@ -136,7 +136,7 @@ async function main() {
   process.exit(failed === 0 ? 0 : 1);
 }
 
-main().catch(e => {
+main().catch((e: any) => {
   console.error('Smoke test crashed:', e);
   process.exit(1);
 });

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
@@ -8,7 +7,7 @@ import { handlers } from './index';
 // Auto-generated dom handlers
 
 export const domHandlers = {
-  async click(params) {
+  async click(params: any) {
     const { page } = requireBrowser();
     const {
       selector,
@@ -60,8 +59,8 @@ export const domHandlers = {
           if (frameUrl === 'about:blank' || !frameUrl) continue;
 
           // Detect player in this frame
-          const playerInfo = await frame.evaluate(() => {
-            const result = {
+          const playerInfo: any = await frame.evaluate(() => {
+            const result: any = {
               hasPlayer: false,
               playerType: null,
               hasVideo: false,
@@ -83,9 +82,9 @@ export const domHandlers = {
             }
 
             // 1. JWPlayer Detection
-            if (window.jwplayer && typeof window.jwplayer === 'function') {
+            if ((window as any).jwplayer && typeof (window as any).jwplayer === 'function') {
               try {
-                const jw = window.jwplayer();
+                const jw = (window as any).jwplayer();
                 if (jw && jw.getState) {
                   result.hasPlayer = true;
                   result.playerType = 'jwplayer';
@@ -100,28 +99,28 @@ export const domHandlers = {
             }
 
             // 2. VideoJS Detection
-            if (window.videojs || document.querySelector('.video-js')) {
+            if ((window as any).videojs || document.querySelector('.video-js')) {
               result.hasPlayer = true;
               result.playerType = result.playerType || 'videojs';
               result.controls.push('.vjs-big-play-button', '.vjs-play-control');
             }
 
             // 3. Plyr Detection
-            if (window.Plyr || document.querySelector('.plyr')) {
+            if ((window as any).Plyr || document.querySelector('.plyr')) {
               result.hasPlayer = true;
               result.playerType = result.playerType || 'plyr';
               result.controls.push('.plyr__control--play', '[data-plyr="play"]');
             }
 
             // 4. VidStack Detection
-            if (window.VidStack || document.querySelector('media-player')) {
+            if ((window as any).VidStack || document.querySelector('media-player')) {
               result.hasPlayer = true;
               result.playerType = result.playerType || 'vidstack';
               result.controls.push('media-play-button', '[data-media-play]');
             }
 
             // 5. DooPlayer Detection
-            if (window.DooPlay || document.querySelector('#dooplay') || document.querySelector('.dooplay')) {
+            if ((window as any).DooPlay || document.querySelector('#dooplay') || document.querySelector('.dooplay')) {
               result.hasPlayer = true;
               result.playerType = result.playerType || 'dooplayer';
               result.controls.push('.play-btn', '.dooplay-play');
@@ -153,7 +152,7 @@ export const domHandlers = {
           }).catch(() => ({ hasPlayer: false }));
 
           if (playerInfo.hasPlayer) {
-            context = frame;
+            context = frame as any;
             frameInfo = {
               index: i,
               url: frameUrl,
@@ -187,7 +186,7 @@ export const domHandlers = {
         const frames = page.frames();
 
         if (iframe !== undefined && frames[iframe]) {
-          context = frames[iframe];
+          context = frames[iframe] as any;
           frameInfo = { index: iframe, url: frames[iframe].url() };
           notifyProgress('click', 'progress', `Switched to iframe ${iframe}: ${frames[iframe].url().substring(0, 50)}...`);
         } else if (iframeSelector) {
@@ -195,13 +194,13 @@ export const domHandlers = {
           if (iframeHandle) {
             const frame = await iframeHandle.contentFrame();
             if (frame) {
-              context = frame;
+              context = frame as any;
               frameInfo = { selector: iframeSelector, url: frame.url() };
               notifyProgress('click', 'progress', `Switched to iframe by selector: ${iframeSelector}`);
             }
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         notifyProgress('click', 'progress', `Warning: Could not switch to iframe - ${e.message}`);
       }
     }
@@ -211,7 +210,7 @@ export const domHandlers = {
 
     // Auto-handle dialogs
     let dialogHandled = false;
-    const dialogHandler = async (dialog) => {
+    const dialogHandler = async (dialog: any) => {
       dialogHandled = true;
       const type = dialog.type();
       const message = dialog.message();
@@ -226,7 +225,7 @@ export const domHandlers = {
     }
 
     let lastError = null;
-    let playerResult = null;
+    let playerResult: any = null;
 
     try {
       // ═══════════════════════════════════════════════════════════════
@@ -235,20 +234,20 @@ export const domHandlers = {
       if (usePlayerAPI && detectedPlayer && (selector === 'video' || selector.includes('play') || selector.includes('Play'))) {
         notifyProgress('click', 'progress', `🎬 Using ${detectedPlayer.type} API for playback...`);
 
-        playerResult = await context.evaluate((playerType) => {
-          const result = { success: false, method: null, state: null };
+        playerResult = await context.evaluate((playerType: any) => {
+          const result: any = { success: false, method: null, state: null };
 
           try {
-            if (playerType === 'jwplayer' && window.jwplayer) {
-              const jw = window.jwplayer();
+            if (playerType === 'jwplayer' && (window as any).jwplayer) {
+              const jw = (window as any).jwplayer();
               const stateBefore = jw.getState();
               jw.play();
               result.success = true;
               result.method = 'jwplayer.play()';
               result.stateBefore = stateBefore;
               result.stateAfter = jw.getState();
-            } else if (playerType === 'videojs' && window.videojs) {
-              const player = window.videojs.getPlayers()[Object.keys(window.videojs.getPlayers())[0]];
+            } else if (playerType === 'videojs' && (window as any).videojs) {
+              const player = (window as any).videojs.getPlayers()[Object.keys((window as any).videojs.getPlayers())[0]];
               if (player) {
                 player.play();
                 result.success = true;
@@ -270,7 +269,7 @@ export const domHandlers = {
                 result.method = 'video.play()';
               }
             }
-          } catch (e) {
+          } catch (e: any) {
             result.error = e.message;
           }
 
@@ -288,7 +287,7 @@ export const domHandlers = {
             let isPlaying = false;
 
             while (Date.now() - startTime < playerTimeout) {
-              const state = await context.evaluate(() => {
+              const state: any = await context.evaluate(() => {
                 const video = document.querySelector('video');
                 if (video) {
                   return {
@@ -439,7 +438,7 @@ export const domHandlers = {
             attempts: attempt
           };
 
-        } catch (attemptError) {
+        } catch (attemptError: any) {
           lastError = attemptError;
           if (attempt < retries) {
             notifyProgress('click', 'progress', `Attempt ${attempt} failed: ${attemptError.message}, retrying...`);
@@ -457,7 +456,7 @@ export const domHandlers = {
     }
   },
 
-  async type(params) {
+  async type(params: any) {
     const { page } = requireBrowser();
     const {
       selector,
@@ -483,7 +482,7 @@ export const domHandlers = {
         const frames = page.frames();
 
         if (iframe !== undefined && frames[iframe]) {
-          context = frames[iframe];
+          context = frames[iframe] as any;
           frameInfo = { index: iframe, url: frames[iframe].url() };
           notifyProgress('type', 'progress', `Switched to iframe ${iframe}`);
         } else if (iframeSelector) {
@@ -491,13 +490,13 @@ export const domHandlers = {
           if (iframeHandle) {
             const frame = await iframeHandle.contentFrame();
             if (frame) {
-              context = frame;
+              context = frame as any;
               frameInfo = { selector: iframeSelector, url: frame.url() };
               notifyProgress('type', 'progress', `Switched to iframe by selector`);
             }
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         notifyProgress('type', 'progress', `Warning: Could not switch to iframe - ${e.message}`);
       }
     }
@@ -518,8 +517,8 @@ export const domHandlers = {
     // Clear existing text if needed
     if (clear) {
       await context.click(selector, { clickCount: 3 });
-      await context.evaluate((sel) => {
-        const el = document.querySelector(sel);
+      await context.evaluate((sel: string) => {
+        const el = document.querySelector(sel) as HTMLInputElement;
         if (el) el.value = '';
       }, selector);
       notifyProgress('type', 'progress', 'Cleared existing text');
@@ -539,7 +538,7 @@ export const domHandlers = {
     return { success: true, selector, textLength: text.length, iframe: frameInfo };
   },
 
-  async random_scroll(params = {}) {
+  async random_scroll(params: any = {}) {
     const { page } = requireBrowser();
     const { direction = 'down', amount = 0, smooth = true } = params;
 
@@ -551,10 +550,10 @@ export const domHandlers = {
     notifyProgress('random_scroll', 'started', `Scrolling ${scrollDirection} ${scrollAmount}px`);
 
     const y = scrollDirection === 'down' ? scrollAmount : -scrollAmount;
-    if (smooth && page.realScroll) {
-      await page.realScroll(y, 600);
+    if (smooth && (page as any).realScroll) {
+      await (page as any).realScroll(y, 600);
     } else {
-      await page.evaluate(({ y, smooth }) => {
+      await page.evaluate(({ y, smooth }: any) => {
         window.scrollBy({ top: y, behavior: smooth ? 'smooth' : 'auto' });
       }, { y, smooth });
     }
@@ -564,13 +563,13 @@ export const domHandlers = {
     return { success: true, direction: scrollDirection, amount: scrollAmount };
   },
 
-  async find_element(params = {}) {
+  async find_element(params: any = {}) {
     const { page } = requireBrowser();
     const { selector, xpath, text, multiple = false } = params;
 
     notifyProgress('find_element', 'started', `Finding element: ${selector || xpath || text}`);
 
-    let elements = [];
+    let elements: any[] = [];
 
     if (selector) {
       if (multiple) {
@@ -611,7 +610,7 @@ export const domHandlers = {
     return { success: true, found: elements.length, elements };
   },
 
-  async press_key(params) {
+  async press_key(params: any) {
     const { page } = requireBrowser();
     const { key, modifiers = [], count = 1 } = params;
 

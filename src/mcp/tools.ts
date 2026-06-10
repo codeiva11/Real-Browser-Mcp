@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Brave Real Browser MCP Server - Tool Definitions
  * 
