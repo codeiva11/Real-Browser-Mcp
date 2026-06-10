@@ -1,0 +1,36 @@
+name: 🧹 Cleanup Old Releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to confirm deletion of all v2.* releases'
+        required: true
+        default: 'no'
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 🗑️ Delete v2.* Releases
+        if: github.event.inputs.confirm == 'yes'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fetching all releases..."
+          # Get all release tags that start with v2.
+          RELEASES=$(gh release list --limit 1000 | awk '{print $1}' | grep '^v2\.')
+          
+          if [ -z "$RELEASES" ]; then
+            echo "No v2.* releases found!"
+            exit 0
+          fi
+          
+          for tag in $RELEASES; do
+            echo "Deleting release $tag..."
+            gh release delete "$tag" -y || true
+          done
+          
+          echo "✅ Cleanup finished!"
