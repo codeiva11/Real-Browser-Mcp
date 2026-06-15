@@ -274,7 +274,26 @@ export const utilityHandlers = {
     }
 
     try {
-      const result = await context.evaluate(code);
+      // Playwright's evaluate(string) runs the code as an *expression*, so a
+      // top-level `return` throws "Illegal return statement" and `const/let`
+      // at the top level can also fail. Detect snippets that use statement-only
+      // syntax and wrap them in a function body so `return` works as users expect.
+      // We still pass plain expressions / existing IIFEs straight through.
+      const trimmed = String(code).trim();
+      const looksLikeFunctionArg =
+        trimmed.startsWith('(') ||        // IIFE or arrow: (() => ...)() / (function(){...})()
+        trimmed.startsWith('function') || // function expression
+        trimmed.startsWith('async');      // async IIFE / async arrow
+      const hasTopLevelReturn = /(^|[\s;{])return[\s;]/.test(trimmed);
+
+      let runnable: any = code;
+      if (!looksLikeFunctionArg && (hasTopLevelReturn || params.async)) {
+        // Wrap so `return` is valid. Async is supported because evaluate awaits
+        // the returned promise.
+        runnable = `(async () => { ${code} })()`;
+      }
+
+      const result = await context.evaluate(runnable);
 
       notifyProgress('execute_js', 'completed', 'JavaScript executed', {
         hasResult: result !== undefined,

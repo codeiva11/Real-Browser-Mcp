@@ -13,6 +13,14 @@ import { handlers } from './index';
 async function extractStreamsFromContext(context: any, contextName = 'main') {
   return await context.evaluate(() => {
     const result: any = { video: [], audio: [], hls: [], dash: [], download: [], embedded: [] };
+    const isPlayableMediaUrl = (url?: string) => {
+      if (!url || !url.startsWith('http')) return false;
+      const cleanUrl = url.split('?')[0].toLowerCase();
+      if (/\.(jpg|jpeg|png|gif|webp|avif|svg|ico)$/i.test(cleanUrl)) return false;
+      return /\.(m3u8|mpd|mp4|mkv|avi|webm|mov)$/i.test(cleanUrl) ||
+        /(?:^|[?&#])(file|src|url)=https?:/i.test(url) ||
+        /(hls|dash|manifest|playlist|stream|video|embed|player)/i.test(url);
+    };
 
     // 1. Direct video/audio elements
     document.querySelectorAll('video source, video').forEach(el => {
@@ -45,7 +53,7 @@ async function extractStreamsFromContext(context: any, contextName = 'main') {
     // 3. Data attributes and hidden sources
     document.querySelectorAll('[data-src], [data-video], [data-url], [data-file]').forEach(el => {
       const dataSrc = el.dataset.src || el.dataset.video || el.dataset.url || el.dataset.file;
-      if (dataSrc && dataSrc.startsWith('http')) {
+      if (isPlayableMediaUrl(dataSrc)) {
         result.video.push({ src: dataSrc, type: 'data-attribute' });
       }
     });

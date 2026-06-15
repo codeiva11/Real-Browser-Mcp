@@ -9,6 +9,7 @@ import { utilityHandlers } from './utility-handlers';
 import { mediaHandlers } from './media-handlers';
 import { formHandlers } from './form-handlers';
 import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser, globalCache } from './state';
+import { activityLogger } from '../../shared/activity-logger';
 export const handlers: any = {
   ...browserHandlers,
   ...domHandlers,
@@ -23,9 +24,28 @@ export const handlers: any = {
 
 export async function executeTool(name: string, args: any = {}) {
   if (handlers[name]) {
+    const startTime = Date.now();
     try {
-      return await handlers[name](args);
+      const result = await handlers[name](args);
+      const success = !(result && typeof result === 'object' && result.success === false);
+      activityLogger.record({
+        timestamp: new Date(startTime).toISOString(),
+        tool: name,
+        success,
+        durationMs: Date.now() - startTime,
+        args: activityLogger.sanitizeArgs(args),
+        error: success ? undefined : (result && (result as any).error) || undefined,
+      });
+      return result;
     } catch (error: any) {
+      activityLogger.record({
+        timestamp: new Date(startTime).toISOString(),
+        tool: name,
+        success: false,
+        durationMs: Date.now() - startTime,
+        args: activityLogger.sanitizeArgs(args),
+        error: error?.message || String(error),
+      });
       return { success: false, error: error.message };
     }
   }
@@ -33,6 +53,13 @@ export async function executeTool(name: string, args: any = {}) {
 }
 
 export async function cleanup() {
+  // Persist any pending activity to disk before shutting down (core-level memory)
+  try {
+    activityLogger.destroy();
+  } catch (e) {
+    // ignore flush errors during shutdown
+  }
+
   if (state.browserInstance) {
     try {
       await state.browserInstance.close();
@@ -48,4 +75,4 @@ export async function cleanup() {
   }
 }
 
-export { getState, requireBrowser, setProgressCallback, notifyProgress, getHeadlessFromEnv, globalCache };
+export { getState, requireBrowser, setProgressCallback, notifyProgress, getHeadlessFromEnv, globalCache, activityLogger };

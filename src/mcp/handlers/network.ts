@@ -271,6 +271,14 @@ export const networkHandlers = {
               (res.request().resourceType() === 'xhr') ||
               (res.request().resourceType() === 'fetch');
 
+            const isBinaryBody = isMedia ||
+              contentType.includes('octet-stream') ||
+              contentType.includes('application/pdf') ||
+              contentType.includes('image/') ||
+              contentType.includes('font/') ||
+              contentType.includes('zip') ||
+              contentType.includes('rar');
+
             const record: any = {
               type: 'response',
               url: url,
@@ -295,10 +303,15 @@ export const networkHandlers = {
               try {
                 const postData = res.request().postData();
                 if (postData) record.requestBody = postData.substring(0, 2000);
-                const responseBody = await res.text().catch(() => null);
-                if (responseBody) {
-                  record.responseBody = responseBody.substring(0, 5000);
-                  try { record.responseJson = JSON.parse(responseBody); } catch (e) { }
+                if (isBinaryBody) {
+                  record.responseBody = `[binary/media body omitted: ${contentType || 'unknown content-type'}]`;
+                } else {
+                  const responseBody = await res.text().catch(() => null);
+                  if (responseBody) {
+                    record.responseBody = responseBody.substring(0, 5000);
+                    record.responseTruncated = responseBody.length > 5000;
+                    try { record.responseJson = JSON.parse(responseBody); } catch (e) { }
+                  }
                 }
               } catch (e) { }
             }

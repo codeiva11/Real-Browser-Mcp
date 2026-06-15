@@ -72,7 +72,7 @@ const TOOLS = [
         timeout: { type: 'number', default: 10000 },
         aiHeal: { type: 'boolean', default: true, description: 'Auto-fix broken selectors' },
         extractAttributes: { type: 'boolean', default: false, description: 'Extract all element attributes' },
-        rawHttpUrl: { type: 'string', description: 'URL to fetch raw HTTP (no JS). Defaults to current page URL if not set' }
+        rawHttpUrl: { type: 'string', description: 'URL to fetch raw HTTP (no JS). When set, get_content automatically uses rawHttp mode; defaults to current page URL if format is rawHttp.' }
       }
     }
   },

@@ -1,0 +1,1181 @@
+[
+  {
+    "id": 1,
+    "timestamp": "2026-06-15T14:28:59.729Z",
+    "tool": "browser_init",
+    "success": true,
+    "durationMs": 778,
+    "args": {
+      "headless": true,
+      "enableBlocker": true,
+      "aiHealing": true
+    }
+  },
+  {
+    "id": 2,
+    "timestamp": "2026-06-15T14:29:20.188Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 3,
+    "args": {
+      "action": "start",
+      "captureXhrBody": true,
+      "aiDetectStreams": true
+    }
+  },
+  {
+    "id": 3,
+    "timestamp": "2026-06-15T14:29:30.986Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 4910,
+    "args": {
+      "url": "https://multimovies.makeup/",
+      "waitUntil": "networkidle",
+      "timeout": 60000,
+      "smartWait": true,
+      "retries": 2
+    }
+  },
+  {
+    "id": 4,
+    "timestamp": "2026-06-15T14:30:03.889Z",
+    "tool": "see_page",
+    "success": true,
+    "durationMs": 307,
+    "args": {
+      "fullPage": true,
+      "includeElements": true,
+      "annotate": true,
+      "format": "jpeg",
+      "quality": 50,
+      "maxElements": 120
+    }
+  },
+  {
+    "id": 5,
+    "timestamp": "2026-06-15T14:30:04.224Z",
+    "tool": "link_harvester",
+    "success": true,
+    "durationMs": 11,
+    "args": {
+      "includeHidden": true,
+      "includeText": true,
+      "searchIframes": true,
+      "autoDecode": true,
+      "detectObfuscation": true
+    }
+  },
+  {
+    "id": 6,
+    "timestamp": "2026-06-15T14:30:04.249Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 9,
+    "args": {
+      "format": "markdown",
+      "waitForJS": true,
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 7,
+    "timestamp": "2026-06-15T14:30:04.281Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 1,
+    "args": {
+      "action": "get_navigations"
+    }
+  },
+  {
+    "id": 8,
+    "timestamp": "2026-06-15T14:30:04.314Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 0,
+    "args": {
+      "action": "get_api_calls",
+      "captureXhrBody": true
+    }
+  },
+  {
+    "id": 9,
+    "timestamp": "2026-06-15T14:30:28.225Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 9746,
+    "args": {
+      "url": "https://multimovies.makeup/movies/fifa-world-cup-2026/",
+      "waitUntil": "networkidle",
+      "timeout": 60000,
+      "smartWait": true,
+      "retries": 2
+    }
+  },
+  {
+    "id": 10,
+    "timestamp": "2026-06-15T14:30:51.784Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 4,
+    "args": {
+      "format": "markdown",
+      "waitForJS": true,
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 11,
+    "timestamp": "2026-06-15T14:30:51.804Z",
+    "tool": "extract_data",
+    "success": true,
+    "durationMs": 6,
+    "args": {
+      "type": "regex",
+      "source": "html",
+      "pattern": "playeroptionsul|data-post|data-nume|data-type|doo_player_ajax|embed_url|iframe|server-item|gdmirror|multimoviesshg|smoothpre|rpmhub|techinmind",
+      "flags": "gi",
+      "autoDecode": true
+    }
+  },
+  {
+    "id": 12,
+    "timestamp": "2026-06-15T14:30:51.825Z",
+    "tool": "link_harvester",
+    "success": true,
+    "durationMs": 13,
+    "args": {
+      "includeHidden": true,
+      "includeText": true,
+      "searchIframes": true,
+      "autoDecode": true,
+      "detectObfuscation": true
+    }
+  },
+  {
+    "id": 13,
+    "timestamp": "2026-06-15T14:30:51.861Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 0,
+    "args": {
+      "action": "get_api_calls",
+      "captureXhrBody": true
+    }
+  },
+  {
+    "id": 14,
+    "timestamp": "2026-06-15T14:30:51.954Z",
+    "tool": "media_extractor",
+    "success": true,
+    "durationMs": 31,
+    "args": {
+      "action": "extract",
+      "searchIframes": true,
+      "deep": true,
+      "quality": "all",
+      "types": [
+        "video",
+        "audio",
+        "hls",
+        "dash",
+        "download",
+        "iframes"
+      ],
+      "aiOptimize": true
+    }
+  },
+  {
+    "id": 15,
+    "timestamp": "2026-06-15T14:31:50.128Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 5590,
+    "args": {
+      "url": "https://sportseera2.pages.dev/auto?id=cx_NTV",
+      "waitUntil": "networkidle",
+      "timeout": 60000,
+      "smartWait": true,
+      "retries": 2
+    }
+  },
+  {
+    "id": 16,
+    "timestamp": "2026-06-15T14:32:16.797Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 3,
+    "args": {
+      "format": "html",
+      "waitForJS": true,
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 17,
+    "timestamp": "2026-06-15T14:32:16.853Z",
+    "tool": "extract_data",
+    "success": true,
+    "durationMs": 3012,
+    "args": {
+      "type": "apiDiscovery",
+      "source": "all",
+      "autoDecode": true
+    }
+  },
+  {
+    "id": 18,
+    "timestamp": "2026-06-15T14:32:19.930Z",
+    "tool": "extract_data",
+    "success": true,
+    "durationMs": 5,
+    "args": {
+      "type": "regex",
+      "source": "all",
+      "pattern": "https?:[^\\\"'<>\\s]+(?:mpd|m3u8|mp4|json|api|workers\\.dev|pages\\.dev)[^\\\"'<>\\s]*|key\\s*[:=]\\s*[\\\"'][^\\\"']+|url\\s*[:=]\\s*[\\\"'][^\\\"']+|id\\s*[:=]\\s*[\\\"'][^\\\"']+",
+      "flags": "gi",
+      "autoDecode": true
+    }
+  },
+  {
+    "id": 19,
+    "timestamp": "2026-06-15T14:32:19.958Z",
+    "tool": "media_extractor",
+    "success": true,
+    "durationMs": 9,
+    "args": {
+      "action": "extract",
+      "searchIframes": true,
+      "deep": true,
+      "quality": "all",
+      "types": [
+        "video",
+        "audio",
+        "hls",
+        "dash",
+        "download",
+        "iframes"
+      ],
+      "aiOptimize": true
+    }
+  },
+  {
+    "id": 20,
+    "timestamp": "2026-06-15T14:32:19.988Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 1,
+    "args": {
+      "action": "get_api_calls",
+      "captureXhrBody": true
+    }
+  },
+  {
+    "id": 21,
+    "timestamp": "2026-06-15T14:34:32.705Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 3,
+    "args": {
+      "action": "clear"
+    }
+  },
+  {
+    "id": 22,
+    "timestamp": "2026-06-15T14:34:44.007Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 17397,
+    "args": {
+      "url": "https://multimovies.makeup/movies/saiyaara/",
+      "waitUntil": "networkidle",
+      "timeout": 60000,
+      "smartWait": true,
+      "retries": 2
+    }
+  },
+  {
+    "id": 23,
+    "timestamp": "2026-06-15T14:35:16.063Z",
+    "tool": "extract_data",
+    "success": true,
+    "durationMs": 31,
+    "args": {
+      "type": "structured",
+      "selector": "ul#playeroptionsul > li, #playeroptionsul li, .dooplay_player_option, .player-option, li[data-post][data-nume]",
+      "source": "html",
+      "autoDecode": true
+    }
+  },
+  {
+    "id": 24,
+    "timestamp": "2026-06-15T14:35:16.148Z",
+    "tool": "extract_data",
+    "success": true,
+    "durationMs": 6,
+    "args": {
+      "type": "regex",
+      "source": "html",
+      "pattern": "<li[^>]+data-post=[\\s\\S]*?</li>|playeroptionsul|dooplay_player_option|data-post|data-nume|data-type|doo_player_ajax|embed_url",
+      "flags": "gi",
+      "autoDecode": true
+    }
+  },
+  {
+    "id": 25,
+    "timestamp": "2026-06-15T14:35:16.603Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 0,
+    "args": {
+      "action": "get_api_calls",
+      "captureXhrBody": true
+    }
+  },
+  {
+    "id": 26,
+    "timestamp": "2026-06-15T14:35:16.639Z",
+    "tool": "media_extractor",
+    "success": true,
+    "durationMs": 23,
+    "args": {
+      "action": "extract",
+      "searchIframes": true,
+      "deep": true,
+      "quality": "all",
+      "types": [
+        "video",
+        "audio",
+        "hls",
+        "dash",
+        "download",
+        "iframes"
+      ],
+      "aiOptimize": true
+    }
+  },
+  {
+    "id": 27,
+    "timestamp": "2026-06-15T14:35:16.686Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 15,
+    "args": {
+      "format": "markdown",
+      "selector": "#playeroptionsul, .player, #playcontainer, #player-option, .dooplay_player, .sbox",
+      "waitForJS": true,
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 28,
+    "timestamp": "2026-06-15T14:35:50.163Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 6,
+    "args": {
+      "code": "(() => ({ url: location.href, options: [...document.querySelectorAll('#playeroptionsul li, li.dooplay_player_option, li[data-post][data-nume]')].map(li => ({ id: li.id, text: li.innerText.trim(), post: li.getAttribute('data-post'), nume: li.getAttribute('data-nume'), type: li.getAttribute('data-type'), cls: li.className })), iframes: [...document.querySelectorAll('iframe')].map(f => ({ id: f.id, name: f.name, src: f.src, html: f.outerHTML.slice(0,500) })), playerHtml: (document.querySelector('#p…(588 chars)",
+      "returnValue": true,
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 29,
+    "timestamp": "2026-06-15T14:35:50.659Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 1,
+    "args": {
+      "action": "get",
+      "filter": {
+        "urlPattern": "admin-ajax|gdmirror|iqsmartgames|rpmhub|technocosmos|m3u8|mpd"
+      },
+      "captureXhrBody": true
+    }
+  },
+  {
+    "id": 30,
+    "timestamp": "2026-06-15T14:35:50.674Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 69,
+    "args": {
+      "code": "(() => ({ frames: [...document.querySelectorAll('iframe')].map((f, i) => ({ i, src: f.src })), html: document.documentElement.outerHTML.match(/.{0,200}(?:playeroptionsul|dooplay_player_option|gdmirrorbot|iqsmartgames|rpmhub|technocosmos).{0,200}/gis)?.slice(0,20) || [] }))()",
+      "returnValue": true,
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 31,
+    "timestamp": "2026-06-15T14:35:50.810Z",
+    "tool": "media_extractor",
+    "success": true,
+    "durationMs": 0,
+    "args": {
+      "action": "list_iframes"
+    }
+  },
+  {
+    "id": 32,
+    "timestamp": "2026-06-15T14:42:47.947Z",
+    "tool": "browser_init",
+    "success": true,
+    "durationMs": 575,
+    "args": {
+      "headless": true,
+      "enableBlocker": true,
+      "aiHealing": true
+    }
+  },
+  {
+    "id": 33,
+    "timestamp": "2026-06-15T14:42:56.360Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 3068,
+    "args": {
+      "url": "https://multimovies.makeup/movies/saiyaara/",
+      "waitUntil": "domcontentloaded",
+      "timeout": 30000,
+      "smartWait": true,
+      "retries": 1
+    }
+  },
+  {
+    "id": 34,
+    "timestamp": "2026-06-15T14:43:06.814Z",
+    "tool": "extract_data",
+    "success": true,
+    "durationMs": 17,
+    "args": {
+      "type": "structured",
+      "selector": "ul#playeroptionsul > li, li.dooplay_player_option[data-post][data-nume]",
+      "source": "html"
+    }
+  },
+  {
+    "id": 35,
+    "timestamp": "2026-06-15T14:43:19.656Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 2,
+    "args": {
+      "code": "(() => Array.from(document.querySelectorAll('ul#playeroptionsul > li, li.dooplay_player_option[data-post][data-nume]')).map(li => ({text: li.innerText.trim(), title: li.querySelector('span.title')?.textContent?.trim(), post: li.dataset.post, type: li.dataset.type, nume: li.dataset.nume})))()",
+      "returnValue": true,
+      "timeout": 10000
+    }
+  },
+  {
+    "id": 36,
+    "timestamp": "2026-06-15T14:43:31.559Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 2,
+    "args": {
+      "async": true,
+      "code": "async () => {\n  const body = new URLSearchParams({ action: 'doo_player_ajax', post: '93876', nume: '1', type: 'movie' });\n  const ajax = await fetch('/wp-admin/admin-ajax.php', { method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}, body });\n  const ajaxText = await ajax.text();\n  return { status: ajax.status, text: ajaxText };\n}",
+      "returnValue": true,
+      "timeout": 20000
+    }
+  },
+  {
+    "id": 37,
+    "timestamp": "2026-06-15T15:20:05.296Z",
+    "tool": "browser_close",
+    "success": true,
+    "durationMs": 259,
+    "args": {
+      "saveSession": false,
+      "force": false
+    }
+  },
+  {
+    "id": 38,
+    "timestamp": "2026-06-15T15:50:12.585Z",
+    "tool": "browser_init",
+    "success": true,
+    "durationMs": 1457,
+    "args": {
+      "headless": true,
+      "enableBlocker": true,
+      "aiHealing": true,
+      "turnstile": true,
+      "contextOptions": {
+        "viewport": {
+          "width": 1365,
+          "height": 900
+        },
+        "ignoreHTTPSErrors": true
+      }
+    }
+  },
+  {
+    "id": 39,
+    "timestamp": "2026-06-15T15:51:04.956Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 6,
+    "args": {
+      "action": "start",
+      "captureXhrBody": true,
+      "aiDetectStreams": true
+    }
+  },
+  {
+    "id": 40,
+    "timestamp": "2026-06-15T15:51:13.210Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 3553,
+    "args": {
+      "url": "https://multimovies.makeup/",
+      "waitUntil": "domcontentloaded",
+      "timeout": 60000,
+      "retries": 2,
+      "smartWait": true
+    }
+  },
+  {
+    "id": 41,
+    "timestamp": "2026-06-15T15:51:33.174Z",
+    "tool": "extract_data",
+    "success": true,
+    "durationMs": 268,
+    "args": {
+      "type": "structured",
+      "selector": "article.item a[href], .items article a[href], #archive-content article a[href], .result-item a[href]",
+      "source": "html"
+    }
+  },
+  {
+    "id": 42,
+    "timestamp": "2026-06-15T15:51:53.806Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 2182,
+    "args": {
+      "url": "https://multimovies.makeup/movies/oye-bhole-oye-2/",
+      "waitUntil": "domcontentloaded",
+      "timeout": 60000,
+      "retries": 2,
+      "smartWait": true
+    }
+  },
+  {
+    "id": 43,
+    "timestamp": "2026-06-15T15:52:16.271Z",
+    "tool": "extract_data",
+    "success": true,
+    "durationMs": 109,
+    "args": {
+      "type": "structured",
+      "selector": "ul#playeroptionsul li, li.dooplay_player_option, .dooplay_player_option, [data-post][data-nume]",
+      "source": "html"
+    }
+  },
+  {
+    "id": 44,
+    "timestamp": "2026-06-15T15:52:16.420Z",
+    "tool": "extract_data",
+    "success": false,
+    "durationMs": 15,
+    "args": {
+      "type": "regex",
+      "source": "html",
+      "pattern": "(?is)(?:doo_player_ajax|admin-ajax\\.php|playeroptionsul|dooplay_player_option|data-post|data-nume|nonce|ajaxurl).{0,500}",
+      "flags": "g"
+    },
+    "error": "Invalid regular expression: /(?is)(?:doo_player_ajax|admin-ajax\\.php|playeroptionsul|dooplay_player_option|data-post|data-nume|nonce|ajaxurl).{0,500}/g: Invalid group"
+  },
+  {
+    "id": 45,
+    "timestamp": "2026-06-15T15:52:16.458Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 45,
+    "args": {
+      "format": "html",
+      "selector": "ul#playeroptionsul, #playeroptions, #player-option, .playeroptions",
+      "timeout": 10000,
+      "waitForJS": true
+    }
+  },
+  {
+    "id": 46,
+    "timestamp": "2026-06-15T15:52:16.546Z",
+    "tool": "link_harvester",
+    "success": true,
+    "durationMs": 63,
+    "args": {
+      "types": [
+        "all"
+      ],
+      "includeHidden": true,
+      "includeText": true,
+      "detectObfuscation": true,
+      "autoDecode": true,
+      "searchIframes": true
+    }
+  },
+  {
+    "id": 47,
+    "timestamp": "2026-06-15T15:53:23.202Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 17,
+    "args": {
+      "format": "html",
+      "rawHttpUrl": "https://streams.iqsmartgames.com/embed/movie/tt42111190?key=e11a7debaaa4f5d25b671706ffe4d2acb56efbd4",
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 48,
+    "timestamp": "2026-06-15T15:53:23.671Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 12,
+    "args": {
+      "format": "html",
+      "rawHttpUrl": "https://pro.iqsmartgames.com/evid/yh3khah",
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 49,
+    "timestamp": "2026-06-15T15:53:26.227Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 12,
+    "args": {
+      "format": "html",
+      "rawHttpUrl": "https://multimoviesshg.com/e/id0jrfa7hn28",
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 50,
+    "timestamp": "2026-06-15T15:53:26.625Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 15,
+    "args": {
+      "format": "html",
+      "rawHttpUrl": "https://plyr.technocosmos.surf/hlsplayer?url=https://multimovies.rpmhub.site/#wnyyfa",
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 51,
+    "timestamp": "2026-06-15T15:53:29.670Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 13,
+    "args": {
+      "format": "html",
+      "rawHttpUrl": "https://plyr.technocosmos.surf/hlsplayer?url=https://server1.uns.bio/#mp13ys",
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 52,
+    "timestamp": "2026-06-15T15:53:30.352Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 13,
+    "args": {
+      "format": "html",
+      "rawHttpUrl": "https://smoothpre.com/v/i11wh9a2rwrg",
+      "timeout": 30000
+    }
+  },
+  {
+    "id": 53,
+    "timestamp": "2026-06-15T15:54:15.125Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 0,
+    "args": {
+      "action": "get_api_calls",
+      "captureXhrBody": true
+    }
+  },
+  {
+    "id": 54,
+    "timestamp": "2026-06-15T15:54:15.271Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 0,
+    "args": {
+      "action": "get_media",
+      "aiDetectStreams": true
+    }
+  },
+  {
+    "id": 55,
+    "timestamp": "2026-06-15T15:54:15.293Z",
+    "tool": "media_extractor",
+    "success": true,
+    "durationMs": 65,
+    "args": {
+      "action": "extract",
+      "types": [
+        "video",
+        "audio",
+        "hls",
+        "dash",
+        "download",
+        "iframes"
+      ],
+      "searchIframes": true,
+      "deep": true,
+      "quality": "all",
+      "aiOptimize": true
+    }
+  },
+  {
+    "id": 56,
+    "timestamp": "2026-06-15T15:54:15.380Z",
+    "tool": "media_extractor",
+    "success": true,
+    "durationMs": 0,
+    "args": {
+      "action": "list_iframes",
+      "searchIframes": true
+    }
+  },
+  {
+    "id": 57,
+    "timestamp": "2026-06-15T16:23:34.388Z",
+    "tool": "browser_init",
+    "success": true,
+    "durationMs": 483,
+    "args": {
+      "headless": true,
+      "enableBlocker": true,
+      "aiHealing": true,
+      "turnstile": true
+    }
+  },
+  {
+    "id": 58,
+    "timestamp": "2026-06-15T16:23:58.028Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 4033,
+    "args": {
+      "url": "https://multimovies.makeup/movies/oye-bhole-oye-2/",
+      "waitUntil": "domcontentloaded",
+      "timeout": 30000,
+      "retries": 2,
+      "smartWait": true
+    }
+  },
+  {
+    "id": 59,
+    "timestamp": "2026-06-15T16:24:14.031Z",
+    "tool": "extract_data",
+    "success": true,
+    "durationMs": 17,
+    "args": {
+      "type": "structured",
+      "selector": "ul#playeroptionsul > li, li.dooplay_player_option[data-post][data-nume]",
+      "source": "html"
+    }
+  },
+  {
+    "id": 60,
+    "timestamp": "2026-06-15T16:24:49.959Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 2,
+    "args": {
+      "code": "(() => Array.from(document.querySelectorAll('ul#playeroptionsul > li, li.dooplay_player_option[data-post][data-nume]')).map(li => ({title: li.querySelector('span.title')?.textContent?.trim(), post: li.getAttribute('data-post'), type: li.getAttribute('data-type'), nume: li.getAttribute('data-nume')})))()",
+      "returnValue": true,
+      "timeout": 10000
+    }
+  },
+  {
+    "id": 61,
+    "timestamp": "2026-06-15T16:27:18.860Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 2,
+    "args": {
+      "action": "clear"
+    }
+  },
+  {
+    "id": 62,
+    "timestamp": "2026-06-15T16:27:43.123Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 4363,
+    "args": {
+      "url": "https://multimoviesshg.com/e/id0jrfa7hn28",
+      "waitUntil": "domcontentloaded",
+      "timeout": 30000,
+      "retries": 2,
+      "smartWait": true
+    }
+  },
+  {
+    "id": 63,
+    "timestamp": "2026-06-15T16:28:05.968Z",
+    "tool": "media_extractor",
+    "success": true,
+    "durationMs": 7,
+    "args": {
+      "action": "extract",
+      "types": [
+        "video",
+        "hls",
+        "dash",
+        "download"
+      ],
+      "quality": "all",
+      "deep": true,
+      "searchIframes": true,
+      "aiOptimize": true
+    }
+  },
+  {
+    "id": 64,
+    "timestamp": "2026-06-15T16:28:18.150Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 1,
+    "args": {
+      "action": "start",
+      "captureXhrBody": true,
+      "aiDetectStreams": true
+    }
+  },
+  {
+    "id": 65,
+    "timestamp": "2026-06-15T16:28:28.621Z",
+    "tool": "click",
+    "success": true,
+    "durationMs": 10199,
+    "args": {
+      "selector": "video, .jwplayer, body",
+      "autoDetectPlayer": true,
+      "usePlayerAPI": true,
+      "waitForPlay": true,
+      "playerTimeout": 10000,
+      "timeout": 10000,
+      "retries": 1,
+      "aiHeal": true,
+      "humanLike": false
+    }
+  },
+  {
+    "id": 66,
+    "timestamp": "2026-06-15T16:29:06.794Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 0,
+    "args": {
+      "action": "get_media",
+      "aiDetectStreams": true
+    }
+  },
+  {
+    "id": 67,
+    "timestamp": "2026-06-15T16:29:27.486Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 15,
+    "args": {
+      "format": "html",
+      "selector": "script",
+      "timeout": 10000,
+      "waitForJS": true
+    }
+  },
+  {
+    "id": 68,
+    "timestamp": "2026-06-15T16:30:28.331Z",
+    "tool": "get_content",
+    "success": true,
+    "durationMs": 4,
+    "args": {
+      "format": "html",
+      "rawHttpUrl": "https://streams.iqsmartgames.com/mymovieapi?imdbid=tt42111190&key=e11a7debaaa4f5d25b671706ffe4d2acb56efbd4",
+      "timeout": 10000
+    }
+  },
+  {
+    "id": 69,
+    "timestamp": "2026-06-15T16:41:12.227Z",
+    "tool": "browser_close",
+    "success": true,
+    "durationMs": 201,
+    "args": {
+      "saveSession": false,
+      "force": false
+    }
+  },
+  {
+    "id": 70,
+    "timestamp": "2026-06-15T17:11:56.846Z",
+    "tool": "browser_init",
+    "success": true,
+    "durationMs": 1114,
+    "args": {
+      "headless": true
+    }
+  },
+  {
+    "id": 71,
+    "timestamp": "2026-06-15T17:13:29.177Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 3529,
+    "args": {
+      "url": "https://multimovies.makeup/",
+      "waitUntil": "domcontentloaded",
+      "timeout": 60000
+    }
+  },
+  {
+    "id": 72,
+    "timestamp": "2026-06-15T17:14:06.822Z",
+    "tool": "execute_js",
+    "success": false,
+    "durationMs": 2,
+    "args": {
+      "code": "\nconst out = {};\nout.articleItem = document.querySelectorAll('article.item').length;\nout.archiveArticle = document.querySelectorAll('#archive-content > article').length;\nout.itemsArticle = document.querySelectorAll('div.items > article').length;\n// sample first movie card structure\nconst first = document.querySelector('article.item, #archive-content > article, div.items > article');\nout.firstHtml = first ? first.outerHTML.slice(0, 800) : null;\n// search result selector probe\nout.resultItem = doc…(570 chars)"
+    },
+    "error": "page.evaluate: SyntaxError: Illegal return statement\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+  },
+  {
+    "id": 73,
+    "timestamp": "2026-06-15T17:14:24.492Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 3,
+    "args": {
+      "code": "\n(() => {\n  const out = {};\n  out.articleItem = document.querySelectorAll('article.item').length;\n  out.archiveArticle = document.querySelectorAll('#archive-content > article').length;\n  out.itemsArticle = document.querySelectorAll('div.items > article').length;\n  const first = document.querySelector('article.item, #archive-content > article, div.items > article');\n  out.firstHtml = first ? first.outerHTML.slice(0, 700) : null;\n  out.resultItem = document.querySelectorAll('div.result-item articl…(531 chars)"
+    }
+  },
+  {
+    "id": 74,
+    "timestamp": "2026-06-15T17:14:41.511Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 1,
+    "args": {
+      "action": "start",
+      "captureXhrBody": true
+    }
+  },
+  {
+    "id": 75,
+    "timestamp": "2026-06-15T17:14:53.579Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 4433,
+    "args": {
+      "url": "https://multimovies.makeup/movies/oye-bhole-oye-2/",
+      "waitUntil": "domcontentloaded",
+      "timeout": 60000
+    }
+  },
+  {
+    "id": 76,
+    "timestamp": "2026-06-15T17:15:16.617Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 2,
+    "args": {
+      "code": "\n(() => {\n  const out = {};\n  // title/poster selectors\n  out.title = document.querySelector('div.sheader > div.data > h1')?.textContent?.trim();\n  out.poster = document.querySelector('div.sheader div.poster img')?.getAttribute('src');\n  // player options\n  const opts = [...document.querySelectorAll('ul#playeroptionsul > li, li.dooplay_player_option[data-post][data-nume]')];\n  out.playerOptionCount = opts.length;\n  out.players = opts.map(li => ({\n    post: li.getAttribute('data-post'),\n    nume:…(841 chars)"
+    }
+  },
+  {
+    "id": 77,
+    "timestamp": "2026-06-15T17:15:40.599Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 5509,
+    "args": {
+      "code": "\n(async () => {\n  const post = '164448';\n  const results = [];\n  for (const nume of ['1','2','3','4','5','6']) {\n    try {\n      const body = new URLSearchParams();\n      body.set('action','doo_player_ajax');\n      body.set('post', post);\n      body.set('nume', nume);\n      body.set('type','movie');\n      const r = await fetch('/wp-admin/admin-ajax.php', {\n        method:'POST',\n        headers:{'X-Requested-With':'XMLHttpRequest','Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'…(739 chars)",
+      "async": true
+    }
+  },
+  {
+    "id": 78,
+    "timestamp": "2026-06-15T17:16:16.722Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 685,
+    "args": {
+      "code": "\n(async () => {\n  const key='e11a7debaaa4f5d25b671706ffe4d2acb56efbd4';\n  const embed='https://streams.iqsmartgames.com/embed/movie/tt42111190?key='+key;\n  const api='https://streams.iqsmartgames.com/mymovieapi?imdbid=tt42111190&key='+key;\n  const out={};\n  try {\n    const r=await fetch(api,{headers:{'Accept':'application/json, text/plain, */*','X-Requested-With':'XMLHttpRequest','Referer':embed}});\n    out.apiStatus=r.status;\n    out.apiBody=(await r.text()).slice(0,1500);\n  } catch(e){ out.api…(536 chars)",
+      "async": true
+    }
+  },
+  {
+    "id": 79,
+    "timestamp": "2026-06-15T17:18:30.291Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 3231,
+    "args": {
+      "url": "https://multimoviesshg.com/e/id0jrfa7hn28",
+      "waitUntil": "domcontentloaded",
+      "timeout": 45000
+    }
+  },
+  {
+    "id": 80,
+    "timestamp": "2026-06-15T17:18:51.987Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 7,
+    "args": {
+      "code": "\n(() => {\n  const out = {};\n  try { out.jw = (window.jwplayer && jwplayer().getPlaylist) ? jwplayer().getPlaylist() : null; } catch(e){ out.jwErr=String(e); }\n  // search raw html for m3u8\n  const html = document.documentElement.innerHTML;\n  const m = html.match(/https?:\\/\\/[^\\s\"'<>\\\\]+\\.m3u8[^\\s\"'<>\\\\]*/gi);\n  out.m3u8 = m ? [...new Set(m)] : [];\n  // also look at any sources var\n  const fileMatch = html.match(/\"file\"\\s*:\\s*\"([^\"]+)\"/g);\n  out.fileMatches = fileMatch ? fileMatch.slice(0,5) : []…(521 chars)"
+    }
+  },
+  {
+    "id": 81,
+    "timestamp": "2026-06-15T17:19:21.174Z",
+    "tool": "wait",
+    "success": true,
+    "durationMs": 3008,
+    "args": {
+      "value": "3000",
+      "type": "timeout"
+    }
+  },
+  {
+    "id": 82,
+    "timestamp": "2026-06-15T17:19:41.088Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 5,
+    "args": {
+      "code": "\n(() => {\n  const out = {};\n  try {\n    if (window.jwplayer) {\n      const p = jwplayer();\n      out.pl = p.getPlaylist ? p.getPlaylist() : 'no getPlaylist';\n    } else out.nojw = true;\n  } catch(e){ out.err=String(e); }\n  // scan all script texts for m3u8 after eval\n  const scripts=[...document.scripts].map(s=>s.textContent||'').join('\\n');\n  const html=document.documentElement.innerHTML;\n  const combined=scripts+html;\n  const m=combined.match(/https?:\\/\\/[^\\s\"'<>\\\\]+\\.m3u8[^\\s\"'<>\\\\]*/gi);\n  o…(560 chars)"
+    }
+  },
+  {
+    "id": 83,
+    "timestamp": "2026-06-15T17:19:57.531Z",
+    "tool": "execute_js",
+    "success": true,
+    "durationMs": 5,
+    "args": {
+      "code": "\n(() => {\n  const html = document.documentElement.innerHTML;\n  return {\n    len: html.length,\n    hasEval: html.includes('eval(function(p,a,c,k,e,d)'),\n    hasJwScript: html.includes('jwplayer'),\n    scriptCount: document.scripts.length,\n    bodyText: document.body ? document.body.innerText.slice(0,200) : null,\n    snippet: html.slice(0, 500)\n  };\n})()\n"
+    }
+  },
+  {
+    "id": 84,
+    "timestamp": "2026-06-15T17:20:20.541Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 0,
+    "args": {
+      "action": "get_media"
+    }
+  },
+  {
+    "id": 85,
+    "timestamp": "2026-06-15T17:26:22.257Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 3,
+    "args": {
+      "action": "clear"
+    }
+  },
+  {
+    "id": 86,
+    "timestamp": "2026-06-15T17:26:45.896Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 4350,
+    "args": {
+      "url": "https://plyr.technocosmos.surf/hlsplayer?url=https://multimovies.rpmhub.site/#wnyyfa",
+      "waitUntil": "domcontentloaded",
+      "timeout": 45000
+    }
+  },
+  {
+    "id": 87,
+    "timestamp": "2026-06-15T17:27:05.377Z",
+    "tool": "wait",
+    "success": true,
+    "durationMs": 4003,
+    "args": {
+      "value": "4000",
+      "type": "timeout"
+    }
+  },
+  {
+    "id": 88,
+    "timestamp": "2026-06-15T17:27:26.213Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 0,
+    "args": {
+      "action": "get_media"
+    }
+  },
+  {
+    "id": 89,
+    "timestamp": "2026-06-15T17:27:50.404Z",
+    "tool": "network_recorder",
+    "success": true,
+    "durationMs": 0,
+    "args": {
+      "action": "get_api_calls"
+    }
+  },
+  {
+    "id": 90,
+    "timestamp": "2026-06-15T18:10:00.039Z",
+    "tool": "navigate",
+    "success": false,
+    "durationMs": 1,
+    "args": {
+      "url": "https://jitpack.io/com/github/recloudstream/gradle/master-SNAPSHOT/maven-metadata.xml",
+      "waitUntil": "domcontentloaded",
+      "timeout": 60000
+    },
+    "error": "Browser not initialized. Call browser_init first."
+  },
+  {
+    "id": 91,
+    "timestamp": "2026-06-15T18:10:12.726Z",
+    "tool": "browser_init",
+    "success": true,
+    "durationMs": 736,
+    "args": {
+      "headless": true,
+      "turnstile": true
+    }
+  },
+  {
+    "id": 92,
+    "timestamp": "2026-06-15T18:10:22.048Z",
+    "tool": "navigate",
+    "success": true,
+    "durationMs": 946,
+    "args": {
+      "url": "https://jitpack.io/com/github/recloudstream/gradle/master-SNAPSHOT/maven-metadata.xml",
+      "waitUntil": "domcontentloaded",
+      "timeout": 60000
+    }
+  },
+  {
+    "id": 93,
+    "timestamp": "2026-06-15T18:10:34.792Z",
+    "tool": "wait",
+    "success": true,
+    "durationMs": 8010,
+    "args": {
+      "value": "8000",
+      "type": "timeout"
+    }
+  }
+]

@@ -9,7 +9,11 @@ import { handlers } from './index';
 export const extractHandlers = {
   async get_content(params: any = {}) {
     const { page } = requireBrowser();
-    const { format = 'text', selector, rawHttpUrl } = params;
+    let { format = 'text', selector, rawHttpUrl } = params;
+
+    if (rawHttpUrl && format !== 'rawHttp') {
+      format = 'rawHttp';
+    }
 
     notifyProgress('get_content', 'started', `Extracting ${format} content${selector ? ` from ${selector}` : ''}`);
 

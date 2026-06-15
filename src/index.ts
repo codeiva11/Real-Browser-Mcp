@@ -10,6 +10,7 @@
  */
 
 const { TOOLS, TOOL_DISPLAY, CATEGORIES } = require('./shared/tools');
+const { activityLogger, ActivityLogger } = require('./shared/activity-logger');
 
 // ANSI colors for terminal
 const colors = {
@@ -117,6 +118,8 @@ module.exports = {
   TOOLS,
   TOOL_DISPLAY,
   CATEGORIES,
+  activityLogger,
+  ActivityLogger,
   startMCP: () => require('./mcp/index'),
   startBoth: () => require('./mcp/index'),
 };
