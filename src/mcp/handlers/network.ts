@@ -1,5 +1,4 @@
-import * as path from 'path';
-import * as fs from 'fs';
+
 import * as crypto from 'crypto';
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil } from './state';
 import { handlers } from './index';
@@ -729,8 +728,108 @@ export const networkHandlers = {
       return autoResults;
     };
 
+    // Helper: Extract Links (merged from link_harvester)
+    const extractLinks = async () => {
+      const { includeHidden = true, searchIframes = false } = params;
+      const doExtract = async (context: any) => {
+        return await context.evaluate(({ incHidden }: any) => {
+          const allLinks: any[] = [];
+          const seenUrls = new Set();
+          const addLink = (href: any, text: any, source: any, element: any) => {
+            if (!href || seenUrls.has(href)) return;
+            if (!href.startsWith('http') && !href.startsWith('//')) return;
+            if (href.startsWith('//')) href = window.location.protocol + href;
+            seenUrls.add(href);
+            allLinks.push({
+              href,
+              text: (text || '').trim().substring(0, 100),
+              source,
+              hidden: element ? (element.offsetParent === null || getComputedStyle(element).display === 'none' || getComputedStyle(element).visibility === 'hidden') : false
+            });
+          };
+
+          document.querySelectorAll('a[href]').forEach(a => addLink(a.href, a.textContent, 'anchor', a));
+          const dataAttrs = ['data-href', 'data-url', 'data-link', 'data-src', 'data-file', 'data-download'];
+          dataAttrs.forEach(attr => document.querySelectorAll(`[${attr}]`).forEach(el => addLink(el.getAttribute(attr), el.textContent, `${attr}`, el)));
+
+          if (incHidden) {
+            document.querySelectorAll('[onclick]').forEach(el => {
+              const onclick = el.getAttribute('onclick');
+              if (!onclick) return;
+              const urlMatches = onclick.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+              urlMatches.forEach(url => addLink(url, el.textContent, 'onclick', el));
+              const hrefMatch = onclick.match(/location\.href\s*=\s*['"]([^'"]+)['"]/);
+              if (hrefMatch) addLink(hrefMatch[1], el.textContent, 'onclick-location', el);
+              const openMatch = onclick.match(/window\.open\s*\(\s*['"]([^'"]+)['"]/);
+              if (openMatch) addLink(openMatch[1], el.textContent, 'onclick-window-open', el);
+            });
+            const scripts = [...document.querySelectorAll('script')].slice(0, 20);
+            scripts.forEach(script => {
+              const content = script.textContent || '';
+              const patterns = [
+                /["']?(https?:\/\/[^"'\s<>]+\.(mp4|mkv|avi|m3u8|mpd|zip|rar|pdf))[^"'\s<>]*["']?/gi,
+                /download[_-]?url\s*[:=]\s*["']([^"']+)["']/gi,
+                /file\s*[:=]\s*["']([^"']+)["']/gi
+              ];
+              patterns.forEach(pattern => {
+                let match;
+                while ((match = pattern.exec(content)) !== null) addLink(match[1], 'script-extracted', 'script', null);
+              });
+            });
+          }
+          
+          document.querySelectorAll('a[href^="javascript:"]').forEach(a => {
+            const match = a.getAttribute('href')?.match(/https?:\/\/[^\s"'<>]+/gi);
+            if (match) match.forEach(url => addLink(url, a.textContent, 'javascript-href', a));
+          });
+          
+          document.querySelectorAll('input[type="hidden"]').forEach((input: any) => {
+            if (input.value && (input.value.startsWith('http') || input.value.startsWith('//'))) addLink(input.value, input.name || input.id, 'hidden-input', input);
+          });
+          
+          const metaRefresh = document.querySelector('meta[http-equiv="refresh"]');
+          if (metaRefresh) {
+            const match = metaRefresh.getAttribute('content')?.match(/url=(.+)/i);
+            if (match) addLink(match[1].trim().replace(/['"]/g, ''), 'meta-refresh', 'meta', null);
+          }
+          
+          document.querySelectorAll('iframe[src]').forEach((iframe: any) => addLink(iframe.src, 'iframe', 'iframe', iframe));
+          return allLinks;
+        }, { incHidden: includeHidden }).catch(() => []);
+      };
+
+      let links = await doExtract(page);
+      if (searchIframes) {
+        const frames = page.frames();
+        for (let i = 1; i < frames.length && i < 5; i++) {
+          try {
+            const frame = frames[i];
+            if (frame.url() && frame.url() !== 'about:blank') {
+              const frameLinks = await doExtract(frame);
+              frameLinks.forEach((link: any) => link.source = `iframe:${link.source}`);
+              links = [...links, ...frameLinks];
+            }
+          } catch (e) { }
+        }
+      }
+      
+      if (!includeHidden) links = links.filter((link: any) => !link.hidden);
+      const seen = new Set();
+      return links.filter((link: any) => {
+        if (seen.has(link.href)) return false;
+        seen.add(link.href);
+        return true;
+      });
+    };
+
     // Main switch based on type
     switch (type) {
+      case 'links': {
+        const links = await extractLinks();
+        results.extracted = { count: links.length, links };
+        notifyProgress('extract_data', 'completed', `Links: ${links.length} extracted`);
+        break;
+      }
       case 'regex': {
         if (!pattern) {
           return { success: false, error: 'Pattern is required for regex extraction' };
@@ -761,7 +860,7 @@ export const networkHandlers = {
 
       case 'structured': {
         if (!selector) {
-          return { success: false, error: 'Selector is required for structured extraction' };
+          return { success: false, error: 'Selector is required for structured extraction. 💡 AI HINT: Run see_page(annotate: true) first to discover valid selectors or annotation IDs.' };
         }
         results.extracted = await extractStructured(selector, waitForSelector, selectorTimeout);
         if (results.extracted.error) {

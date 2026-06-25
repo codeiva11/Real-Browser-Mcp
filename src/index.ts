@@ -100,14 +100,7 @@ async function main() {
     process.exit(0);
   }
   
-  console.error('');
-  console.error(`${colors.bright}${colors.cyan}╔════════════════════════════════════════════════════════════╗${colors.reset}`);
-  console.error(`${colors.bright}${colors.cyan}║${colors.reset}  ${colors.bright}${colors.magenta}🦁 Real Browser MCP Server${colors.reset}                                ${colors.cyan}║${colors.reset}`);
-  console.error(`${colors.bright}${colors.cyan}║${colors.reset}  ${colors.dim}MCP (AI Agents) Server running on STDIO${colors.reset}                  ${colors.cyan}║${colors.reset}`);
-  console.error(`${colors.bright}${colors.cyan}╚════════════════════════════════════════════════════════════╝${colors.reset}`);
-  console.error('');
-  
-  console.error(`${colors.bright}${colors.blue}🚀 Starting MCP Server...${colors.reset}`);
+
   
   // Import and run MCP server
   require('./mcp/index');

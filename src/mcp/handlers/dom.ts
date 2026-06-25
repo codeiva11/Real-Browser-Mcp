@@ -1,6 +1,4 @@
-import * as path from 'path';
-import * as fs from 'fs';
-import * as crypto from 'crypto';
+
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil } from './state';
 import { handlers } from './index';
 
@@ -46,7 +44,7 @@ export const domHandlers = {
     }
 
     if (!selector) {
-      return { success: false, error: 'You must provide either a selector or an annotationId.' };
+      return { success: false, error: 'You must provide either a selector or an annotationId. 💡 AI HINT: Use see_page(annotate: true) to get an annotationId.' };
     }
 
     notifyProgress('click', 'started', `${hoverOnly ? 'Hovering' : 'Clicking'}: ${selector}${iframe !== undefined ? ` (iframe ${iframe})` : ''}${autoDetectPlayer ? ' (auto-detect player)' : ''}`);
@@ -61,159 +59,49 @@ export const domHandlers = {
     // Supports: JWPlayer, VideoJS, Plyr, VidStack, DooPlayer, HTML5
     // ═══════════════════════════════════════════════════════════════
     if (autoDetectPlayer) {
-      notifyProgress('click', 'progress', '🔍 Scanning all iframes for video players...');
-
-      const frames = page.frames();
-
-      for (let i = 0; i < frames.length; i++) {
-        try {
-          const frame = frames[i];
-          const frameUrl = frame.url();
-
-          // Skip blank frames
-          if (frameUrl === 'about:blank' || !frameUrl) continue;
-
-          // Detect player in this frame
-          const playerInfo: any = await frame.evaluate(() => {
-            const result: any = {
-              hasPlayer: false,
-              playerType: null,
-              hasVideo: false,
-              videoState: null,
-              controls: [],
-              downloadButton: null
-            };
-
-            // Check for video element
-            const video = document.querySelector('video');
-            if (video) {
-              result.hasVideo = true;
-              result.videoState = {
-                paused: video.paused,
-                currentTime: video.currentTime,
-                duration: video.duration,
-                readyState: video.readyState
-              };
+      notifyProgress('click', 'progress', '🔍 Scanning for video players...');
+      const { detectPlayerInContext } = require('./media-handlers');
+      
+      let playerInfo = await detectPlayerInContext(page, 'info', 'main');
+      if (playerInfo.detected) {
+         context = page;
+         detectedPlayer = playerInfo;
+         notifyProgress('click', 'progress', `✅ Found ${playerInfo.type.toUpperCase()} in main page`);
+      } else {
+        const frames = page.frames();
+        for (let i = 1; i < frames.length; i++) {
+          try {
+            const frame = frames[i];
+            const frameUrl = frame.url();
+            if (!frameUrl || frameUrl === 'about:blank') continue;
+            
+            playerInfo = await detectPlayerInContext(frame, 'info', `frame-${i}`);
+            if (playerInfo.detected) {
+              context = frame as any;
+              frameInfo = { index: i, url: frameUrl, autoDetected: true };
+              detectedPlayer = playerInfo;
+              notifyProgress('click', 'progress', `✅ Found ${playerInfo.type.toUpperCase()} in iframe ${i}: ${frameUrl.substring(0, 50)}...`);
+              break;
             }
-
-            // 1. JWPlayer Detection
-            if ((window as any).jwplayer && typeof (window as any).jwplayer === 'function') {
-              try {
-                const jw = (window as any).jwplayer();
-                if (jw && jw.getState) {
-                  result.hasPlayer = true;
-                  result.playerType = 'jwplayer';
-                  result.playerState = jw.getState();
-                  result.controls.push('.jw-icon-display', '.jw-icon-playback', '[aria-label="Play"]');
-
-                  // Find download button in JWPlayer
-                  const dlBtn = document.querySelector('[aria-label="Download"], .jw-icon-download, [class*="download"]');
-                  if (dlBtn) result.downloadButton = '[aria-label="Download"]';
-                }
-              } catch (e) { }
-            }
-
-            // 2. VideoJS Detection
-            if ((window as any).videojs || document.querySelector('.video-js')) {
-              result.hasPlayer = true;
-              result.playerType = result.playerType || 'videojs';
-              result.controls.push('.vjs-big-play-button', '.vjs-play-control');
-            }
-
-            // 3. Plyr Detection
-            if ((window as any).Plyr || document.querySelector('.plyr')) {
-              result.hasPlayer = true;
-              result.playerType = result.playerType || 'plyr';
-              result.controls.push('.plyr__control--play', '[data-plyr="play"]');
-            }
-
-            // 4. VidStack Detection
-            if ((window as any).VidStack || document.querySelector('media-player')) {
-              result.hasPlayer = true;
-              result.playerType = result.playerType || 'vidstack';
-              result.controls.push('media-play-button', '[data-media-play]');
-            }
-
-            // 5. DooPlayer Detection
-            if ((window as any).DooPlay || document.querySelector('#dooplay') || document.querySelector('.dooplay')) {
-              result.hasPlayer = true;
-              result.playerType = result.playerType || 'dooplayer';
-              result.controls.push('.play-btn', '.dooplay-play');
-            }
-
-            // 6. Generic HTML5 Video
-            if (result.hasVideo && !result.hasPlayer) {
-              result.hasPlayer = true;
-              result.playerType = 'html5';
-              result.controls.push('video');
-            }
-
-            // Find any download button
-            if (!result.downloadButton) {
-              const dlSelectors = [
-                '[aria-label="Download"]', '[aria-label*="download"]',
-                '.download-btn', '.download', '[class*="download"]',
-                'a[download]', 'button[class*="download"]'
-              ];
-              for (const sel of dlSelectors) {
-                if (document.querySelector(sel)) {
-                  result.downloadButton = sel;
-                  break;
-                }
-              }
-            }
-
-            return result;
-          }).catch(() => ({ hasPlayer: false }));
-
-          if (playerInfo.hasPlayer) {
-            context = frame as any;
-            frameInfo = {
-              index: i,
-              url: frameUrl,
-              autoDetected: true
-            };
-            detectedPlayer = {
-              type: playerInfo.playerType,
-              state: playerInfo.playerState || playerInfo.videoState,
-              controls: playerInfo.controls,
-              downloadButton: playerInfo.downloadButton
-            };
-
-            notifyProgress('click', 'progress',
-              `✅ Found ${playerInfo.playerType.toUpperCase()} in iframe ${i}: ${frameUrl.substring(0, 50)}...`);
-            break;
-          }
-        } catch (e) {
-          // Skip frames that can't be accessed
-          continue;
+          } catch(e) {}
         }
       }
 
       if (!detectedPlayer) {
-        notifyProgress('click', 'progress', '⚠️ No video player found in any iframe, using main page');
+        notifyProgress('click', 'progress', '⚠️ No video player found, using main page');
       }
     }
 
     // Manual iframe selection (if not auto-detected)
     if (!autoDetectPlayer && (iframe !== undefined || iframeSelector)) {
       try {
-        const frames = page.frames();
-
-        if (iframe !== undefined && frames[iframe]) {
-          context = frames[iframe] as any;
-          frameInfo = { index: iframe, url: frames[iframe].url() };
-          notifyProgress('click', 'progress', `Switched to iframe ${iframe}: ${frames[iframe].url().substring(0, 50)}...`);
-        } else if (iframeSelector) {
-          const iframeHandle = await page.$(iframeSelector);
-          if (iframeHandle) {
-            const frame = await iframeHandle.contentFrame();
-            if (frame) {
-              context = frame as any;
-              frameInfo = { selector: iframeSelector, url: frame.url() };
-              notifyProgress('click', 'progress', `Switched to iframe by selector: ${iframeSelector}`);
-            }
-          }
+        const resolved = await handlers._resolveIframeContext(page, iframe, iframeSelector);
+        if (resolved.success) {
+          context = resolved.targetFrame;
+          frameInfo = resolved.frameInfo;
+          notifyProgress('click', 'progress', `Switched to iframe ${iframe ?? iframeSelector}`);
+        } else {
+          notifyProgress('click', 'progress', `Warning: Could not switch to iframe - ${resolved.error}`);
         }
       } catch (e: any) {
         notifyProgress('click', 'progress', `Warning: Could not switch to iframe - ${e.message}`);
@@ -462,7 +350,7 @@ export const domHandlers = {
         }
       }
 
-      throw lastError || new Error('Click failed after all retries');
+      throw lastError || new Error('Click failed after all retries. 💡 AI HINT: The DOM might have changed or the selector is invalid. Run see_page(annotate: true) to get an updated view and use annotationId instead.');
 
     } finally {
       if (autoAcceptDialogs) {
@@ -498,7 +386,7 @@ export const domHandlers = {
     }
 
     if (!selector) {
-      return { success: false, error: 'You must provide either a selector or an annotationId.' };
+      return { success: false, error: 'You must provide either a selector or an annotationId. 💡 AI HINT: Use see_page(annotate: true) to get an annotationId.' };
     }
 
     notifyProgress('type', 'started', `Typing ${text.length} characters into ${selector}${iframe !== undefined ? ` (iframe ${iframe})` : ''}`);
@@ -509,22 +397,13 @@ export const domHandlers = {
 
     if (iframe !== undefined || iframeSelector) {
       try {
-        const frames = page.frames();
-
-        if (iframe !== undefined && frames[iframe]) {
-          context = frames[iframe] as any;
-          frameInfo = { index: iframe, url: frames[iframe].url() };
-          notifyProgress('type', 'progress', `Switched to iframe ${iframe}`);
-        } else if (iframeSelector) {
-          const iframeHandle = await page.$(iframeSelector);
-          if (iframeHandle) {
-            const frame = await iframeHandle.contentFrame();
-            if (frame) {
-              context = frame as any;
-              frameInfo = { selector: iframeSelector, url: frame.url() };
-              notifyProgress('type', 'progress', `Switched to iframe by selector`);
-            }
-          }
+        const resolved = await handlers._resolveIframeContext(page, iframe, iframeSelector);
+        if (resolved.success) {
+          context = resolved.targetFrame;
+          frameInfo = resolved.frameInfo;
+          notifyProgress('type', 'progress', `Switched to iframe ${iframe ?? iframeSelector}`);
+        } else {
+          notifyProgress('type', 'progress', `Warning: Could not switch to iframe - ${resolved.error}`);
         }
       } catch (e: any) {
         notifyProgress('type', 'progress', `Warning: Could not switch to iframe - ${e.message}`);
@@ -540,7 +419,7 @@ export const domHandlers = {
         await context.waitForSelector(selector, { timeout: 10000 });
       } catch (e) {
         notifyProgress('type', 'error', `Selector not found: ${selector}`);
-        return { success: false, error: `Selector not found: ${selector}` };
+        return { success: false, error: `Selector not found: ${selector}. 💡 AI HINT: The element might be hidden, inside an iframe, or the selector is wrong. Run see_page(annotate: true) to verify and get an annotationId.` };
       }
     }
 
@@ -591,53 +470,6 @@ export const domHandlers = {
     notifyProgress('random_scroll', 'completed', `Scrolled ${scrollDirection} ${scrollAmount}px`, { direction: scrollDirection, amount: scrollAmount });
 
     return { success: true, direction: scrollDirection, amount: scrollAmount };
-  },
-
-  async find_element(params: any = {}) {
-    const { page } = requireBrowser();
-    const { selector, xpath, text, multiple = false } = params;
-
-    notifyProgress('find_element', 'started', `Finding element: ${selector || xpath || text}`);
-
-    let elements: any[] = [];
-
-    if (selector) {
-      if (multiple) {
-        elements = await page.$$eval(selector, els => els.map(el => ({
-          tag: el.tagName,
-          text: el.textContent?.substring(0, 100),
-          classes: el.className,
-          id: el.id
-        })));
-      } else {
-        const el = await page.$(selector);
-        if (el) {
-          elements = [await el.evaluate(el => ({
-            tag: el.tagName,
-            text: el.textContent?.substring(0, 100),
-            classes: el.className,
-            id: el.id
-          }))];
-        }
-      }
-    } else if (xpath) {
-      const handles = await page.$$(`xpath=${xpath}`);
-      elements = await Promise.all(handles.map(h => h.evaluate(el => ({
-        tag: el.tagName,
-        text: el.textContent?.substring(0, 100)
-      }))));
-    } else if (text) {
-      elements = await page.$$eval('*', (els, text) =>
-        els.filter(el => el.textContent?.includes(text))
-          .slice(0, 10)
-          .map(el => ({ tag: el.tagName, text: el.textContent?.substring(0, 100) })),
-        text
-      );
-    }
-
-    notifyProgress('find_element', 'completed', `Found ${elements.length} element(s)`, { found: elements.length });
-
-    return { success: true, found: elements.length, elements };
   },
 
   async press_key(params: any) {

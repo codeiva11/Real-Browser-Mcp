@@ -3,7 +3,7 @@ const TOOLS = [
   {
     name: 'browser_init',
     emoji: '🚀',
-    description: 'Initialize Brave browser with stealth, anti-detection, and AI healing',
+    description: 'Initialize Brave browser with stealth, anti-detection, and AI healing.\n\n🤖 AI Usage Guide: Use this FIRST to start the browser session. Only run once per session.',
     descriptionHindi: 'ब्राउज़र शुरू करना (stealth + AI healing)',
     category: 'browser',
     requiresBrowser: false,
@@ -36,7 +36,7 @@ const TOOLS = [
   {
     name: 'navigate',
     emoji: '🧭',
-    description: 'Navigate to URL with smart retry, context recovery, and AI healing',
+    description: 'Navigate to URL with smart retry, context recovery, and AI healing.\n\n🤖 AI Usage Guide: Use this right after browser_init to load a target website. Wait for networkidle by default.',
     descriptionHindi: 'URL पर जाना (smart retry + recovery)',
     category: 'navigation',
     requiresBrowser: true,
@@ -54,25 +54,30 @@ const TOOLS = [
     }
   },
 
-  // 3. Get Content (MERGED: get_content + js_scrape)
+  // 3. Get Content (MERGED: get_content + js_scrape + save_content_as_markdown + find_element)
   {
     name: 'get_content',
     emoji: '📄',
-    description: 'Get page content in multiple formats: html (full HTML), text (plain text), markdown (formatted MD), rawHttp (raw HTTP response without JS rendering - fast, no browser needed, bypasses JS protections). Supports CSS selector targeting, AI auto-healing for broken selectors, JS wait, and attribute extraction.',
-    descriptionHindi: 'पेज का कंटेंट लेना — formats: html/text/markdown/rawHttp। rawHttp mode बिना JS के raw HTML fetch करता है। AI healing + selector targeting।',
+    description: 'Get page content in multiple formats: html, text, markdown, rawHttp, or elements. Extracts text, attributes, or visual bounding boxes (rects). Can optionally save directly to a file.\n\n🤖 AI Usage Guide: Prefer format="rawHttp" for static sites to bypass JS loading entirely (10x faster). If you need coordinates, use format="elements" with an xpath or text selector.',
+    descriptionHindi: 'पेज का कंटेंट लेना — formats: html/text/markdown/rawHttp/elements। AI healing + selector/xpath/text targeting। Save to file option।',
     category: 'extraction',
     requiresBrowser: true,
     requiresPage: true,
     inputSchema: {
       type: 'object',
       properties: {
-        format: { type: 'string', enum: ['html', 'text', 'markdown', 'rawHttp'], default: 'text' },
+        format: { type: 'string', enum: ['html', 'text', 'markdown', 'rawHttp', 'elements'], default: 'text' },
         selector: { type: 'string', description: 'CSS selector (AI will auto-heal if broken)' },
+        xpath: { type: 'string', description: 'XPath selector' },
+        text: { type: 'string', description: 'Find elements containing exact text' },
         waitForJS: { type: 'boolean', default: true, description: 'Wait for JavaScript to render' },
         timeout: { type: 'number', default: 10000 },
         aiHeal: { type: 'boolean', default: true, description: 'Auto-fix broken selectors' },
         extractAttributes: { type: 'boolean', default: false, description: 'Extract all element attributes' },
-        rawHttpUrl: { type: 'string', description: 'URL to fetch raw HTTP (no JS). When set, get_content automatically uses rawHttp mode; defaults to current page URL if format is rawHttp.' }
+        multiple: { type: 'boolean', default: false, description: 'Return multiple matching elements (for format=elements)' },
+        includeMeta: { type: 'boolean', default: false, description: 'Include page title and URL at the top' },
+        saveAs: { type: 'string', description: 'Absolute file path to save extracted content to disk' },
+        rawHttpUrl: { type: 'string', description: 'URL to fetch raw HTTP (no JS). Defaults to current page URL if format is rawHttp.' }
       }
     }
   },
@@ -81,7 +86,7 @@ const TOOLS = [
   {
     name: 'wait',
     emoji: '⏳',
-    description: 'Smart wait with AI prediction for optimal timing',
+    description: 'Smart wait with AI prediction for optimal timing.\n\n🤖 AI Usage Guide: Avoid arbitrary timeouts. Use type="networkidle" or type="selector" to wait for elements to appear dynamically before interacting with them.',
     descriptionHindi: 'स्मार्ट इंतजार (AI prediction)',
     category: 'utility',
     requiresBrowser: true,
@@ -102,7 +107,7 @@ const TOOLS = [
   {
     name: 'click',
     emoji: '👆',
-    description: 'Human-like click with AI healing, iframe support, hover for dynamic controls, and auto video player detection',
+    description: 'Human-like click with AI healing, iframe support, hover for dynamic controls, and auto video player detection.\n\n🤖 AI Usage Guide: If a CSS selector fails or you are unsure of the selector, DO NOT guess repeatedly. Call `see_page` with `annotate: true` to get the `annotationId`, then click using `annotationId` instead of `selector`.',
     descriptionHindi: 'क्लिक करना (AI healing + iframe + auto video player detection)',
     category: 'interaction',
     requiresBrowser: true,
@@ -143,7 +148,7 @@ const TOOLS = [
   {
     name: 'type',
     emoji: '⌨️',
-    description: 'Type text with human speed variation, smart clearing, and iframe support',
+    description: 'Type text with human speed variation, smart clearing, and iframe support.\n\n🤖 AI Usage Guide: Like `click`, if the selector fails, use `see_page` with `annotate: true` and pass the `annotationId`.',
     descriptionHindi: 'टेक्स्ट टाइप करना (human speed + iframe support)',
     category: 'interaction',
     requiresBrowser: true,
@@ -250,55 +255,13 @@ const TOOLS = [
     }
   },
 
-  // 10. Find Element
-  {
-    name: 'find_element',
-    emoji: '🔍',
-    description: 'Find elements with AI-powered selector healing and smart search',
-    descriptionHindi: 'एलीमेंट खोजना (AI healing)',
-    category: 'extraction',
-    requiresBrowser: true,
-    requiresPage: true,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        selector: { type: 'string', description: 'CSS selector (AI heals if broken)' },
-        xpath: { type: 'string', description: 'XPath alternative' },
-        text: { type: 'string', description: 'Find by text content' },
-        multiple: { type: 'boolean', default: false },
-        aiHeal: { type: 'boolean', default: true, description: 'Auto-find alternatives if selector fails' },
-        smartAttributes: { type: 'boolean', default: true, description: 'Extract smart element attributes' }
-      }
-    }
-  },
 
-  // 11. Save Content as Markdown
-  {
-    name: 'save_content_as_markdown',
-    emoji: '📝',
-    description: 'Save page content with AI-enhanced formatting',
-    descriptionHindi: 'कंटेंट MD में सेव करना (AI-enhanced)',
-    category: 'extraction',
-    requiresBrowser: true,
-    requiresPage: true,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        filename: { type: 'string' },
-        selector: { type: 'string' },
-        includeImages: { type: 'boolean', default: true },
-        includeMeta: { type: 'boolean', default: true },
-        aiClean: { type: 'boolean', default: true, description: 'AI removes ads and clutter' }
-      },
-      required: ['filename']
-    }
-  },
 
   // 12. Redirect Tracer
   {
     name: 'redirect_tracer',
     emoji: '🔀',
-    description: 'Trace complete redirect chains including HTTP 301/302 redirects, JavaScript-based navigations (window.location, setTimeout redirects), and meta refresh tags. Auto-decodes encoded URLs in the chain. Returns full redirect path with status codes and headers.',
+    description: 'Trace complete redirect chains including HTTP 301/302 redirects, JavaScript-based navigations (window.location, setTimeout redirects), and meta refresh tags. Auto-decodes encoded URLs in the chain. Returns full redirect path with status codes and headers.\n\n🤖 AI Usage Guide: Use this if a URL is failing to load or redirecting infinitely to understand the routing.',
     descriptionHindi: 'पूरी redirect chain ट्रेस — HTTP 301/302 + JS navigation + meta refresh। Auto URL decode।',
     category: 'network',
     requiresBrowser: true,
@@ -317,21 +280,21 @@ const TOOLS = [
     }
   },
 
-  // 13. Extract Data (MERGED: search_regex + extract_json + scrape_meta_tags + POWER FEATURES)
+  // 13. Extract Data (MERGED: search_regex + extract_json + scrape_meta_tags + link_harvester + POWER FEATURES)
   {
     name: 'extract_data',
     emoji: '🔎',
-    description: 'Universal data extractor with 8 modes: (1) regex - pattern matching with flags, (2) json - JSON path extraction, (3) meta - HTML meta tags + Open Graph + Twitter Cards, (4) structured - CSS selector-based extraction, (5) auto - AI picks best method, (6) deobfuscate - decode obfuscated JS: _0x string arrays, hex strings, unicode escapes, eval unpacker, webpack modules, terser single-letter mappings, string concatenation resolver ("htt"+"ps://" → "https://"), array rotation detection, (7) apiDiscovery - find hidden API endpoints via runtime fetch/XHR interception + static analysis of scripts, (8) decrypt - auto-decode encrypted data: recursive Base64 chain (5 levels), hex, URL decode, ROT13, AES-256-CBC with auto key extraction from CryptoJS patterns in page scripts.',
-    descriptionHindi: 'यूनिवर्सल डेटा एक्सट्रैक्टर — 8 modes: regex, json, meta, structured, auto, deobfuscate (JS decode), apiDiscovery (hidden APIs), decrypt (Base64/hex/AES auto-decrypt)।',
+    description: 'Universal data extractor with 9 modes: (1) regex, (2) json, (3) meta, (4) structured, (5) auto, (6) deobfuscate, (7) apiDiscovery, (8) decrypt, (9) links - extract all links including hidden, iframe, and obfuscated links.\n\n🤖 AI Usage Guide: Use this INSTEAD of executing custom JS (`execute_js`) to scrape data. If you need links, use type="links". For general info, use type="auto".',
+    descriptionHindi: 'यूनिवर्सल डेटा एक्सट्रैक्टर — 9 modes: regex, json, meta, structured, auto, deobfuscate, apiDiscovery, decrypt, links (extract all links)।',
     category: 'extraction',
     requiresBrowser: true,
     requiresPage: true,
     inputSchema: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['regex', 'json', 'meta', 'structured', 'auto', 'deobfuscate', 'apiDiscovery', 'decrypt'], default: 'auto' },
+        type: { type: 'string', enum: ['regex', 'json', 'meta', 'structured', 'auto', 'deobfuscate', 'apiDiscovery', 'decrypt', 'links'], default: 'auto' },
         pattern: { type: 'string', description: 'For regex: pattern to search' },
-        selector: { type: 'string', description: 'For structured: CSS selector' },
+        selector: { type: 'string', description: 'For structured/links: CSS selector' },
         jsonPath: { type: 'string', description: 'For JSON: path expression' },
         source: { type: 'string', enum: ['html', 'text', 'scripts', 'ld+json', 'api', 'all'], default: 'all' },
         autoDecode: { type: 'boolean', default: true, description: 'Auto-decode Base64/URL in results' },
@@ -339,7 +302,9 @@ const TOOLS = [
         encryptedData: { type: 'string', description: 'For decrypt: data to decode/decrypt' },
         autoFindKey: { type: 'boolean', default: true, description: 'For decrypt: auto-extract AES keys from page scripts' },
         aesKey: { type: 'string', description: 'For decrypt: AES decryption key' },
-        aesIV: { type: 'string', description: 'For decrypt: AES initialization vector' }
+        aesIV: { type: 'string', description: 'For decrypt: AES initialization vector' },
+        includeHidden: { type: 'boolean', default: true, description: 'For links: Include hidden links' },
+        searchIframes: { type: 'boolean', default: true, description: 'For links: Search inside iframes' }
       }
     }
   },
@@ -389,7 +354,7 @@ const TOOLS = [
   {
     name: 'deep_analysis',
     emoji: '🧠',
-    description: 'Deep page analysis: DOM structure, scripts, styles, accessibility, performance metrics, SEO tags, security headers, anti-bot detection (Cloudflare, DataDome, reCAPTCHA), technology stack identification, and AI-powered recommendations for scraping strategy.',
+    description: 'Deep page analysis: DOM structure, scripts, styles, accessibility, performance metrics, SEO tags, security headers, anti-bot detection (Cloudflare, DataDome, reCAPTCHA), technology stack identification, and AI-powered recommendations for scraping strategy.\n\n🤖 AI Usage Guide: Use this if you are getting blocked or if elements are mysteriously absent, to check for anti-bot measures or iFrames.',
     descriptionHindi: 'गहरा पेज विश्लेषण — DOM, scripts, anti-bot detection, tech stack, SEO, AI recommendations।',
     category: 'analysis',
     requiresBrowser: true,
@@ -409,7 +374,7 @@ const TOOLS = [
   {
     name: 'network_recorder',
     emoji: '📡',
-    description: 'Record all network activity with 9 actions: (1) start - begin recording + inject pre-page-load API interceptors (monkey-patches fetch, XMLHttpRequest, navigator.sendBeacon) + WebSocket constructor interceptor, (2) stop - stop recording, (3) get - get all records with filters, (4) clear - clear all records, (5) get_media - get only video/audio/HLS/DASH stream URLs, (6) get_navigations - track JS redirects and meta refreshes, (7) get_api_calls - get all API calls with full request/response bodies (JSON, form data), (8) get_intercepted_apis - get runtime-intercepted API calls captured via monkey-patched fetch/XHR/sendBeacon (catches calls from obfuscated/webpack code), (9) get_websockets - get all WebSocket connections and messages (sent + received with timestamps). Supports filters: resourceType, urlPattern, mediaOnly.',
+    description: 'Record all network activity with 9 actions: (1) start - begin recording + inject pre-page-load API interceptors (monkey-patches fetch, XMLHttpRequest, navigator.sendBeacon) + WebSocket constructor interceptor, (2) stop - stop recording, (3) get - get all records with filters, (4) clear - clear all records, (5) get_media - get only video/audio/HLS/DASH stream URLs, (6) get_navigations - track JS redirects and meta refreshes, (7) get_api_calls - get all API calls with full request/response bodies (JSON, form data), (8) get_intercepted_apis - get runtime-intercepted API calls captured via monkey-patched fetch/XHR/sendBeacon (catches calls from obfuscated/webpack code), (9) get_websockets - get all WebSocket connections and messages (sent + received with timestamps). Supports filters: resourceType, urlPattern, mediaOnly.\n\n🤖 AI Usage Guide: To capture API calls, you MUST run action="start" BEFORE navigating to the page. Then wait, then use action="get_api_calls".',
     descriptionHindi: 'नेटवर्क रिकॉर्डर — 9 actions: start/stop/get/clear/get_media/get_navigations/get_api_calls/get_intercepted_apis/get_websockets। Runtime API interception + WebSocket capture।',
     category: 'network',
     requiresBrowser: true,
@@ -433,28 +398,7 @@ const TOOLS = [
     }
   },
 
-  // 18. Link Harvester
-  {
-    name: 'link_harvester',
-    emoji: '🔗',
-    description: 'Extract all links from page including hidden links (display:none, visibility:hidden), Base64/URL encoded links, obfuscated links (data attributes, JS variables), links inside iframes (multi-level), and dynamically generated links. Supports CSS selector filtering and auto-decode.',
-    descriptionHindi: 'सभी लिंक्स निकालना — hidden, encoded, obfuscated, iframe, dynamic links।',
-    category: 'extraction',
-    requiresBrowser: true,
-    requiresPage: true,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        types: { type: 'array', items: { type: 'string' }, default: ['all'] },
-        selector: { type: 'string' },
-        includeText: { type: 'boolean', default: true },
-        includeHidden: { type: 'boolean', default: true },
-        searchIframes: { type: 'boolean', default: true },
-        autoDecode: { type: 'boolean', default: true, description: 'Auto-decode Base64/URL encoded links' },
-        detectObfuscation: { type: 'boolean', default: true, description: 'Detect and bypass obfuscation' }
-      }
-    }
-  },
+
 
   // 19. Cookie Manager
   {
@@ -570,7 +514,7 @@ const TOOLS = [
   {
     name: 'see_page',
     emoji: '👁️',
-    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does. Captures a screenshot and returns the actual image to the AI agent so it can visually understand the layout, AND returns a "visual map" of all visible interactive elements (buttons, links, inputs) with their on-screen position (x/y/width/height), text label, and a click-ready selector. Use this to look at a page before deciding where to click/type. EFFICIENCY RULE: PREFER a single FULL-PAGE view (set fullPage: true) so the whole page and all its interactive elements are mapped in one shot, then plan and perform ALL needed actions for that page (read, click, type, extract) from this single view. Call see_page a SECOND time ONLY IF the task genuinely cannot be completed from the first view, OR after the page actually changes — navigation, a modal/popup opens, or new dynamic content loads. Do NOT re-capture the SAME unchanged page repeatedly.',
+    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does. Captures a screenshot and returns the actual image to the AI agent so it can visually understand the layout, AND returns a "visual map" of all visible interactive elements (buttons, links, inputs) with their on-screen position (x/y/width/height), text label, and a click-ready selector. Use this to look at a page before deciding where to click/type.\n\n🤖 AI Usage Guide: PREFER a single FULL-PAGE view (set fullPage: true) so the whole page and all its interactive elements are mapped in one shot, then plan and perform ALL needed actions for that page (read, click, type, extract) from this single view. Call see_page a SECOND time ONLY IF the task genuinely cannot be completed from the first view, OR after the page actually changes — navigation, a modal/popup opens, or new dynamic content loads. Do NOT re-capture the SAME unchanged page repeatedly.',
     descriptionHindi: 'AI विज़न ("आँखें"): पेज को इंसान की तरह देखना। स्क्रीनशॉट image सीधे AI को भेजता है ताकि वह layout देख सके + सभी दिखने वाले clickable elements का visual map (position + text + selector) देता है। नियम: पहले पूरे पेज का full-page view लें (fullPage: true) ताकि पूरा पेज और उसके सारे elements एक ही बार में map हो जाएँ, फिर उसी एक view से उस पेज के सारे ज़रूरी काम (पढ़ना, क्लिक, टाइप, data निकालना) एक साथ पूरे करें। दूसरी बार see_page सिर्फ़ तभी लें जब पहले view से काम पूरा न हो पाए, या पेज सच में बदल जाए (navigation, modal/popup खुले, या नया dynamic content load हो)। बिना बदलाव के उसी पेज का दोबारा स्क्रीनशॉट न लें।',
     category: 'vision',
     requiresBrowser: true,

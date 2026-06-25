@@ -1,7 +1,5 @@
 // @ts-nocheck
-import * as path from 'path';
-import * as fs from 'fs';
-import * as crypto from 'crypto';
+
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil } from './state';
 import { handlers } from './index';
 

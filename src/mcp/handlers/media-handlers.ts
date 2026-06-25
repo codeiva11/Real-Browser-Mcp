@@ -115,7 +115,7 @@ async function extractStreamsFromContext(context: any, contextName = 'main') {
  * Shared helper: Detect video player in a page/frame context.
  * Used by both player_api_hook and media_extractor.
  */
-async function detectPlayerInContext(context: any, actionOrParams: any, contextName = 'main') {
+export async function detectPlayerInContext(context: any, actionOrParams: any, contextName = 'main') {
   const action = typeof actionOrParams === 'string' ? actionOrParams : (actionOrParams?.action || 'info');
   const playerType = typeof actionOrParams === 'object' ? actionOrParams?.playerType : 'auto';
 
@@ -285,90 +285,6 @@ function deduplicateStreams(streams: any) {
 }
 
 export const mediaHandlers = {
-  async stream_extractor(params: any = {}) {
-    const { page } = requireBrowser();
-    const { types = ['all'], quality = 'best', searchIframes = true, deep = true } = params;
-
-    notifyProgress('stream_extractor', 'started', 'Extracting streams (enhanced mode)...');
-
-    // Extract from main page
-    const mainStreams = await extractStreamsFromContext(page, 'main');
-    let allStreams = { ...mainStreams };
-
-    // Search in iframes if enabled
-    if (searchIframes) {
-      const frames = page.frames();
-      notifyProgress('stream_extractor', 'progress', `Searching ${frames.length} frames...`);
-
-      for (let i = 1; i < frames.length && i < 10; i++) {
-        try {
-          const frame = frames[i];
-          const frameUrl = frame.url();
-          if (frameUrl && frameUrl !== 'about:blank') {
-            const frameStreams = await extractStreamsFromContext(frame, `frame-${i}`);
-
-            Object.keys(frameStreams).forEach(key => {
-              if (Array.isArray(frameStreams[key])) {
-                frameStreams[key].forEach(stream => {
-                  stream.source = `iframe: ${frameUrl}`;
-                });
-                allStreams[key] = [...(allStreams[key] || []), ...frameStreams[key]];
-              }
-            });
-          }
-        } catch (e) {
-          // Frame access error, skip
-        }
-      }
-    }
-
-    // Deduplicate
-    allStreams = deduplicateStreams(allStreams);
-
-    const totalStreams = Object.values(allStreams as Record<string, any>).reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
-    notifyProgress('stream_extractor', 'completed', `Found ${totalStreams} streams (including iframes)`, { totalStreams });
-
-    return { success: true, streams: allStreams, totalCount: totalStreams };
-  },
-
-  async player_api_hook(params: any = {}) {
-    const { page } = requireBrowser();
-    const { playerType = 'auto', action = 'info', searchIframes = true } = params;
-
-    notifyProgress('player_api_hook', 'started', `Player ${action}: ${playerType}`);
-
-    // Try main page first
-    let playerInfo = await detectPlayerInContext(page, { playerType, action }, 'main');
-
-    // Search iframes if no player found and searchIframes is enabled
-    if (!playerInfo.detected && searchIframes) {
-      const frames = page.frames();
-      notifyProgress('player_api_hook', 'progress', `Searching ${frames.length} frames for player...`);
-
-      for (let i = 1; i < frames.length && i < 10; i++) {
-        try {
-          const frame = frames[i];
-          const frameUrl = frame.url();
-          if (frameUrl && frameUrl !== 'about:blank') {
-            const framePlayer = await detectPlayerInContext(frame, { playerType, action }, `frame-${i}`);
-            if (framePlayer.detected) {
-              playerInfo = { ...framePlayer, frameSource: frameUrl };
-              notifyProgress('player_api_hook', 'progress', `Found player in iframe: ${frameUrl}`);
-              break;
-            }
-          }
-        } catch (e) {
-          // Frame access error, skip
-        }
-      }
-    }
-
-    notifyProgress('player_api_hook', 'completed',
-      playerInfo.detected ? `Player detected: ${playerInfo.type}${playerInfo.frameSource ? ' (in iframe)' : ''}` : 'No player found',
-      { detected: playerInfo.detected, type: playerInfo.type });
-
-    return { success: true, ...playerInfo };
-  },
 
   async media_extractor(params: any = {}) {
     const { page } = requireBrowser();

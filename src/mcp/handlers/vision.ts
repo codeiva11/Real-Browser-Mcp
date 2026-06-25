@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import * as crypto from 'crypto';
+
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil } from './state';
 import { handlers } from './index';
 
@@ -38,17 +38,14 @@ export const visionHandlers = {
 
     // Resolve target frame
     let targetFrame: any = page;
-    if (iframe !== null && iframe !== undefined) {
-      targetFrame = page.frames()[iframe] as any;
-      if (!targetFrame) return { success: false, error: `Iframe index ${iframe} not found` };
-      notifyProgress('solve_captcha', 'progress', `🎯 Targeting iframe index ${iframe}...`);
-    } else if (iframeSelector) {
-      const elementHandle = await page.$(iframeSelector);
-      if (elementHandle) {
-        targetFrame = (await elementHandle.contentFrame()) as any;
+    if (iframe !== null && iframe !== undefined || iframeSelector) {
+      const resolved = await handlers._resolveIframeContext(page, iframe, iframeSelector);
+      if (resolved.success) {
+        targetFrame = resolved.targetFrame;
+        notifyProgress('solve_captcha', 'progress', `🎯 Targeting iframe ${iframe ?? iframeSelector}...`);
+      } else {
+        return { success: false, error: resolved.error };
       }
-      if (!targetFrame) return { success: false, error: `Iframe selector ${iframeSelector} not found` };
-      notifyProgress('solve_captcha', 'progress', `🎯 Targeting iframe selector ${iframeSelector}...`);
     }
 
     // ═══════════════════════════════════════════════════════════════

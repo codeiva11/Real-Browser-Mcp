@@ -1,7 +1,4 @@
-const _originalConsoleLog = console.log;
-console.log = function (...args) {
-  console.error(...args);
-};
+
 
 const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
 const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
@@ -12,7 +9,7 @@ const {
   McpError,
 } = require('@modelcontextprotocol/sdk/types.js');
 
-const { TOOLS } = require('./tools');
+const { TOOLS } = require('../shared/tools');
 const { executeTool, cleanup } = require('./handlers');
 
 // Single source of truth: read version from package.json (avoids version drift)

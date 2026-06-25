@@ -15,7 +15,7 @@ console.log = function (...args) { console.error(...args); };
  *   Claude Desktop, Cursor, Copilot, etc.
  */
 
-const { TOOL_DISPLAY } = require('./tools');
+const { TOOL_DISPLAY } = require('../shared/tools');
 const { startServer, shutdownServer } = require('./server');
 const { cleanup } = require('./handlers');
 

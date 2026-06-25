@@ -21,29 +21,6 @@ export const utilityHandlers = {
     return { valid: true };
   },
 
-  async search_regex(params: any) {
-    const { page } = requireBrowser();
-    const { pattern, flags = 'gi', source = 'html' } = params;
-
-    notifyProgress('search_regex', 'started', `Searching pattern: ${pattern}`);
-
-    let content;
-    if (source === 'html') {
-      content = await page.content();
-    } else if (source === 'scripts') {
-      content = await page.$$eval('script', scripts => scripts.map(s => s.textContent).join('\n'));
-    } else {
-      content = await page.evaluate(() => document.body.innerText);
-    }
-
-    const regex = new RegExp(pattern, flags);
-    const matches = content.match(regex) || [];
-
-    notifyProgress('search_regex', 'completed', `Found ${matches.length} matches`, { matchCount: matches.length });
-
-    return { success: true, pattern, matchCount: matches.length, matches: matches.slice(0, 100) };
-  },
-
   async progress_tracker(params: any = {}) {
     const { action = 'get', taskName, progress } = params;
 
@@ -140,77 +117,6 @@ export const utilityHandlers = {
     return { success: true, filename: outputPath, size: buffer.length };
   },
 
-  async iframe_handler(params: any = {}) {
-    const { page } = requireBrowser();
-    const { action = 'list', selector, index } = params;
-
-    notifyProgress('iframe_handler', 'started', `iFrame action: ${action}`);
-
-    const frames = page.frames();
-
-    switch (action) {
-      case 'list':
-        notifyProgress('iframe_handler', 'completed', `Found ${frames.length} frames`);
-        return {
-          success: true,
-          count: frames.length,
-          frames: frames.map((f, i) => ({ index: i, name: f.name(), url: f.url() }))
-        };
-
-      case 'switch':
-        const targetFrame = selector
-          ? await page.$(selector).then(el => el?.contentFrame())
-          : frames[index];
-
-        if (targetFrame) {
-          notifyProgress('iframe_handler', 'completed', `Switched to frame: ${targetFrame.url()}`);
-          return { success: true, switched: true, url: targetFrame.url() };
-        }
-        notifyProgress('iframe_handler', 'error', 'Frame not found');
-        return { success: false, error: 'Frame not found' };
-
-      case 'content':
-        const frame = selector
-          ? await page.$(selector).then(el => el?.contentFrame())
-          : frames[index || 0];
-
-        if (frame) {
-          const content = await frame.content();
-          notifyProgress('iframe_handler', 'completed', `Got frame content: ${content.length} chars`);
-          return { success: true, content };
-        }
-        return { success: false, error: 'Frame not found' };
-
-      case 'exit':
-        notifyProgress('iframe_handler', 'completed', 'Returned to main frame');
-        return { success: true, message: 'Returned to main frame' };
-    }
-
-    return { success: false, error: 'Invalid action' };
-  },
-
-  async js_scrape(params: any) {
-    const { page } = requireBrowser();
-    const { selector, waitForJS = true, timeout = 10000 } = params;
-
-    notifyProgress('js_scrape', 'started', `Scraping: ${selector}`);
-
-    if (waitForJS) {
-      await page.waitForSelector(selector, { timeout });
-      notifyProgress('js_scrape', 'progress', 'Element found, extracting content...');
-    }
-
-    const content = await page.$eval(selector, el => ({
-      html: el.outerHTML,
-      text: el.innerText,
-      attributes: Object.fromEntries([...el.attributes].map(a => [a.name, a.value]))
-    }));
-
-    notifyProgress('js_scrape', 'completed', `Scraped ${content.text.length} characters`, { selector });
-
-    return { success: true, selector, content };
-  },
-
   async execute_js(params: any) {
     const { page } = requireBrowser();
     const {
@@ -230,43 +136,24 @@ export const utilityHandlers = {
 
     if (iframe !== undefined || iframeSelector) {
       try {
-        const frames = page.frames();
+        const resolved = await handlers._resolveIframeContext(page, iframe, iframeSelector);
+        if (resolved.success) {
+          context = resolved.targetFrame;
+          frameInfo = resolved.frameInfo;
+          notifyProgress('execute_js', 'progress', `Switched to iframe ${iframe ?? iframeSelector}`);
 
-        if (iframe !== undefined) {
-          if (iframe === 0) {
-            context = page.mainFrame() as any;
-            frameInfo = { index: 0, url: page.url(), isMain: true };
-          } else if (frames[iframe]) {
-            context = frames[iframe] as any;
-            frameInfo = { index: iframe, url: frames[iframe].url() };
-            notifyProgress('execute_js', 'progress', `Switched to iframe ${iframe}: ${frames[iframe].url().substring(0, 50)}...`);
-          } else {
-            notifyProgress('execute_js', 'error', `iframe index ${iframe} not found. Total frames: ${frames.length}`);
-            return { success: false, error: `iframe index ${iframe} not found. Available: 0-${frames.length - 1}` };
-          }
-        } else if (iframeSelector) {
-          const iframeHandle = await page.$(iframeSelector);
-          if (iframeHandle) {
-            const frame = await iframeHandle.contentFrame();
-            if (frame) {
-              context = frame as any;
-              frameInfo = { selector: iframeSelector, url: frame.url() };
-              notifyProgress('execute_js', 'progress', `Switched to iframe by selector: ${iframeSelector}`);
+          // Wait for iframe to be ready if needed
+          if (waitForIframe && context !== page) {
+            try {
+              await context.waitForFunction(() => document.readyState === 'complete', { timeout: 5000 });
+            } catch (e) {
+              notifyProgress('execute_js', 'progress', 'Warning: iframe may not be fully loaded');
             }
-          } else {
-            return { success: false, error: `iframe selector not found: ${iframeSelector}` };
           }
+        } else {
+          notifyProgress('execute_js', 'error', `iframe switch failed: ${resolved.error}`);
+          return { success: false, error: `iframe switch failed: ${resolved.error}` };
         }
-
-        // Wait for iframe to be ready if needed
-        if (waitForIframe && context !== page) {
-          try {
-            await context.waitForFunction(() => document.readyState === 'complete', { timeout: 5000 });
-          } catch (e) {
-            notifyProgress('execute_js', 'progress', 'Warning: iframe may not be fully loaded');
-          }
-        }
-
       } catch (e: any) {
         notifyProgress('execute_js', 'error', `iframe switch failed: ${e.message}`);
         return { success: false, error: `iframe switch failed: ${e.message}` };

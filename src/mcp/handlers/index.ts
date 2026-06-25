@@ -7,7 +7,6 @@ import { extractHandlers } from './extract';
 import { helpersHandlers } from './helpers';
 import { utilityHandlers } from './utility-handlers';
 import { mediaHandlers } from './media-handlers';
-import { formHandlers } from './form-handlers';
 import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser, globalCache } from './state';
 import { activityLogger } from '../../shared/activity-logger';
 export const handlers: any = {
@@ -18,8 +17,7 @@ export const handlers: any = {
   ...extractHandlers,
   ...helpersHandlers,
   ...utilityHandlers,
-  ...mediaHandlers,
-  ...formHandlers
+  ...mediaHandlers
 };
 
 export async function executeTool(name: string, args: any = {}) {

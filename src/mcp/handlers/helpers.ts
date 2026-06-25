@@ -2,6 +2,39 @@
 import { requireBrowser, notifyProgress } from './state';
 
 export const helpersHandlers = {
+  async _resolveIframeContext(page: any, iframe: any, iframeSelector: any) {
+    let targetFrame: any = page;
+    let frameInfo: any = null;
+
+    if (iframe !== null && iframe !== undefined) {
+      const frames = page.frames();
+      if (iframe === 0) {
+        targetFrame = page.mainFrame() as any;
+        frameInfo = { index: 0, url: page.url(), isMain: true };
+      } else if (frames[iframe]) {
+        targetFrame = frames[iframe] as any;
+        frameInfo = { index: iframe, url: frames[iframe].url() };
+      } else {
+        return { success: false, error: `Iframe index ${iframe} not found. Available: 0-${frames.length - 1}` };
+      }
+    } else if (iframeSelector) {
+      const iframeHandle = await page.$(iframeSelector);
+      if (iframeHandle) {
+        const frame = await iframeHandle.contentFrame();
+        if (frame) {
+          targetFrame = frame as any;
+          frameInfo = { selector: iframeSelector, url: frame.url() };
+        } else {
+          return { success: false, error: `Iframe selector ${iframeSelector} not found` };
+        }
+      } else {
+        return { success: false, error: `Iframe selector not found: ${iframeSelector}` };
+      }
+    }
+
+    return { success: true, targetFrame, frameInfo };
+  },
+
   async _handleBlockingModals(page: any) {
     try {
       const closed = await page.evaluate(() => {
