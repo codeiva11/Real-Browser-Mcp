@@ -1,6 +1,6 @@
 // Media handlers — Stream extraction, player control, media tools
 import { state, requireBrowser, notifyProgress, decoders } from './state';
-import { handlers } from './index';
+
 
 // ═══════════════════════════════════════════════════════════════
 // Media Handlers — Stream extraction, player control, media tools

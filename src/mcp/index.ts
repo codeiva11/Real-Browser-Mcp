@@ -19,18 +19,7 @@ const { TOOL_DISPLAY } = require('../shared/tools');
 const { startServer, shutdownServer } = require('./server');
 const { cleanup } = require('./handlers');
 
-// ANSI colors for terminal
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  magenta: '\x1b[35m',
-  cyan: '\x1b[36m',
-  red: '\x1b[31m',
-};
+const { colors } = require('../shared/colors');
 
 /**
  * Display startup banner and tools

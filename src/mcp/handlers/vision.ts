@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil } from './state';
-import { handlers } from './index';
+import { helpersHandlers } from './helpers';
 
 // Auto-generated vision handlers
 
@@ -12,8 +12,6 @@ export const visionHandlers = {
     const {
       type = 'auto',
       timeout = 30000,
-      // AI Vision option
-      aiMode = true,
       // OCR-specific options
       captchaSelector,
       inputSelector,
@@ -39,7 +37,7 @@ export const visionHandlers = {
     // Resolve target frame
     let targetFrame: any = page;
     if (iframe !== null && iframe !== undefined || iframeSelector) {
-      const resolved = await handlers._resolveIframeContext(page, iframe, iframeSelector);
+      const resolved = await helpersHandlers._resolveIframeContext(page, iframe, iframeSelector);
       if (resolved.success) {
         targetFrame = resolved.targetFrame;
         notifyProgress('solve_captcha', 'progress', `🎯 Targeting iframe ${iframe ?? iframeSelector}...`);
@@ -54,9 +52,40 @@ export const visionHandlers = {
     let formResult = null;
     if (formData && Object.keys(formData).length > 0) {
       notifyProgress('solve_captcha', 'started', `📋 Smart Form + Captcha Mode: Filling ${Object.keys(formData).length} fields...`);
-      formResult = await (handlers as any)._fillFormFields(page, formData, formSelector, humanLike, aiMatch);
+      formResult = await helpersHandlers._fillFormFields(page, formData, formSelector, humanLike, aiMatch);
     } else {
       notifyProgress('solve_captcha', 'started', `🎯 100% Accuracy Mode: Solving ${type} captcha...`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 0.5: AUTO-DETECT JS CAPTCHA TYPE (Cloudflare/reCAPTCHA/hCaptcha)
+    // ═══════════════════════════════════════════════════════════════
+    let detectedJsType: string | null = null;
+    if (type === 'auto') {
+      detectedJsType = await page.evaluate(() => {
+        // Cloudflare WAF challenge page
+        if (document.title.includes('Just a moment') ||
+            document.querySelector('#challenge-stage') !== null ||
+            document.querySelector('.cf-turnstile') !== null ||
+            document.querySelector('input[name="cf-turnstile-response"]') !== null) {
+          return 'turnstile';
+        }
+        // reCAPTCHA v2/v3
+        if (document.querySelector('.g-recaptcha') !== null ||
+            document.querySelector('iframe[src*="recaptcha"]') !== null ||
+            document.querySelector('#g-recaptcha-response') !== null) {
+          return 'recaptcha';
+        }
+        // hCaptcha
+        if (document.querySelector('.h-captcha') !== null ||
+            document.querySelector('iframe[src*="hcaptcha"]') !== null) {
+          return 'hcaptcha';
+        }
+        return null;
+      });
+      if (detectedJsType) {
+        notifyProgress('solve_captcha', 'progress', `🔍 Auto-detected JS captcha type: ${detectedJsType}`);
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -152,7 +181,8 @@ export const visionHandlers = {
     }
 
     // Handle text/image captcha with OCR/Vision
-    if (type === 'text' || type === 'image' || (type === 'auto' && detectedCaptchaSelector)) {
+    // ponytail: only enter OCR path if explicitly text/image or auto-detected an image captcha (not a JS captcha)
+    if (type === 'text' || type === 'image' || (type === 'auto' && detectedCaptchaSelector && !detectedJsType)) {
       if (!detectedCaptchaSelector) {
         return { success: false, error: 'captchaSelector not provided and could not auto-detect' };
       }
@@ -206,7 +236,7 @@ export const visionHandlers = {
           await targetHandle.evaluate((el: any) => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
           await new Promise(r => setTimeout(r, 500));
 
-          // Take base64 screenshot of just the captcha image for Vision API
+          // CAPTCHA इमेज का स्क्रीनशॉट — सीधे AI IDE एजेंट को भेजना है
           let captchaImageBase64 = null;
           try {
             const captchaEl = await targetFrame.$(detectedCaptchaSelector);
@@ -215,81 +245,23 @@ export const visionHandlers = {
             }
           } catch(e) {}
 
-          // Take full context screenshot for host LLM fallback
+          // पूरे context का स्क्रीनशॉट (form + captcha एक साथ दिखे)
           const screenshotBase64 = (await targetHandle.screenshot()).toString('base64');
 
           // ═══════════════════════════════════════════════════════════
-          // STEP A: Server-Side Vision API (if aiMode enabled)
+          // AI IDE एजेंट को CAPTCHA इमेज भेजो — वो पढ़ कर जवाब देगा
+          // ponytail: कोई external API नहीं, AI IDE एजेंट ही काफ़ी है
           // ═══════════════════════════════════════════════════════════
-          if (aiMode) {
-            const imageForApi = captchaImageBase64 || screenshotBase64;
-            const langHint = lang !== 'eng' ? ` The text may be in ${lang === 'hin' ? 'Hindi' : lang} language.` : '';
-            const captchaText = await handlers._solveWithVisionAPI(imageForApi, langHint);
+          const langHint = lang !== 'eng' ? `\nध्यान दें: टेक्स्ट ${lang === 'hin' ? 'हिन्दी' : lang} भाषा में हो सकता है।` : '';
+          notifyProgress('solve_captcha', 'progress', '📤 CAPTCHA इमेज AI IDE एजेंट को भेज रहे हैं...');
 
-            if (captchaText) {
-              // Validate response against expected constraints
-              const validation = handlers._validateCaptchaText(captchaText, expectedLength, allowedChars);
-              if (!validation.valid) {
-                notifyProgress('solve_captcha', 'progress', `⚠️ Validation failed: ${validation.reason} — "${captchaText}"`);
-                if (attempt < effectiveMaxRetries) continue;
-                notifyProgress('solve_captcha', 'progress', `⚠️ Last attempt, using unvalidated text: "${captchaText}"`);
-              }
-
-              if (detectedInputSelector) {
-                notifyProgress('solve_captcha', 'progress', `🤖 Vision API solved: "${captchaText}" → typing...`);
-
-                // Clear existing value and type the answer
-                await targetFrame.evaluate((sel: string) => {
-                  const el = document.querySelector(sel) as HTMLInputElement;
-                  if (el) { el.value = ''; el.focus(); }
-                }, detectedInputSelector);
-
-                await targetFrame.type(detectedInputSelector, captchaText, { delay: 80 });
-                notifyProgress('solve_captcha', 'progress', `✅ CAPTCHA filled: "${captchaText}"`);
-
-                let submitResult = null;
-                if (submit) {
-                  notifyProgress('solve_captcha', 'progress', '🚀 Auto-submitting form...');
-                  submitResult = await handlers._submitForm(targetFrame);
-
-                  // Check if submit detected captcha errors → retry
-                  if (submitResult && !submitResult.success && submitResult.needsRetry && autoRetry && attempt < effectiveMaxRetries) {
-                    notifyProgress('solve_captcha', 'progress', `❌ Captcha appears wrong, retrying... (${attempt}/${effectiveMaxRetries})`);
-                    continue;
-                  }
-                }
-
-                notifyProgress('solve_captcha', 'completed', '🎉 CAPTCHA solved and filled automatically!');
-                return {
-                  success: true,
-                  solved: true,
-                  method: 'vision_api',
-                  captchaText,
-                  attempt,
-                  formResult,
-                  submitted: submit ? (submitResult?.success || false) : undefined
-                };
-              }
-            }
-
-            notifyProgress('solve_captcha', 'progress', `⚠️ Vision API could not solve (attempt ${attempt}/${effectiveMaxRetries})`);
-            if (attempt < effectiveMaxRetries) continue;
-          }
-
-          // ═══════════════════════════════════════════════════════════
-          // STEP B: Fallback → Send image to Host LLM
-          // ═══════════════════════════════════════════════════════════
-          notifyProgress('solve_captcha', 'progress', aiMode
-            ? '📤 All Vision API attempts failed — sending image to host LLM...'
-            : '📤 AI Vision disabled — sending image to host LLM...');
-
-          const instructions = `[ACTION REQUIRED: VISION AI CAPTCHA SOLVER]\n\nI have successfully captured the CAPTCHA image (see attached).\n\n1. Please use your Vision capabilities to carefully read the text/characters in the image.\n2. Once you have the text, use the \`type\` tool with selector \`${detectedInputSelector || '<input_selector>'}\` to fill in the answer.\n3. If submit was requested (${submit ? 'YES' : 'NO'}), please submit the form after typing the answer.\n\nNote: Do NOT call \`solve_captcha\` again for this specific captcha, as you have already received the image.`;
+          const instructions = `[कार्रवाई आवश्यक: CAPTCHA हल करें]\n\nCAPTCHA इमेज सफलतापूर्वक कैप्चर की गई (संलग्न देखें)।${langHint}\n\n1. अपनी Vision क्षमता से इमेज में दिखे टेक्स्ट/अक्षर पढ़ें।\n2. टेक्स्ट मिलने पर \`type\` टूल से selector \`${detectedInputSelector || '<input_selector>'}\` में भरें।\n3. सबमिट अनुरोध: ${submit ? 'हाँ — फॉर्म सबमिट भी करें' : 'नहीं'}।\n\nनोट: इस CAPTCHA के लिए \`solve_captcha\` दोबारा न बुलाएं, इमेज पहले ही मिल चुकी है।`;
 
           return {
             success: true,
             mcpContent: [
               { type: 'text', text: instructions },
-              { type: 'image', data: screenshotBase64, mimeType: 'image/png' }
+              { type: 'image', data: captchaImageBase64 || screenshotBase64, mimeType: 'image/png' }
             ]
           };
 
@@ -304,25 +276,70 @@ export const visionHandlers = {
       return { success: false, error: 'All captcha solving attempts exhausted', formResult };
     }
 
-    // Original Turnstile/reCAPTCHA/hCaptcha handling
+    // ═══════════════════════════════════════════════════════════════
+    // JS-BASED CAPTCHA HANDLING (Turnstile / reCAPTCHA / hCaptcha)
+    // ═══════════════════════════════════════════════════════════════
+    const effectiveType = type !== 'auto' ? type : (detectedJsType || 'turnstile');
+
+    // reCAPTCHA / hCaptcha — not yet implemented, return honest error
+    // ponytail: no fake support — tell the user the truth
+    if (effectiveType === 'recaptcha' || effectiveType === 'hcaptcha') {
+      return {
+        success: false,
+        error: `${effectiveType} solving is not yet implemented. Use a third-party service (e.g. 2Captcha) or the browser extension approach.`,
+        detectedType: effectiveType,
+        formResult
+      };
+    }
+
+    // Turnstile / Cloudflare WAF handling — active click + token polling
     const start = Date.now();
     let attempts = 0;
 
     while (Date.now() - start < timeout) {
       attempts++;
 
+      // ACTIVE: Try clicking the Cloudflare checkbox (like turnstile.ts does)
+      // ponytail: click attempt every 3rd iteration to avoid spam, passive poll otherwise
+      if (attempts % 3 === 1) {
+        try {
+          await page.evaluate(() => {
+            // Method 1: Find turnstile widget container and click checkbox area
+            const coordinates: Array<{x: number, y: number, h: number}> = [];
+            document.querySelectorAll('div').forEach(item => {
+              try {
+                const rect = item.getBoundingClientRect();
+                const css = window.getComputedStyle(item);
+                // Turnstile checkbox container: ~300px wide, no children, minimal styling
+                if (rect.width > 290 && rect.width <= 310 && !item.querySelector('*')) {
+                  if (css.margin === '0px' && css.padding === '0px') {
+                    coordinates.push({ x: rect.x, y: rect.y, h: rect.height });
+                  }
+                }
+              } catch (_) {}
+            });
+            return coordinates;
+          }).then(async (coords: Array<{x: number, y: number, h: number}>) => {
+            for (const item of coords) {
+              await page.mouse.click(item.x + 30, item.y + item.h / 2);
+            }
+          });
+        } catch (_) {}
+      }
+
+      // PASSIVE: Check if token is ready
       const turnstileToken = await page.evaluate(() => {
-        const input = document.querySelector('input[name="cf-turnstile-response"]');
-        return input ? input.value : null;
+        const input = document.querySelector('input[name="cf-turnstile-response"]') as HTMLInputElement;
+        return input && input.value ? input.value : null;
       });
 
       if (turnstileToken) {
-        notifyProgress('solve_captcha', 'completed', `Captcha solved after ${attempts} checks`, { type: 'turnstile', attempts });
+        notifyProgress('solve_captcha', 'completed', `✅ Turnstile solved after ${attempts} checks`, { type: 'turnstile', attempts });
 
-        // MERGED: Handle form submission if requested
+        // Handle form submission if requested
         if (submit) {
           notifyProgress('solve_captcha', 'progress', '🚀 Submitting form...');
-          const submitResult = await handlers._submitForm(page);
+          const submitResult = await helpersHandlers._submitForm(page);
           return {
             success: true,
             type: 'turnstile',
@@ -336,15 +353,34 @@ export const visionHandlers = {
         return { success: true, type: 'turnstile', solved: true, formResult };
       }
 
+      // Check if Cloudflare challenge page has resolved (redirect happened)
+      const stillOnChallenge = await page.evaluate(() => {
+        return document.title.includes('Just a moment') ||
+               document.querySelector('#challenge-stage') !== null;
+      });
+
+      if (!stillOnChallenge && attempts > 3) {
+        // Challenge page gone — WAF solved via redirect
+        notifyProgress('solve_captcha', 'completed', `✅ Cloudflare WAF challenge passed after ${attempts} checks (page redirected)`);
+        return {
+          success: true,
+          type: 'cloudflare_waf',
+          solved: true,
+          method: 'challenge_redirect',
+          attempts,
+          formResult
+        };
+      }
+
       if (attempts % 10 === 0) {
         notifyProgress('solve_captcha', 'progress', `Still solving... (${attempts} checks)`, { attempts });
       }
 
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 1000));
     }
 
     notifyProgress('solve_captcha', 'error', 'Captcha solving timeout');
-    return { success: false, error: 'Captcha solving timeout', formResult };
+    return { success: false, error: 'Captcha solving timeout', type: effectiveType, formResult };
   },
 
   async see_page(params: any = {}) {
@@ -357,10 +393,47 @@ export const visionHandlers = {
       annotate = false,
       includeDomText = false,
       maxElements = 60,
-      path: savePath
+      path: savePath,
+      autoHover = false,
+      watchMutations = false
     } = params;
 
     notifyProgress('see_page', 'started', `👁️ Looking at the page (${fullPage ? 'full page' : 'viewport'})${annotate ? ' with Super Annotations' : ''}...`);
+
+    let mutationsSinceLastCheck: any[] = [];
+    if (watchMutations) {
+      mutationsSinceLastCheck = await page.evaluate(() => {
+        if (!(window as any).__mutations) {
+          (window as any).__mutations = [];
+          const observer = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+              if (m.addedNodes.length) {
+                const text = Array.from(m.addedNodes).map((n: any) => n.innerText || '').join(' ').trim();
+                if (text.length > 5) (window as any).__mutations.push({ time: Date.now(), text: text.slice(0, 100) });
+              }
+            }
+          });
+          observer.observe(document.body, { childList: true, subtree: true });
+        }
+        const recent = [...(window as any).__mutations];
+        (window as any).__mutations = []; // clear after reading
+        return recent;
+      });
+    }
+
+    if (autoHover) {
+      notifyProgress('see_page', 'progress', 'Hovering over menus to reveal dropdowns...');
+      await page.evaluate(() => {
+        const hoverables = document.querySelectorAll('nav, li, [role="menuitem"], .dropdown, [aria-haspopup="true"]');
+        hoverables.forEach(el => {
+          try {
+            el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+            el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+          } catch(e) {}
+        });
+      });
+      await new Promise(r => setTimeout(r, 400)); // Wait for CSS transitions
+    }
 
     let elements: any[] = [];
     let pageInfo: any = {};
@@ -561,6 +634,7 @@ export const visionHandlers = {
       scroll: { y: pageInfo.scrollY, pageHeight: pageInfo.scrollHeight },
       visibleInteractiveElements: elements.length,
       domText,
+      mutationsSinceLastCheck: watchMutations ? mutationsSinceLastCheck : undefined,
       elements,
       savedTo
     };

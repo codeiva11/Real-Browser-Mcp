@@ -1,7 +1,7 @@
 
 import * as crypto from 'crypto';
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil } from './state';
-import { handlers } from './index';
+
 
 // Auto-generated network handlers
 
@@ -396,7 +396,7 @@ export const networkHandlers = {
       case 'get_websockets': {
         try {
           const wsData = await page.evaluate(() => window.__wsMessages || []);
-          const totalMessages = wsData.reduce((sum, ws) => sum + ws.messages.length, 0);
+          const totalMessages = wsData.reduce((sum: number, ws: any) => sum + ws.messages.length, 0);
           return {
             success: true,
             count: wsData.length,
@@ -407,6 +407,60 @@ export const networkHandlers = {
         } catch (e: any) {
           return { success: false, error: 'Failed to retrieve WebSocket data: ' + e.message, websockets: [] };
         }
+      }
+
+      // ====== FEATURE 4: GraphQL Inspector ======
+      case 'get_graphql': {
+        const gqlRecords = state.networkRecords.filter((r: any) => 
+          r.isApiCall && r.requestBody && (r.requestBody.includes('"query"') || r.requestBody.includes('query '))
+        ).map((r: any) => {
+          let parsedQuery = null, parsedVariables = null, operationName = null;
+          try {
+            const body = JSON.parse(r.requestBody);
+            parsedQuery = body.query;
+            parsedVariables = body.variables;
+            operationName = body.operationName;
+          } catch (e) {}
+          return {
+            url: r.url,
+            method: r.method,
+            operationName: operationName || 'unknown',
+            query: parsedQuery || r.requestBody,
+            variables: parsedVariables,
+            response: r.responseJson || r.responseBody,
+            timestamp: r.timestamp
+          };
+        });
+        return { success: true, count: gqlRecords.length, graphql: gqlRecords };
+      }
+
+      // ====== FEATURE 5: HAR Exporter ======
+      case 'export_har': {
+        // ponytail: minimal HAR 1.2 mapping without dependencies
+        const har = {
+          log: {
+            version: '1.2',
+            creator: { name: 'Real Browser MCP', version: '1.0' },
+            entries: state.networkRecords.filter((r: any) => r.type === 'response').map((r: any) => ({
+              startedDateTime: new Date(r.timestamp).toISOString(),
+              request: {
+                method: r.method || 'GET',
+                url: r.url,
+                headers: Object.entries(r.headers || {}).map(([name, value]) => ({ name, value: String(value) })),
+                postData: r.requestBody ? { text: r.requestBody } : undefined
+              },
+              response: {
+                status: r.status || 200,
+                content: {
+                  mimeType: r.contentType || 'text/plain',
+                  text: r.responseBody || ''
+                }
+              },
+              time: 0
+            }))
+          }
+        };
+        return { success: true, count: har.log.entries.length, har };
       }
     }
 
@@ -428,61 +482,6 @@ export const networkHandlers = {
     return { success: true, recording: state.isRecordingNetwork, count: records.length, records: records.slice(-200) };
   },
 
-  async cookie_manager(params: any = {}) {
-    const { page } = requireBrowser();
-    const { action = 'get', name, value, domain, expires } = params;
-
-    notifyProgress('cookie_manager', 'started', `Cookie action: ${action}`);
-
-    // Playwright/Patchright: cookies are managed via the BrowserContext, not the page
-    const context = page.context();
-
-    switch (action) {
-      case 'get': {
-        const cookies = await context.cookies();
-        notifyProgress('cookie_manager', 'completed', `Retrieved ${cookies.length} cookies`);
-        return { success: true, cookies: name ? cookies.filter(c => c.name === name) : cookies };
-      }
-
-      case 'set': {
-        await context.addCookies([{
-          name,
-          value,
-          domain: domain || new URL(page.url()).hostname,
-          path: '/',
-          ...(expires ? { expires } : {})
-        }]);
-        notifyProgress('cookie_manager', 'completed', `Cookie set: ${name}`);
-        return { success: true, message: `Cookie ${name} set` };
-      }
-
-      case 'delete': {
-        // Playwright has no per-cookie delete: clear all, then re-add the ones we keep
-        const toDelete = await context.cookies();
-        const remaining = name ? toDelete.filter(c => c.name !== name) : [];
-        const removedCount = toDelete.length - remaining.length;
-        await context.clearCookies();
-        if (remaining.length) {
-          await context.addCookies(remaining.map(c => ({
-            name: c.name, value: c.value, domain: c.domain, path: c.path,
-            ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
-            httpOnly: c.httpOnly, secure: c.secure, sameSite: c.sameSite
-          })));
-        }
-        notifyProgress('cookie_manager', 'completed', `Deleted ${removedCount} cookie(s)`);
-        return { success: true, message: `Deleted ${removedCount} cookie(s)` };
-      }
-
-      case 'clear': {
-        const allCookies = await context.cookies();
-        await context.clearCookies();
-        notifyProgress('cookie_manager', 'completed', `Cleared ${allCookies.length} cookies`);
-        return { success: true, message: `Cleared ${allCookies.length} cookies` };
-      }
-    }
-
-    return { success: false, error: 'Invalid action' };
-  },
 
   async extract_data(params: any = {}) {
     const { page } = requireBrowser();
@@ -1263,5 +1262,29 @@ export const networkHandlers = {
     }
 
     return results;
+  },
+
+  async replay_request(params: any) {
+    const { page } = requireBrowser();
+    const { url, method = 'GET', headers, body } = params;
+    notifyProgress('replay_request', 'started', `Replaying ${method} to ${url}`);
+    
+    // ponytail: reuse page.evaluate to fire native fetch, bypasses CORS & uses exact browser context auth/cookies
+    try {
+      const result = await page.evaluate(async ({ u, m, h, b }: any) => {
+        const res = await fetch(u, { method: m, headers: h, body: b });
+        return {
+          status: res.status,
+          headers: Object.fromEntries(res.headers.entries()),
+          body: await res.text().catch(() => null)
+        };
+      }, { u: url, m: method, h: headers || {}, b: body });
+      
+      notifyProgress('replay_request', 'completed', `Replay finished with status ${result.status}`);
+      return { success: true, result };
+    } catch (e: any) {
+      notifyProgress('replay_request', 'error', `Replay failed: ${e.message}`);
+      return { success: false, error: e.message };
+    }
   }
 };

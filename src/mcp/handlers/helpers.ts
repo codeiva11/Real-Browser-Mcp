@@ -2,6 +2,20 @@
 import { requireBrowser, notifyProgress } from './state';
 
 export const helpersHandlers = {
+  _validateCaptchaText(text: string, expectedLength?: number, allowedChars?: string) {
+    if (!text || text.trim() === '') return { valid: false, reason: 'Empty text' };
+    if (expectedLength && text.length !== expectedLength) {
+      return { valid: false, reason: `Expected ${expectedLength} chars, got ${text.length}` };
+    }
+    if (allowedChars) {
+      // ponytail: escape regex special chars to prevent injection
+      const escaped = allowedChars.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp('^[' + escaped + ']+$');
+      if (!regex.test(text)) return { valid: false, reason: 'Contains chars outside allowed set: ' + allowedChars };
+    }
+    return { valid: true };
+  },
+
   async _resolveIframeContext(page: any, iframe: any, iframeSelector: any) {
     let targetFrame: any = page;
     let frameInfo: any = null;
@@ -237,16 +251,18 @@ export const helpersHandlers = {
           }
         }
 
-        // Tab to next field (human-like navigation)
-        if (humanLike) {
-          await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
-          await page.keyboard.press('Tab');
-          await new Promise(r => setTimeout(r, 50));
-        }
 
         filledCount++;
         filledFields.push({ field, selector: bestMatch.selector, matchScore: bestScore });
         notifyProgress('solve_captcha', 'progress', `📝 Filled: ${field} (score: ${bestScore})`, { field, filledCount });
+
+        // ponytail: skip Tab on last field — avoids accidental form submit
+        const isLastField = filledCount >= fields.length;
+        if (humanLike && !isLastField) {
+          await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
+          await page.keyboard.press('Tab');
+          await new Promise(r => setTimeout(r, 50));
+        }
       } catch (e) {
         unfilledFields.push(field);
       }
@@ -319,185 +335,6 @@ export const helpersHandlers = {
     });
   },
 
-  async _solveWithVisionAPI(imageBase64: any, langHint = '') {
-    if (process.env.NVIDIA_API_KEY) {
-      try {
-        return await helpersHandlers._solveWithNvidia(imageBase64, langHint);
-      } catch (e: any) {
-        notifyProgress('solve_captcha', 'progress', `⚠️ NVIDIA API error: ${e.message}`);
-      }
-    }
-    if (process.env.OPENROUTER_API_KEY) {
-      try {
-        return await helpersHandlers._solveWithOpenRouter(imageBase64, langHint);
-      } catch (e: any) {
-        notifyProgress('solve_captcha', 'progress', `⚠️ OpenRouter API error: ${e.message}`);
-      }
-    }
-    return null; // No API configured — fallback to host LLM
-  },
-
-  async _solveWithNvidia(imageBase64: any, langHint = '') {
-    const https = require('https');
-    const apiKey = process.env.NVIDIA_API_KEY;
-
-    // NVIDIA vision models sorted by speed & reliability
-    const models = [
-      'z-ai/glm-4.7',
-      'deepseek-ai/deepseek-v4-pro',
-      'meta/llama-3.2-11b-vision-instruct',
-      'meta/llama-4-maverick-17b-128e-instruct',
-      'microsoft/phi-4-multimodal-instruct'
-    ];
-
-    for (const model of models) {
-      notifyProgress('solve_captcha', 'progress', `🟢 NVIDIA: Trying ${model}...`);
-
-      const requestBody = JSON.stringify({
-        model,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'This is a CAPTCHA image. Read ONLY the text/characters shown. Return ONLY the exact characters, nothing else.' + langHint
-            },
-            {
-              type: 'image_url',
-              image_url: { url: `data:image/png;base64,${imageBase64}` }
-            }
-          ]
-        }],
-        max_tokens: 30,
-        temperature: 0.1
-      });
-
-      try {
-        const result = await new Promise((resolve, reject) => {
-          const options = {
-            hostname: 'integrate.api.nvidia.com',
-            path: '/v1/chat/completions',
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Length': Buffer.byteLength(requestBody)
-            }
-          };
-
-          const req = https.request(options, (res: any) => {
-            let data = '';
-            res.on('data', (chunk: any) => data += chunk);
-            res.on('end', () => {
-              try {
-                const json = JSON.parse(data);
-                if (json.error) {
-                  notifyProgress('solve_captcha', 'progress', `⏭️ NVIDIA ${model}: ${(json.error.message || '').substring(0, 60)}`);
-                  return resolve(null); // Try next model
-                }
-                const text = json?.choices?.[0]?.message?.content?.trim();
-                if (!text) return resolve(null);
-                const cleaned = text.replace(/[\s"'\n\r`]/g, '');
-                notifyProgress('solve_captcha', 'progress', `✨ NVIDIA [${model.split('/')[1]}] extracted: "${cleaned}"`);
-                resolve(cleaned || null);
-              } catch (e) {
-                resolve(null);
-              }
-            });
-          });
-
-          req.on('error', () => resolve(null));
-          req.setTimeout(20000, () => { req.destroy(); resolve(null); });
-          req.write(requestBody);
-          req.end();
-        });
-
-        if (result) return result;
-      } catch (e) {
-        // Try next model
-      }
-    }
-
-    throw new Error('All NVIDIA models failed');
-  },
-
-  async _solveWithOpenRouter(imageBase64: any, langHint = '') {
-    const https = require('https');
-    const apiKey = process.env.OPENROUTER_API_KEY;
-
-    // Best free vision models on OpenRouter (auto-fallback)
-    const models = [
-      'google/gemini-2.5-pro-free', // Insanely smart & free
-      'meta-llama/llama-3.2-90b-vision-instruct:free',
-      'qwen/qwen-vl-plus:free'
-    ];
-
-    for (const model of models) {
-      notifyProgress('solve_captcha', 'progress', `🟢 OpenRouter: Trying ${model}...`);
-
-      const requestBody = JSON.stringify({
-        model,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: 'This is a CAPTCHA image. Read ONLY the text/characters shown. Return ONLY the exact characters, nothing else.' + langHint },
-            { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } }
-          ]
-        }],
-        max_tokens: 30,
-        temperature: 0.1
-      });
-
-      try {
-        const result = await new Promise((resolve, reject) => {
-          const options = {
-            hostname: 'openrouter.ai',
-            path: '/api/v1/chat/completions',
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`,
-              'HTTP-Referer': 'https://github.com/brave-browser',
-              'X-Title': 'Brave MCP',
-              'Content-Length': Buffer.byteLength(requestBody)
-            }
-          };
-
-          const req = https.request(options, (res: any) => {
-            let data = '';
-            res.on('data', (chunk: any) => data += chunk);
-            res.on('end', () => {
-              try {
-                const json = JSON.parse(data);
-                if (json.error) {
-                  notifyProgress('solve_captcha', 'progress', `⏭️ OpenRouter ${model}: ${(json.error.message || '').substring(0, 60)}`);
-                  return resolve(null); // Try next model
-                }
-                const text = json?.choices?.[0]?.message?.content?.trim();
-                if (!text) return resolve(null);
-                const cleaned = text.replace(/[\s"'\n\r`]/g, '');
-                notifyProgress('solve_captcha', 'progress', `✨ OpenRouter [${model.split('/')[1]}] extracted: "${cleaned}"`);
-                resolve(cleaned || null);
-              } catch (e) {
-                resolve(null);
-              }
-            });
-          });
-
-          req.on('error', () => resolve(null));
-          req.setTimeout(20000, () => { req.destroy(); resolve(null); });
-          req.write(requestBody);
-          req.end();
-        });
-
-        if (result) return result;
-      } catch (e) {
-        // Try next model
-      }
-    }
-
-    throw new Error('All OpenRouter models failed');
-  },
 
   async _submitForm(page: any, validateFirst = true, maxRetries = 1) {
     try {

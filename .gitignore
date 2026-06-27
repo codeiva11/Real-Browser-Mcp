@@ -31,3 +31,5 @@ downloads/
 *.jpg
 session.json
 cookies.json
+.agents/
+

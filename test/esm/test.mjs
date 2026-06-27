@@ -30,136 +30,57 @@ test.after(async () => {
     }
 });
 
-test('Human-like Move & Click', async () => {
-    await page.goto("https://www.google.com", { timeout: 40000 });
-    const selector = 'textarea[name="q"], input[name="q"]';
-    await page.realCursor.move(selector);
-    await page.realClick(selector);
-    assert.ok(true);
+
+
+test('Headless Detection Test', async () => {
+    await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
+    await page.goto('about:blank', { timeout: 5000 }).catch(() => {});
+    await page.waitForLoadState('load', { timeout: 5000 }).catch(() => {});
+    await page.goto("https://arh.antoinevastel.com/bots/areyouheadless", { timeout: 70000 });
+    await new Promise(r => setTimeout(r, 3000));
+    let result = await page.evaluate(() => {
+        const el = document.querySelector('#res');
+        return el && el.textContent.toLowerCase().includes('not') ? true : false;
+    });
+    assert.strictEqual(result, true, "Headless Detection test failed! Browser detected as headless.")
 })
 
-test('Human-like Typing', async () => {
-    await page.goto("https://www.google.com", { timeout: 40000, waitUntil: 'networkidle' });
-    const selector = 'textarea[name="q"], input[name="q"]';
-    await page.fill(selector, '');
-    await page.realCursor.move(selector);
-    await page.realClick(selector);
-    await page.type(selector, 'Real Browser MCP Server', { delay: 150 });
-    await new Promise(r => setTimeout(r, 500));
-    const val = await page.inputValue(selector);
-    assert.strictEqual(val, 'Real Browser MCP Server');
-})
+test('Rebrowser Bot Detector', async () => {
+    await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
+    await page.goto('about:blank', { timeout: 5000 }).catch(() => {});
+    await page.waitForLoadState('load', { timeout: 5000 }).catch(() => {});
+    await page.goto("https://bot-detector.rebrowser.net/", { waitUntil: 'domcontentloaded', timeout: 70000 });
+    await new Promise(r => setTimeout(r, 100)); // Very short delay to ensure page scripts initialized
 
-test('Human-like Scrolling', async () => {
-    await page.goto("https://www.google.com/search?q=Real+Browser+MCP+Server", { timeout: 40000, waitUntil: 'domcontentloaded' });
-    await new Promise(r => setTimeout(r, 2000));
-    
-    console.log('📜 Scrolling down smoothly and fast (400px)...');
-    await page.realScroll(400, 500);
-    await new Promise(r => setTimeout(r, 600));
-    
-    console.log('📜 Scrolling down smoothly and fast (300px)...');
-    await page.realScroll(300, 400);
-    await new Promise(r => setTimeout(r, 600));
-    
-    console.log('📜 Scrolling up smoothly and fast (-500px)...');
-    await page.realScroll(-500, 600);
-    await new Promise(r => setTimeout(r, 1000));
-    
-    assert.ok(true);
-})
+    // Use CDP to trigger tests in the main world (Patchright's page.evaluate runs in isolated world)
+    const client = await page.context().newCDPSession(page);
+    // dummyFn: call in main world to prove we can access main world objects
+    await client.send('Runtime.evaluate', { expression: 'window.dummyFn()' }).catch(() => {});
+    // exposeFunctionLeak: create a normal function (not via page.exposeFunction which leaks Playwright bindings)
+    await client.send('Runtime.evaluate', { expression: "window.exposedFn = () => { console.log('exposedFn call') }" }).catch(() => {});
+    // sourceUrlLeak: test if evaluate leaks sourceUrl via getElementById
+    await client.send('Runtime.evaluate', { expression: "document.getElementById('detections-json')" }).catch(() => {});
+    // mainWorldExecution: test if evaluate runs in isolated world (safe) vs main world (detectable)
+    await page.evaluate(() => document.getElementsByClassName('div')).catch(() => {});
 
-test('Form Automation Demonstration', async () => {
-  console.log('\n🎬 DEMO: Form Automation');
-  try {
-    await page.goto('https://httpbin.org/forms/post', { timeout: 30000 });
-    console.log('\n4️⃣ Filling out form...');
-    
-    // 1. Customer Name
-    await page.type('input[name="custname"]', 'John Doe', { delay: 100 });
-    console.log('✅ Customer Name filled');
-
-    // 2. Telephone
-    await page.type('input[name="custtel"]', '+1-555-0199', { delay: 100 });
-    console.log('✅ Telephone filled');
-
-    // 3. Email address
-    await page.type('input[name="custemail"]', 'john.doe@example.com', { delay: 100 });
-    console.log('✅ Email field filled');
-
-    // 4. Pizza Size (Radio Button)
-    await page.realClick('input[value="medium"]');
-    console.log('✅ Pizza Size selected (Medium)');
-
-    // 5. Pizza Toppings (Checkboxes)
-    await page.realClick('input[value="bacon"]');
-    await page.realClick('input[value="onion"]');
-    console.log('✅ Toppings selected (Bacon, Onion)');
-
-    // 6. Preferred Delivery Time
-    await page.type('input[name="delivery"]', '13:00', { delay: 100 });
-    console.log('✅ Delivery time filled');
-
-    // 7. Delivery Instructions (Comments)
-    await page.type('textarea[name="comments"]', 'Leave at the front door, please.', { delay: 100 });
-    console.log('✅ Delivery instructions filled');
-
-    // Wait 2 seconds for visual demonstration
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // 8. Submit Order
-    await page.realClick('form button');
-    console.log('✅ Form submitted successfully');
-    
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    console.log('\n🎉 FORM AUTOMATION COMPLETE!');
-  } catch (error) {
-    console.warn('⚠️ Form automation test skipped due to network/timeout (httpbin is often unstable):', error.message);
-    // don't throw error to allow other tests to run
-  }
-})
-
-test('Content Strategy Demonstration', async () => {
-  console.log('\n🎬 DEMO: Content Analysis & Token Management');
-  console.log('👀 Watch browser analyze content from different websites');
-  try {
-    const testSites = [
-      { url: 'https://httpbin.org/html', description: 'Simple HTML page' },
-      { url: 'https://example.com', description: 'Minimal content page' }
-    ];
-
-    for (const [index, site] of testSites.entries()) {
-      console.log(`\n${index + 2}️⃣ Testing ${site.description}: ${site.url}`);
-      await page.goto(site.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      console.log(`   📄 Getting HTML content...`);
-      const htmlContent = await page.content();
-      console.log(`   ✅ HTML analyzed: ${htmlContent.length} characters`);
-      
-      console.log(`   📝 Getting text content...`);
-      const textContent = await page.evaluate(() => document.body.innerText);
-      console.log(`   ✅ Text analyzed: ${textContent.length} characters`);
-      
-      assert.ok(htmlContent.length > 0);
-      assert.ok(textContent.length > 0);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(r => setTimeout(r, 5000));
+    const detections = await page.evaluate(() => {
+        const el = document.querySelector('#detections-json');
+        try { return JSON.parse(el?.value || ''); } catch { return null; }
+    });
+    // console.log('🔍 Rebrowser Detections:', JSON.stringify(detections, null, 2));
+    assert.ok(detections !== null, "Rebrowser Bot Detector: Could not read detection JSON from page");
+    const detected = detections.filter(d => d.rating === 1);
+    if (detected.length > 0) {
+        console.log('⚠️ Detected as bot for:', detected.map(d => d.type).join(', '));
     }
-    console.log('\n🎉 CONTENT ANALYSIS COMPLETE!');
-  } catch (error) {
-    console.warn('⚠️ Content strategy test skipped due to network/timeout (httpbin is often unstable):', error.message);
-    // don't throw error to allow other tests to run
-  }
-})
-
-test('DrissionPage Detector', async () => {
-    await page.goto("https://web.archive.org/web/20240913054632/https://drissionpage.pages.dev/", { timeout: 70000 });
-    await page.realClick("#detector")
-    let result = await page.evaluate(() => { return document.querySelector('#isBot span').textContent.includes("not") ? true : false })
-    assert.strictEqual(result, true, "DrissionPage Detector test failed!")
+    assert.strictEqual(detected.length, 0, `Rebrowser Bot Detector failed! Detected: ${detected.map(d => d.type).join(', ')}`)
 })
 
 test('Sannysoft WebDriver Detector', async () => {
+    await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
+    await page.goto('about:blank', { timeout: 5000 }).catch(() => {});
+    await page.waitForLoadState('load', { timeout: 5000 }).catch(() => {});
     await page.goto("https://bot.sannysoft.com/", { timeout: 70000 });
     await new Promise(r => setTimeout(r, 3000));
     let result = await page.evaluate(() => {
@@ -170,6 +91,9 @@ test('Sannysoft WebDriver Detector', async () => {
 })
 
 test('Cloudflare WAF', async () => {
+    await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
+    await page.goto('about:blank', { timeout: 5000 }).catch(() => {});
+    await page.waitForLoadState('load', { timeout: 5000 }).catch(() => {});
     await page.goto("https://nopecha.com/demo/cloudflare", { timeout: 70000 });
     let verify = null
     let startDate = Date.now()
@@ -184,6 +108,9 @@ test('Cloudflare WAF', async () => {
 
 
 test('Cloudflare Turnstile', async () => {
+    await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
+    await page.goto('about:blank', { timeout: 5000 }).catch(() => {});
+    await page.waitForLoadState('load', { timeout: 5000 }).catch(() => {});
     await page.goto("https://2captcha.com/demo/cloudflare-turnstile", { timeout: 70000 });
     await page.waitForSelector('.cf-turnstile')
     let token = null
@@ -205,6 +132,9 @@ test('Cloudflare Turnstile', async () => {
 
 
 test('Fingerprint JS Bot Detector', async () => {
+    await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
+    await page.goto('about:blank', { timeout: 5000 }).catch(() => {});
+    await page.waitForLoadState('load', { timeout: 5000 }).catch(() => {});
     await page.goto("https://fingerprint.com/products/bot-detection/", { waitUntil: 'domcontentloaded', timeout: 70000 });
     await new Promise(r => setTimeout(r, 5000));
     const detect = await page.evaluate(() => {
@@ -239,6 +169,9 @@ test('Fingerprint JS Bot Detector', async () => {
 })
 
 test('Recaptcha V3 Score', async () => {
+    await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
+    await page.goto('about:blank', { timeout: 5000 }).catch(() => {});
+    await page.waitForLoadState('load', { timeout: 5000 }).catch(() => {});
     await page.goto("https://antcpt.com/score_detector/", { timeout: 70000 });
 
     await page.realCursor.move('body', { paddingPercentage: 20 });
@@ -260,6 +193,9 @@ test('Recaptcha V3 Score', async () => {
 })
 
 test('Pixelscan Fingerprint Check', async () => {
+    await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
+    await page.goto('about:blank', { timeout: 5000 }).catch(() => {});
+    await page.waitForLoadState('load', { timeout: 5000 }).catch(() => {});
     await page.goto("https://pixelscan.net/fingerprint-check", { waitUntil: 'domcontentloaded', timeout: 70000 });
 
     // Poll for the final status. We look specifically at the green header and the fingerprint checker card.

@@ -1,7 +1,7 @@
 // @ts-nocheck
 
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil } from './state';
-import { handlers } from './index';
+
 
 // Auto-generated browser handlers
 
@@ -15,14 +15,14 @@ export const browserHandlers = {
     const envHeadless = getHeadlessFromEnv();
     const headless = params.headless !== undefined ? params.headless : envHeadless;
 
-    const { proxy = {}, contextOptions = {}, turnstile = false, enableBlocker = true } = params;
+    const { proxy = {}, contextOptions = {}, turnstile = false, enableBlocker = true, recordVideo = false } = params;
 
     notifyProgress('browser_init', 'progress', `Mode: ${headless ? 'Headless' : 'GUI (Visible)'}`, { headless });
 
     const result = await connect({
       headless,
       proxy,
-      contextOptions,
+      contextOptions: recordVideo ? { ...contextOptions, recordVideo: { dir: './videos' } } : contextOptions,
       turnstile,
       enableBlocker,
     });

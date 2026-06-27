@@ -27,7 +27,8 @@ const TOOLS = [
         },
         turnstile: { type: 'boolean', default: true, description: 'Auto-solve Cloudflare Turnstile' },
         enableBlocker: { type: 'boolean', default: true, description: 'Block ads and trackers' },
-        aiHealing: { type: 'boolean', default: true, description: 'Enable AI auto-healing for broken selectors' }
+        aiHealing: { type: 'boolean', default: true, description: 'Enable AI auto-healing for broken selectors' },
+        recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of session' }
       }
     }
   },
@@ -211,7 +212,6 @@ const TOOLS = [
           description: 'Captcha type: turnstile/recaptcha/hcaptcha (JS-based), text/image (OCR-based), auto (detect)'
         },
         timeout: { type: 'number', default: 30000 },
-        aiMode: { type: 'boolean', default: true, description: 'Use AI vision for complex CAPTCHAs' },
         captchaSelector: { type: 'string', description: 'CSS selector for captcha image (required for text/image type)' },
         inputSelector: { type: 'string', description: 'CSS selector for input field to fill result' },
         refreshSelector: { type: 'string', description: 'CSS selector for captcha refresh button' },
@@ -374,15 +374,15 @@ const TOOLS = [
   {
     name: 'network_recorder',
     emoji: '📡',
-    description: 'Record all network activity with 9 actions: (1) start - begin recording + inject pre-page-load API interceptors (monkey-patches fetch, XMLHttpRequest, navigator.sendBeacon) + WebSocket constructor interceptor, (2) stop - stop recording, (3) get - get all records with filters, (4) clear - clear all records, (5) get_media - get only video/audio/HLS/DASH stream URLs, (6) get_navigations - track JS redirects and meta refreshes, (7) get_api_calls - get all API calls with full request/response bodies (JSON, form data), (8) get_intercepted_apis - get runtime-intercepted API calls captured via monkey-patched fetch/XHR/sendBeacon (catches calls from obfuscated/webpack code), (9) get_websockets - get all WebSocket connections and messages (sent + received with timestamps). Supports filters: resourceType, urlPattern, mediaOnly.\n\n🤖 AI Usage Guide: To capture API calls, you MUST run action="start" BEFORE navigating to the page. Then wait, then use action="get_api_calls".',
-    descriptionHindi: 'नेटवर्क रिकॉर्डर — 9 actions: start/stop/get/clear/get_media/get_navigations/get_api_calls/get_intercepted_apis/get_websockets। Runtime API interception + WebSocket capture।',
+    description: 'Record all network activity with 11 actions: (1) start, (2) stop, (3) get, (4) clear, (5) get_media, (6) get_navigations, (7) get_api_calls, (8) get_intercepted_apis, (9) get_websockets, (10) get_graphql - extract GraphQL queries/mutations, (11) export_har - generate HAR 1.2 format JSON.',
+    descriptionHindi: 'नेटवर्क रिकॉर्डर — actions: start/stop/get/clear/get_media/get_navigations/get_api_calls/get_intercepted_apis/get_websockets/get_graphql/export_har।',
     category: 'network',
     requiresBrowser: true,
     requiresPage: false,
     inputSchema: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['start', 'stop', 'get', 'clear', 'get_media', 'get_navigations', 'get_api_calls', 'get_intercepted_apis', 'get_websockets'], default: 'get' },
+        action: { type: 'string', enum: ['start', 'stop', 'get', 'clear', 'get_media', 'get_navigations', 'get_api_calls', 'get_intercepted_apis', 'get_websockets', 'get_graphql', 'export_har'], default: 'get' },
         filter: {
           type: 'object',
           properties: {
@@ -399,51 +399,6 @@ const TOOLS = [
   },
 
 
-
-  // 19. Cookie Manager
-  {
-    name: 'cookie_manager',
-    emoji: '🍪',
-    description: 'Smart cookie management with AI session persistence',
-    descriptionHindi: 'कुकीज़ मैनेज करना (smart)',
-    category: 'browser',
-    requiresBrowser: true,
-    requiresPage: false,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: { type: 'string', enum: ['get', 'set', 'delete', 'clear', 'export', 'import'], default: 'get' },
-        name: { type: 'string' },
-        value: { type: 'string' },
-        domain: { type: 'string' },
-        expires: { type: 'number' },
-        aiOptimize: { type: 'boolean', default: true, description: 'AI optimizes cookie persistence' }
-      }
-    }
-  },
-
-  // 20. File Downloader
-  {
-    name: 'file_downloader',
-    emoji: '⬇️',
-    description: 'Download files with resume, batch, and auto-decrypt support',
-    descriptionHindi: 'फाइल डाउनलोड करना (resume + batch)',
-    category: 'network',
-    requiresBrowser: true,
-    requiresPage: false,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        url: { type: 'string' },
-        filename: { type: 'string' },
-        directory: { type: 'string', default: './downloads' },
-        resume: { type: 'boolean', default: true, description: 'Resume interrupted downloads' },
-        batch: { type: 'array', items: { type: 'string' }, description: 'Multiple URLs for batch download' },
-        autoDecode: { type: 'boolean', default: true, description: 'Auto-decode Base64/URL encoded URLs' },
-        decryptKey: { type: 'string', description: 'AES key for encrypted files' }
-      }
-    }
-  },
 
   // 21. Media Extractor (MERGED: iframe_handler + stream_extractor + player_api_hook)
   {
@@ -510,6 +465,65 @@ const TOOLS = [
   },
 
 
+  // 23. Storage Inspector
+  {
+    name: 'storage_inspector',
+    emoji: '🗄️',
+    description: 'Inspect IndexedDB and Service Workers natively via JS.',
+    descriptionHindi: 'IndexedDB और Service Worker चेक करना।',
+    category: 'analysis',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['indexeddb', 'service_workers'], default: 'indexeddb' }
+      }
+    }
+  },
+
+  // 24. Replay Request
+  {
+    name: 'replay_request',
+    emoji: '🔁',
+    description: 'Replay a captured API request directly in the browser context (bypasses CORS, attaches auth/cookies).',
+    descriptionHindi: 'कैप्चर की गई रिक्वेस्ट को फिर से ब्राउज़र में भेजना।',
+    category: 'network',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string' },
+        method: { type: 'string', default: 'GET' },
+        headers: { type: 'object' },
+        body: { type: 'string' }
+      },
+      required: ['url']
+    }
+  },
+
+  // 24b. API Analyzer
+  {
+    name: 'api_analyzer',
+    emoji: '🧩',
+    description: 'Generate schemas, diff JSONs, and create SDK boilerplates (Python/TypeScript).',
+    descriptionHindi: 'API रिस्पांस से स्कीमा/SDK/Diff बनाना।',
+    category: 'analysis',
+    requiresBrowser: false,
+    requiresPage: false,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['schema', 'diff', 'sdk'], default: 'schema' },
+        data: { type: 'string', description: 'JSON string for schema/diff, or URL for SDK' },
+        data2: { type: 'string', description: 'Second JSON string for diff action' },
+        lang: { type: 'string', enum: ['ts', 'python'], default: 'ts' }
+      },
+      required: ['action', 'data']
+    }
+  },
+
   // 25. See Page (AI Vision — "eyes")
   {
     name: 'see_page',
@@ -529,7 +543,9 @@ const TOOLS = [
         includeElements: { type: 'boolean', default: true, description: 'Include the visual map of interactive elements' },
         includeDomText: { type: 'boolean', default: false, description: 'Include the full text content of the page (DOM reading)' },
         maxElements: { type: 'number', default: 60, description: 'Max number of interactive elements to map' },
-        path: { type: 'string', description: 'Optional file path to also save the captured image' }
+        path: { type: 'string', description: 'Optional file path to also save the captured image' },
+        autoHover: { type: 'boolean', default: false, description: 'Hover over menus before taking screenshot to reveal dropdowns' },
+        watchMutations: { type: 'boolean', default: false, description: 'Check for DOM mutations (popups/alerts) since last view' }
       }
     }
   }

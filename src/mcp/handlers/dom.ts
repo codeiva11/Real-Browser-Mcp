@@ -1,6 +1,6 @@
 
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil } from './state';
-import { handlers } from './index';
+import { helpersHandlers } from './helpers';
 
 // Auto-generated dom handlers
 
@@ -95,7 +95,7 @@ export const domHandlers = {
     // Manual iframe selection (if not auto-detected)
     if (!autoDetectPlayer && (iframe !== undefined || iframeSelector)) {
       try {
-        const resolved = await handlers._resolveIframeContext(page, iframe, iframeSelector);
+        const resolved = await helpersHandlers._resolveIframeContext(page, iframe, iframeSelector);
         if (resolved.success) {
           context = resolved.targetFrame;
           frameInfo = resolved.frameInfo;
@@ -109,7 +109,7 @@ export const domHandlers = {
     }
 
     // Auto-close any blocking modals before clicking
-    await handlers._handleBlockingModals(page);
+    await helpersHandlers._handleBlockingModals(page);
 
     // Auto-handle dialogs
     let dialogHandled = false;
@@ -397,7 +397,7 @@ export const domHandlers = {
 
     if (iframe !== undefined || iframeSelector) {
       try {
-        const resolved = await handlers._resolveIframeContext(page, iframe, iframeSelector);
+        const resolved = await helpersHandlers._resolveIframeContext(page, iframe, iframeSelector);
         if (resolved.success) {
           context = resolved.targetFrame;
           frameInfo = resolved.frameInfo;
@@ -411,7 +411,7 @@ export const domHandlers = {
     }
 
     // Auto-close any blocking modals before typing
-    await handlers._handleBlockingModals(page);
+    await helpersHandlers._handleBlockingModals(page);
 
     // Wait for selector if enabled
     if (waitForSelector) {

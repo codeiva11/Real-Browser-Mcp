@@ -2,24 +2,13 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { state, requireBrowser, notifyProgress, decoders } from './state';
-import { handlers } from './index';
+import { helpersHandlers } from './helpers';
 
 // ═══════════════════════════════════════════════════════════════
 // Utility Handlers — General-purpose tools
 // ═══════════════════════════════════════════════════════════════
 
 export const utilityHandlers = {
-  _validateCaptchaText(text: string, expectedLength: number, allowedChars: string) {
-    if (!text || text.trim() === '') return { valid: false, reason: 'Empty text' };
-    if (expectedLength && text.length !== expectedLength) {
-      return { valid: false, reason: `Expected ${expectedLength} chars, got ${text.length}` };
-    }
-    if (allowedChars) {
-      const regex = new RegExp('^[' + allowedChars + ']+$');
-      if (!regex.test(text)) return { valid: false, reason: 'Contains chars outside allowed set: ' + allowedChars };
-    }
-    return { valid: true };
-  },
 
   async progress_tracker(params: any = {}) {
     const { action = 'get', taskName, progress } = params;
@@ -90,32 +79,6 @@ export const utilityHandlers = {
     return { success: true, url: page.url(), analysis };
   },
 
-  async file_downloader(params: any) {
-    const { page } = requireBrowser();
-    const { url, filename, directory = './downloads' } = params;
-
-    notifyProgress('file_downloader', 'started', `Downloading: ${url}`);
-
-    if (!fs.existsSync(directory)) {
-      fs.mkdirSync(directory, { recursive: true });
-    }
-
-    const response = await page.goto(url, { waitUntil: 'networkidle' });
-    if (!response) {
-      notifyProgress('file_downloader', 'error', 'Failed to get response');
-      return { success: false, error: 'Failed to get response' };
-    }
-    const buffer = await response.body();
-
-    const outputFilename = filename || path.basename(new URL(url).pathname) || 'download';
-    const outputPath = path.join(directory, outputFilename);
-
-    fs.writeFileSync(outputPath, buffer);
-
-    notifyProgress('file_downloader', 'completed', `Downloaded: ${outputFilename} (${buffer.length} bytes)`, { filename: outputPath, size: buffer.length });
-
-    return { success: true, filename: outputPath, size: buffer.length };
-  },
 
   async execute_js(params: any) {
     const { page } = requireBrowser();
@@ -136,7 +99,7 @@ export const utilityHandlers = {
 
     if (iframe !== undefined || iframeSelector) {
       try {
-        const resolved = await handlers._resolveIframeContext(page, iframe, iframeSelector);
+        const resolved = await helpersHandlers._resolveIframeContext(page, iframe, iframeSelector);
         if (resolved.success) {
           context = resolved.targetFrame;
           frameInfo = resolved.frameInfo;
@@ -192,6 +155,79 @@ export const utilityHandlers = {
     } catch (evalError: any) {
       notifyProgress('execute_js', 'error', `Execution error: ${evalError.message}`);
       return { success: false, error: evalError.message, iframe: frameInfo };
+    }
+  },
+
+  async storage_inspector(params: any) {
+    const { page } = requireBrowser();
+    const { action = 'indexeddb' } = params;
+    notifyProgress('storage_inspector', 'started', `Inspecting ${action}`);
+
+    try {
+      if (action === 'service_workers') {
+        const sw = await page.evaluate(async () => {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          return regs.map(r => ({ scope: r.scope, active: !!r.active }));
+        });
+        return { success: true, count: sw.length, serviceWorkers: sw };
+      } 
+      
+      if (action === 'indexeddb') {
+        // ponytail: evaluate to extract native indexedDB list without CDP overhead
+        const idbs = await page.evaluate(async () => {
+          if (!indexedDB.databases) return [];
+          const dbs = await indexedDB.databases();
+          return dbs;
+        });
+        return { success: true, count: idbs.length, databases: idbs };
+      }
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  },
+
+  async api_analyzer(params: any) {
+    const { action = 'schema', data, data2, lang = 'ts' } = params;
+    notifyProgress('api_analyzer', 'started', `Action: ${action}`);
+
+    try {
+      let parsed = null;
+      try { parsed = typeof data === 'string' && (data.startsWith('{') || data.startsWith('[')) ? JSON.parse(data) : null; } catch {}
+
+      if (action === 'diff') {
+        let p2 = null;
+        try { p2 = typeof data2 === 'string' && (data2.startsWith('{') || data2.startsWith('[')) ? JSON.parse(data2) : null; } catch {}
+        if (!parsed || !p2) return { success: false, error: 'Invalid JSON for diff' };
+        
+        // ponytail: minimal diff by serializing sorted keys
+        const sortKeys = (obj: any): any => typeof obj === 'object' && obj ? Object.keys(obj).sort().reduce((acc: any, k) => { acc[k] = sortKeys(obj[k]); return acc; }, Array.isArray(obj) ? [] : {}) : obj;
+        const diff = JSON.stringify(sortKeys(parsed)) === JSON.stringify(sortKeys(p2)) ? 'Exact Match' : 'Different';
+        return { success: true, diff };
+      }
+
+      if (action === 'schema') {
+        if (!parsed) return { success: false, error: 'Invalid JSON for schema' };
+        const genSchema = (obj: any): any => {
+          if (Array.isArray(obj)) return obj.length ? [genSchema(obj[0])] : ['any'];
+          if (typeof obj === 'object' && obj) {
+            const schema: any = {};
+            for (const [k, v] of Object.entries(obj)) schema[k] = genSchema(v);
+            return schema;
+          }
+          return typeof obj;
+        };
+        return { success: true, schema: genSchema(parsed) };
+      }
+
+      if (action === 'sdk') {
+        const url = parsed?.url || data || 'https://api.example.com';
+        const code = lang === 'python' 
+          ? `import requests\n\ndef fetch_data(url="${url}"):\n    return requests.get(url).json()`
+          : `export async function fetchData(url: string = "${url}") {\n  const res = await fetch(url);\n  return res.json();\n}`;
+        return { success: true, sdk_boilerplate: code };
+      }
+    } catch (e: any) {
+      return { success: false, error: e.message };
     }
   }
 };

@@ -194,16 +194,15 @@ Configure the server in your `opencode.jsonc` or standard MCP settings configura
 
 ---
 
-## 🌐 Complete MCP Tool Reference (23 Tools)
+## 🌐 Complete MCP Tool Reference (21 Tools)
 
-The server exposes 23 highly optimized tools categorized into functional units:
+The server exposes 21 highly optimized tools categorized into functional units:
 
 ### 🌐 Browser & Session
 | Tool Name | Description | Parameters |
 |:---|:---|:---|
 | `browser_init` | Initialize Brave/Patchright browser with stealth, ad blocker, and turnstile bypass. | `headless` (boolean), `proxy` (object) |
 | `browser_close` | Close browser with cleanup and session saving. | None |
-| `cookie_manager` | Smart cookie management (get, set, delete, import, export). | `action` (string), `cookies` (array) |
 
 ### 🧭 Navigation
 | Tool Name | Description | Parameters |
@@ -224,10 +223,7 @@ The server exposes 23 highly optimized tools categorized into functional units:
 | Tool Name | Description | Parameters |
 |:---|:---|:---|
 | `get_content` | Retrieve page content in `html`, `text`, `markdown`, or direct `rawHttp` modes. | `format` (string) |
-| `find_element` | Locate elements via CSS selectors, XPath, or exact text. | `selector` (string), `strategy` (string) |
-| `save_content_as_markdown` | Export current page content as clean, readable Markdown, stripping ads. | `filename` (string) |
 | `extract_data` | Advanced 8-mode extractor (Regex, JSON, Meta tags, JS Deobfuscator, Cryptography). | `mode` (string), `target` (string) |
-| `link_harvester` | Scrapes all visible, hidden, iframe-nested, or encoded links on a page. | None |
 | `media_extractor` | Capture and control HLS, DASH, JWPlayer, Plyr, or dynamic streaming content. | `action` (string), `targetUrl` (string) |
 
 ### 📡 Network & Utilities
@@ -235,17 +231,17 @@ The server exposes 23 highly optimized tools categorized into functional units:
 |:---|:---|:---|
 | `redirect_tracer` | Trace complete redirect chains (HTTP 301/302, JS location, meta refresh). | `url` (string) |
 | `network_recorder` | Capture network requests, XHR request/response bodies, or WebSockets. | `action` (string), `captureXhrBody` (boolean) |
-| `file_downloader` | Secure file downloader supporting resumes, batches, and URL decoding. | `url` (string), `outputPath` (string) |
 | `deep_analysis` | Detailed analysis of DOM structure, scripts, anti-bots, and stack. | None |
 | `wait` | Smart delay with AI prediction or static timeout. | `duration` (number) |
 | `progress_tracker` | Track running automation progress with AI-estimated remaining times. | `step` (string), `percentage` (number) |
-
-
+| `storage_inspector` | Inspect IndexedDB and Service Workers natively via JS. | None |
+| `replay_request` | Replay a captured API request directly in the browser context (bypasses CORS). | `requestId` (string) |
+| `api_analyzer` | Generate schemas, diff JSONs, and create SDK boilerplates (Python/TypeScript). | `action` (string), `data` (string) |
 
 ### 👁️ AI Vision (Eyes)
 | Tool Name | Description | Parameters |
 |:---|:---|:---|
-| `see_page` | Lets the AI **visually SEE** the page like human eyes: returns the actual screenshot image to the agent **plus** a "visual map" of every visible interactive element (button/link/input) with its on-screen position, text label, and a click-ready selector. Use it to look before deciding where to click/type. | `fullPage` (boolean), `format` (png/jpeg), `includeElements` (boolean), `maxElements` (number) |
+| `see_page` | Lets the AI **visually SEE** the page like human eyes: returns the actual screenshot image to the agent **plus** a "visual map" of every visible interactive element. | `fullPage` (boolean), `format` (png/jpeg) |
 
 ---
 
