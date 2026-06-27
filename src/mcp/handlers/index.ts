@@ -59,6 +59,17 @@ export async function cleanup() {
   }
 
   if (state.browserInstance) {
+    // Save storage state to globalCache before closing
+    if (state.pageInstance) {
+      try {
+        const storageState = await state.pageInstance.context().storageState();
+        globalCache.set('storage_state', storageState);
+        globalCache.saveToDisk();
+      } catch (e) {
+        // ignore errors
+      }
+    }
+
     try {
       await state.browserInstance.close();
     } catch (e) {

@@ -17,7 +17,11 @@ let PKG_VERSION = '0.0.0';
 try {
   PKG_VERSION = require('../../package.json').version || PKG_VERSION;
 } catch (e: any) {
-  console.error('⚠️  Could not read version from package.json:', e.message);
+  try {
+    PKG_VERSION = require('../../../package.json').version || PKG_VERSION;
+  } catch (err: any) {
+    console.error('⚠️  Could not read version from package.json:', err.message);
+  }
 }
 
 /**

@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil } from './state';
+import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil, globalCache } from './state';
 
 
 // Auto-generated browser handlers
@@ -19,10 +19,16 @@ export const browserHandlers = {
 
     notifyProgress('browser_init', 'progress', `Mode: ${headless ? 'Headless' : 'GUI (Visible)'}`, { headless });
 
+    // Load storage state from globalCache
+    const savedStorage = globalCache.get('storage_state');
+    const mergedContextOptions = savedStorage
+      ? { ...contextOptions, storageState: savedStorage }
+      : contextOptions;
+
     const result = await connect({
       headless,
       proxy,
-      contextOptions: recordVideo ? { ...contextOptions, recordVideo: { dir: './videos' } } : contextOptions,
+      contextOptions: recordVideo ? { ...mergedContextOptions, recordVideo: { dir: './videos' } } : mergedContextOptions,
       turnstile,
       enableBlocker,
     });
@@ -241,6 +247,17 @@ export const browserHandlers = {
     notifyProgress('browser_close', 'started', 'Closing browser...');
 
     if (state.browserInstance) {
+      // Save storage state to globalCache before closing
+      if (state.pageInstance) {
+        try {
+          const storageState = await state.pageInstance.context().storageState();
+          globalCache.set('storage_state', storageState);
+          globalCache.saveToDisk();
+        } catch (e) {
+          // ignore error
+        }
+      }
+
       try {
         await state.browserInstance.close();
         notifyProgress('browser_close', 'progress', 'Browser closed gracefully');

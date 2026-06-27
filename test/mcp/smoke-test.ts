@@ -22,8 +22,13 @@ const assert = require('assert');
 const ROOT = path.join(__dirname, '..', '..');
 const SERVER = path.join(ROOT, 'src', 'index.js');
 const { TOOLS } = require(path.join(ROOT, 'src', 'shared', 'tools.js'));
-const { handlers } = require(path.join(ROOT, 'src', 'mcp', 'handlers.js'));
-const PKG = require(path.join(ROOT, 'package.json'));
+const { handlers } = require(path.join(ROOT, 'src', 'mcp', 'handlers', 'index.js'));
+let PKG;
+try {
+  PKG = require(path.join(ROOT, 'package.json'));
+} catch (e) {
+  PKG = require(path.join(ROOT, '..', 'package.json'));
+}
 
 let passed = 0;
 let failed = 0;
