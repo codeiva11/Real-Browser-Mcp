@@ -1,25 +1,25 @@
-// @ts-nocheck
 import { chromium } from 'patchright';
 import { createCursor } from 'ghost-cursor-patchright';
 import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getHeadlessFromEnv } from '../mcp/handlers/state';
+import type { Browser, Page } from 'patchright';
 
-let adBlockerInstance = null;
-let adBlockerPromise = null;
+let adBlockerInstance: PlaywrightBlocker | null = null;
+let adBlockerPromise: Promise<PlaywrightBlocker | null> | null = null;
 
-function getAdBlocker() {
+function getAdBlocker(): Promise<PlaywrightBlocker | null> {
   if (!adBlockerPromise) {
     const cachePath = path.join(__dirname, 'adblocker.bin');
     adBlockerPromise = PlaywrightBlocker.fromPrebuiltAdsAndTracking(fetch, {
       path: cachePath,
       read: fs.promises.readFile,
       write: fs.promises.writeFile,
-    }).then(blocker => {
+    }).then((blocker: PlaywrightBlocker) => {
       adBlockerInstance = blocker;
       return blocker;
-    }).catch(err => {
+    }).catch((err: Error) => {
       console.error('[adblocker] Failed to initialize adblocker:', err.message);
       return null;
     });
@@ -27,69 +27,29 @@ function getAdBlocker() {
   return adBlockerPromise;
 }
 
-export function loadEnvFile() {
-  const envPaths = [
-    path.join(process.cwd(), '.env'),
-  ];
-
-  let currentDir = process.cwd();
-  for (let i = 0; i < 5; i++) {
-    const envPath = path.join(currentDir, '.env');
-    if (fs.existsSync(envPath) && !envPaths.includes(envPath)) {
-      envPaths.push(envPath);
-    }
-    const parentDir = path.dirname(currentDir);
-    if (parentDir === currentDir) break;
-    currentDir = parentDir;
-  }
-
-  for (const envPath of envPaths) {
-    try {
-      if (fs.existsSync(envPath)) {
-        const envContent = fs.readFileSync(envPath, 'utf-8');
-        envContent.split('\n').forEach(line => {
-          const trimmed = line.trim();
-          if (trimmed && !trimmed.startsWith('#')) {
-            const [key, ...valueParts] = trimmed.split('=');
-            const value = valueParts.join('=').replace(/^["']|["']$/g, '');
-            if (key && !process.env[key]) {
-              process.env[key] = value;
-            }
-          }
-        });
-        break;
-      }
-    } catch (error) {
-      // Silently ignore .env loading errors
-    }
-  }
-}
-
-export function getDefaultHeadless() {
+export function getDefaultHeadless(): boolean {
   return getHeadlessFromEnv();
 }
 
-export function setupRealPage(browser, page) {
-  if (page._setupApplied) return page;
-  page._setupApplied = true;
+export function setupRealPage(browser: Browser, page: Page & Record<string, any>): Page & Record<string, any> {
+  if ((page as any)._setupApplied) return page;
+  (page as any)._setupApplied = true;
 
-  // Enable ad blocker
   if (adBlockerInstance) {
-    adBlockerInstance.enableBlockingInPage(page).catch(() => {});
+    adBlockerInstance.enableBlockingInPage(page as any).catch(() => {});
   } else {
-    getAdBlocker().then(blocker => {
+    getAdBlocker().then((blocker: PlaywrightBlocker | null) => {
       if (blocker) {
-        blocker.enableBlockingInPage(page).catch(() => {});
+        blocker.enableBlockingInPage(page as any).catch(() => {});
       }
     });
   }
 
-  // Human-like smooth scrolling with 60FPS Cubic Ease-Out physics
-  page.realScroll = async (deltaY, duration = 600) => {
+  page.realScroll = async (deltaY: number, duration = 600) => {
     try {
-      const stepDelay = 15; // ~60 FPS
+      const stepDelay = 15;
       const steps = Math.max(10, Math.floor(duration / stepDelay));
-      const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+      const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
       let currentScroll = 0;
       for (let i = 1; i <= steps; i++) {
         const t = i / steps;
@@ -100,44 +60,39 @@ export function setupRealPage(browser, page) {
         await new Promise(r => setTimeout(r, stepDelay));
       }
     } catch (e) {
-      // Fallback to native window scroll in case of wheel errors
       try {
-        await page.evaluate((y) => window.scrollBy({ top: y, behavior: 'smooth' }), deltaY);
+        await page.evaluate((y: number) => window.scrollBy({ top: y, behavior: 'smooth' }), deltaY);
       } catch (_) {}
     }
   };
 
-  // Ghost Cursor integration - Bézier curve human-like mouse movement
   try {
     const cursor = createCursor(page);
     page.realCursor = {
-      move: async (selector, options = {}) => {
+      move: async (selector: string, options: Record<string, unknown> = {}) => {
         try {
-          await cursor.actions.move(selector, options);
+          await (cursor as any).actions.move(selector, options);
         } catch (e) {
-          // Fallback to native hover if ghost-cursor fails
           try { await page.hover(selector); } catch (_) {}
         }
       }
     };
-    page.realClick = async (selector, options = {}) => {
+    page.realClick = async (selector: string, options: Record<string, unknown> = {}) => {
       try {
-        await cursor.actions.click({ target: selector, ...options });
+        await (cursor as any).actions.click({ target: selector, ...options });
       } catch (e) {
-        // Fallback to native click if ghost-cursor fails
-        await page.click(selector, options);
+        await page.click(selector, options as any);
       }
     };
   } catch (e) {
-    // Fallback if ghost-cursor-patchright fails to initialize
     if (!page.realClick) {
-      page.realClick = async (selector, options) => {
-        await page.click(selector, options);
+      page.realClick = async (selector: string, options: Record<string, unknown>) => {
+        await page.click(selector, options as any);
       };
     }
     if (!page.realCursor) {
       page.realCursor = {
-        move: async (selector) => {
+        move: async (selector: string) => {
           try { await page.hover(selector); } catch (_) {}
         }
       };
@@ -147,7 +102,7 @@ export function setupRealPage(browser, page) {
   return page;
 }
 
-export function getBraveExecutablePath() {
+export function getBraveExecutablePath(): string | null {
   if (process.env.BRAVE_PATH && fs.existsSync(process.env.BRAVE_PATH)) {
     return process.env.BRAVE_PATH;
   }
@@ -155,7 +110,6 @@ export function getBraveExecutablePath() {
   const platform = process.platform;
   const { execSync } = require('child_process');
 
-  // Try automatic scanning via CLI / registry query
   if (platform === 'win32') {
     const regQueries = [
       'reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\brave.exe" /ve',
@@ -165,7 +119,7 @@ export function getBraveExecutablePath() {
 
     for (const cmd of regQueries) {
       try {
-        const output = execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+        const output: string = execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
         const match = output.match(/REG_SZ\s+(.*)/);
         if (match && match[1]) {
           let p = match[1].trim().replace(/^"|"$/g, '');
@@ -181,12 +135,12 @@ export function getBraveExecutablePath() {
     }
 
     try {
-      const output = execSync('where brave.exe', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().split('\r\n')[0];
+      const output: string = execSync('where brave.exe', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().split('\r\n')[0];
       if (output && fs.existsSync(output)) return output;
     } catch (e) {}
   } else if (platform === 'darwin') {
     try {
-      const output = execSync('mdfind "kMDItemCFBundleIdentifier == \'com.brave.Browser\'"', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().split('\n')[0];
+      const output: string = execSync('mdfind "kMDItemCFBundleIdentifier == \'com.brave.Browser\'"', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().split('\n')[0];
       if (output) {
         const p = path.join(output, 'Contents', 'MacOS', 'Brave Browser');
         if (fs.existsSync(p)) return p;
@@ -194,13 +148,12 @@ export function getBraveExecutablePath() {
     } catch (e) {}
   } else {
     try {
-      const output = execSync('which brave-browser || which brave', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+      const output: string = execSync('which brave-browser || which brave', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
       if (output && fs.existsSync(output)) return output;
     } catch (e) {}
   }
 
-  // Fallback to hardcoded common paths
-  let paths = [];
+  let paths: string[] = [];
   if (platform === 'win32') {
     paths = [
       path.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
@@ -208,52 +161,44 @@ export function getBraveExecutablePath() {
       path.join(process.env.LOCALAPPDATA || '', 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe')
     ].filter(p => p);
   } else if (platform === 'darwin') {
-    paths = [
-      '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'
-    ];
+    paths = ['/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'];
   } else {
     paths = [
-      '/usr/bin/brave-browser',
-      '/usr/bin/brave',
-      '/usr/bin/brave-browser-stable',
-      '/usr/bin/brave-browser-beta',
-      '/usr/bin/brave-browser-nightly',
-      '/usr/local/bin/brave-browser',
-      '/usr/local/bin/brave'
+      '/usr/bin/brave-browser', '/usr/bin/brave', '/usr/bin/brave-browser-stable',
+      '/usr/bin/brave-browser-beta', '/usr/bin/brave-browser-nightly',
+      '/usr/local/bin/brave-browser', '/usr/local/bin/brave'
     ];
   }
 
   for (const p of paths) {
-    if (p && fs.existsSync(p)) {
-      return p;
-    }
+    if (p && fs.existsSync(p)) return p;
   }
 
   return null;
 }
 
-export async function applyUserAgentOverride(page, userAgent, userAgentMetadata) {
+export async function applyUserAgentOverride(page: Page, userAgent: string, userAgentMetadata: any): Promise<void> {
   try {
     const client = await page.context().newCDPSession(page);
     await client.send('Emulation.setUserAgentOverride', {
-      userAgent: userAgent,
-      userAgentMetadata: userAgentMetadata
+      userAgent,
+      userAgentMetadata
     });
   } catch (e) {
     // Ignore errors
   }
 }
 
-export function createConnect(pageController) {
+export function createConnect(pageController: (opts: { browser: Browser; page: Page; proxy: Record<string, unknown>; turnstile: boolean }) => Promise<Page>) {
   return async function connect({
     args = [],
     headless = getDefaultHeadless(),
-    proxy = {} as any,
-    contextOptions = {},
+    proxy = {} as Record<string, unknown>,
+    contextOptions = {} as Record<string, unknown>,
     turnstile = false,
-    executablePath = undefined,
+    executablePath = undefined as string | undefined,
   } = {}) {
-    let playwrightProxy: any = undefined;
+    let playwrightProxy: Record<string, unknown> | undefined = undefined;
     if (proxy && proxy.host && proxy.port) {
       playwrightProxy = {
         server: `${proxy.host}:${proxy.port}`
@@ -264,7 +209,6 @@ export function createConnect(pageController) {
       }
     }
 
-    // 1. Launch a temporary browser to retrieve the native user agent and properties
     const tempBrowser = await chromium.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -279,7 +223,7 @@ export function createConnect(pageController) {
       isBrave = await tempPage.evaluate(() => typeof (navigator as any).brave !== 'undefined');
     } catch (e) {
       nativeUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36';
-      isBrave = executablePath && executablePath.toLowerCase().includes('brave');
+      isBrave = !!(executablePath && executablePath.toLowerCase().includes('brave'));
     }
     await tempBrowser.close();
 
@@ -288,7 +232,7 @@ export function createConnect(pageController) {
     const chromeVersion = chromeVersionMatch ? chromeVersionMatch[1] : '148.0.0.0';
     const majorVersion = chromeVersion.split('.')[0];
 
-    const brands = [
+    const brands: Array<{ brand: string; version: string }> = [
       { brand: 'Chromium', version: majorVersion },
       { brand: 'Not/A)Brand', version: '99' }
     ];
@@ -305,7 +249,7 @@ export function createConnect(pageController) {
       platformName = 'Linux';
     }
 
-    const fullVersionList = [
+    const fullVersionList: Array<{ brand: string; version: string }> = [
       { brand: 'Chromium', version: chromeVersion },
       { brand: 'Not/A)Brand', version: '99.0.0.0' }
     ];
@@ -315,9 +259,9 @@ export function createConnect(pageController) {
       fullVersionList.unshift({ brand: 'Google Chrome', version: chromeVersion });
     }
 
-    const userAgentMetadata = {
-      brands: brands,
-      fullVersionList: fullVersionList,
+    const userAgentMetadata: Record<string, unknown> = {
+      brands,
+      fullVersionList,
       fullVersion: chromeVersion,
       mobile: false,
       platform: platformName,
@@ -336,8 +280,7 @@ export function createConnect(pageController) {
       ...args
     ];
 
-    // If headless is true, we run with headless: false but pass '--headless=new' to args.
-    let launchHeadless = headless;
+    let launchHeadless: boolean = headless;
     if (headless === true) {
       launchHeadless = false;
       if (!chromiumArgs.includes('--headless=new')) {
@@ -348,11 +291,10 @@ export function createConnect(pageController) {
     const browser = await chromium.launch({
       headless: launchHeadless,
       args: chromiumArgs,
-      proxy: playwrightProxy,
+      proxy: playwrightProxy as any,
       ...(executablePath ? { executablePath } : {}),
     });
 
-    // Ensure ad blocker is ready
     await getAdBlocker();
 
     const context = await browser.newContext({
@@ -360,9 +302,9 @@ export function createConnect(pageController) {
       ...contextOptions,
     });
 
-    let page = await context.newPage();
+    let page: Page = await context.newPage();
 
-    await applyUserAgentOverride(page, modifiedUa, userAgentMetadata);
+    await applyUserAgentOverride(page, modifiedUa, userAgentMetadata as any);
 
     setupRealPage(browser, page);
 
@@ -373,8 +315,8 @@ export function createConnect(pageController) {
       turnstile,
     });
 
-    context.on('page', async (newPage) => {
-      await applyUserAgentOverride(newPage, modifiedUa, userAgentMetadata);
+    context.on('page', async (newPage: Page) => {
+      await applyUserAgentOverride(newPage, modifiedUa, userAgentMetadata as any);
       setupRealPage(browser, newPage);
       await pageController({
         browser,
@@ -387,6 +329,11 @@ export function createConnect(pageController) {
     return {
       browser,
       page,
+      blocker: adBlockerInstance,
+      setupPage: async (p: Page) => {
+        await applyUserAgentOverride(p, modifiedUa, userAgentMetadata as any);
+        setupRealPage(browser, p);
+      }
     };
   };
 }

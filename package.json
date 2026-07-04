@@ -1,6 +1,6 @@
 {
   "name": "real-browser-mcp-server",
-  "version": "1.5.1",
+  "version": "2.0.3",
   "description": "MCP Server for Real Browser - Patchright (undetected Playwright fork) with Stealth Mode, Ad Blocker, and Turnstile Auto-Solver for undetectable web automation.",
   "main": "dist/lib/cjs/index.js",
   "module": "lib/esm/index.mjs",
@@ -26,16 +26,15 @@
   },
   "scripts": {
     "prepublishOnly": "npm run build",
-    "build": "tsc && node -e \"console.log('\\n✅ Build Successful! The dist/ folder is ready.\\n')\"",
+    "build": "tsc && node dist/scripts/generate-esm.js && node -e \"console.log('\\n✅ Build Successful! The dist/ folder is ready.\\n')\"",
     "start": "node dist/src/index.js",
     "dev": "npm run build && node dist/src/index.js",
     "mcp": "node dist/src/index.js mcp",
     "mcp:verbose": "node dist/src/index.js mcp --verbose",
     "list": "node dist/src/index.js --list",
     "test": "npm run cjs_test && npm run esm_test",
-    "esm_test": "node ./test/esm/test.mjs",
-    "cjs_test": "node ./dist/test/cjs/test.js",
-    "mcp_test": "node ./dist/test/mcp/smoke-test.js"
+    "cjs_test": "node ./test/test.mjs --cjs",
+    "esm_test": "node ./test/test.mjs --esm"
   },
   "keywords": [
     "mcp-server",

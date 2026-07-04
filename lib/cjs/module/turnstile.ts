@@ -1,6 +1,4 @@
-// @ts-nocheck
-export {};
-const checkTurnstile = async ({ page }) => {
+const checkTurnstile = async ({ page }: { page: any }): Promise<boolean> => {
     try {
         const elements = await page.locator('[name="cf-turnstile-response"]').all();
         if (elements.length <= 0) {
@@ -11,29 +9,29 @@ const checkTurnstile = async ({ page }) => {
             });
             if (!isChallenge) return false;
 
-            const coordinates = await page.evaluate(() => {
-                let coordinates = [];
+            const coordinates: Array<{x: number, y: number, w: number, h: number}> = await page.evaluate(() => {
+                let coords: Array<{x: number, y: number, w: number, h: number}> = [];
                 document.querySelectorAll('div').forEach(item => {
                     try {
                         let itemCoordinates = item.getBoundingClientRect();
                         let itemCss = window.getComputedStyle(item);
-                        if (itemCss.margin == "0px" && itemCss.padding == "0px" && itemCoordinates.width > 290 && itemCoordinates.width <= 310 && !item.querySelector('*')) {
-                            coordinates.push({ x: itemCoordinates.x, y: item.getBoundingClientRect().y, w: item.getBoundingClientRect().width, h: item.getBoundingClientRect().height });
+                        if (itemCss.margin === "0px" && itemCss.padding === "0px" && itemCoordinates.width > 290 && itemCoordinates.width <= 310 && !item.querySelector('*')) {
+                            coords.push({ x: itemCoordinates.x, y: item.getBoundingClientRect().y, w: item.getBoundingClientRect().width, h: item.getBoundingClientRect().height });
                         }
-                    } catch (err) { }
+                    } catch (_err) { }
                 });
 
-                if (coordinates.length <= 0) {
+                if (coords.length <= 0) {
                     document.querySelectorAll('div').forEach(item => {
                         try {
                             let itemCoordinates = item.getBoundingClientRect();
                             if (itemCoordinates.width > 290 && itemCoordinates.width <= 310 && !item.querySelector('*')) {
-                                coordinates.push({ x: itemCoordinates.x, y: item.getBoundingClientRect().y, w: item.getBoundingClientRect().width, h: item.getBoundingClientRect().height });
+                                coords.push({ x: itemCoordinates.x, y: item.getBoundingClientRect().y, w: item.getBoundingClientRect().width, h: item.getBoundingClientRect().height });
                             }
-                        } catch (err) { }
+                        } catch (_err) { }
                     });
                 }
-                return coordinates;
+                return coords;
             });
 
             for (const item of coordinates) {
@@ -41,15 +39,14 @@ const checkTurnstile = async ({ page }) => {
                     let x = item.x + 30;
                     let y = item.y + item.h / 2;
                     await page.mouse.click(x, y);
-                } catch (err) { }
+                } catch (_err) { }
             }
             return true;
         }
 
         for (const element of elements) {
             try {
-                // Get the parent element bounding box
-                const box = await element.evaluate(el => {
+                const box = await element.evaluate((el: any) => {
                     const parent = el.parentElement;
                     if (!parent) return null;
                     const rect = parent.getBoundingClientRect();
@@ -60,12 +57,13 @@ const checkTurnstile = async ({ page }) => {
                     let y = box.y + box.height / 2;
                     await page.mouse.click(x, y);
                 }
-            } catch (err) { }
+            } catch (_err) { }
         }
         return true;
-    } catch (err) {
+    } catch (_err) {
         return false;
     }
-}
+};
 
+export { checkTurnstile };
 module.exports = { checkTurnstile };

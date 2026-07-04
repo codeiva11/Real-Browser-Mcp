@@ -7,7 +7,7 @@ import { extractHandlers } from './extract';
 import { helpersHandlers } from './helpers';
 import { utilityHandlers } from './utility-handlers';
 import { mediaHandlers } from './media-handlers';
-import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser, globalCache } from './state';
+import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser } from './state';
 import { activityLogger } from '../../shared/activity-logger';
 export const handlers: any = {
   ...browserHandlers,
@@ -51,7 +51,6 @@ export async function executeTool(name: string, args: any = {}) {
 }
 
 export async function cleanup() {
-  // Persist any pending activity to disk before shutting down (core-level memory)
   try {
     activityLogger.destroy();
   } catch (e) {
@@ -59,16 +58,6 @@ export async function cleanup() {
   }
 
   if (state.browserInstance) {
-    // Save storage state to globalCache before closing
-    if (state.pageInstance) {
-      try {
-        const storageState = await state.pageInstance.context().storageState();
-        globalCache.set('storage_state', storageState);
-        globalCache.saveToDisk();
-      } catch (e) {
-        // ignore errors
-      }
-    }
 
     try {
       await state.browserInstance.close();
@@ -84,4 +73,4 @@ export async function cleanup() {
   }
 }
 
-export { getState, requireBrowser, setProgressCallback, notifyProgress, getHeadlessFromEnv, globalCache, activityLogger };
+export { getState, requireBrowser, setProgressCallback, notifyProgress, getHeadlessFromEnv, activityLogger };

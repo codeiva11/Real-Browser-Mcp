@@ -32,6 +32,8 @@ export interface BrowserState {
   activeAnnotations?: Record<number, { selector: string; text?: string; type?: string }>;
   networkRecords: NetworkRecord[];
   isRecordingNetwork: boolean;
+  networkRecorderBoundPage?: Page | null;
+  networkRecorderListeners?: Record<string, unknown> | null;
   progressTasks: Record<string, ProgressTask>;
   progressCallback: ProgressCallback | null;
 }
@@ -153,6 +155,7 @@ export interface BrowserInitParams {
   turnstile?: boolean;
   enableBlocker?: boolean;
   aiHealing?: boolean;
+  recordVideo?: boolean;
 }
 
 export interface ProxyConfig {
@@ -194,6 +197,7 @@ export interface ClickParams {
   iframeSelector?: string;
   scrollIntoView?: boolean;
   forceClick?: boolean;
+  aiHeal?: boolean;
   autoDetectPlayer?: boolean;
   usePlayerAPI?: boolean;
   waitForPlay?: boolean;
@@ -210,12 +214,14 @@ export interface TypeParams {
   iframeSelector?: string;
   pressEnter?: boolean;
   waitForSelector?: boolean;
+  aiHeal?: boolean;
 }
 
 export interface ScrollParams {
-  direction?: 'up' | 'down' | 'random';
+  direction?: 'up' | 'down' | 'random' | 'smart';
   amount?: number;
   smooth?: boolean;
+  aiDetectLazyLoad?: boolean;
 }
 
 export interface FindElementParams {
@@ -234,6 +240,7 @@ export interface PressKeyParams {
 export interface ExecuteJsParams {
   code: string;
   returnValue?: boolean;
+  async?: boolean;
   iframe?: number;
   iframeSelector?: string;
   waitForIframe?: boolean;
@@ -258,9 +265,9 @@ export interface ExtractDataParams {
 }
 
 export interface NetworkRecorderParams {
-  action?: 'start' | 'stop' | 'get' | 'clear' | 'get_media' | 'get_navigations' | 'get_api_calls' | 'get_intercepted_apis' | 'get_websockets';
+  action?: 'start' | 'stop' | 'get' | 'clear' | 'get_media' | 'get_navigations' | 'get_api_calls' | 'get_intercepted_apis' | 'get_websockets' | 'get_graphql' | 'export_har';
   filter?: NetworkFilter;
-  captureResponses?: boolean;
+  captureXhrBody?: boolean;
 }
 
 export interface NetworkFilter {
@@ -283,6 +290,8 @@ export interface RedirectTracerParams {
   maxRedirects?: number;
   includeHeaders?: boolean;
   followJS?: boolean;
+  followMeta?: boolean;
+  decodeURLs?: boolean;
   timeout?: number;
 }
 
@@ -306,55 +315,18 @@ export interface MediaExtractorParams {
   volume?: number;
 }
 
-export interface StreamExtractorParams {
-  types?: string[];
-  quality?: string;
-  searchIframes?: boolean;
-  deep?: boolean;
-}
-
-export interface FormAutomatorParams {
-  selector?: string;
-  data?: Record<string, unknown>;
-  submit?: boolean;
-  humanLike?: boolean;
-  captcha?: boolean;
-  aiMatch?: boolean;
-}
-
 export interface DeepAnalysisParams {
   types?: string[];
   detailed?: boolean;
-}
-
-export interface FileDownloaderParams {
-  url: string;
-  filename?: string;
-  directory?: string;
-}
-
-export interface IframeHandlerParams {
-  action?: 'list' | 'switch' | 'content' | 'exit';
-  selector?: string;
-  index?: number;
-}
-
-export interface PlayerApiHookParams {
-  playerType?: string;
-  action?: string;
-  searchIframes?: boolean;
+  aiInsights?: boolean;
+  detectAntiBot?: boolean;
 }
 
 export interface ProgressTrackerParams {
   action?: 'start' | 'update' | 'complete' | 'get';
   taskName?: string;
   progress?: number;
-}
-
-export interface SearchRegexParams {
-  pattern: string;
-  flags?: string;
-  source?: string;
+  aiEstimate?: boolean;
 }
 
 // ─────────────────────────────────────────────
@@ -378,96 +350,40 @@ export interface AESDecryptResult {
 }
 
 // ─────────────────────────────────────────────
-// Stream / Media Types
-// ─────────────────────────────────────────────
-
-export interface StreamSource {
-  src: string;
-  type: string;
-  label?: string;
-  source?: string;
-}
-
-export interface StreamCollection {
-  video: StreamSource[];
-  audio: StreamSource[];
-  hls: StreamSource[];
-  dash: StreamSource[];
-  download: StreamSource[];
-  embedded: StreamSource[];
-}
-
-// ─────────────────────────────────────────────
 // Vision / Captcha Types
 // ─────────────────────────────────────────────
 
 export interface SolveCaptchaParams {
+  type?: 'turnstile' | 'text' | 'image' | 'auto';
+  timeout?: number;
   captchaSelector?: string;
   inputSelector?: string;
   formSelector?: string;
-  submitAfterSolve?: boolean;
+  submit?: boolean;
   autoRetry?: boolean;
   maxRetries?: number;
-  langHint?: string;
+  lang?: string;
   expectedLength?: number;
   allowedChars?: string;
   formData?: Record<string, unknown>;
+  refreshSelector?: string;
+  iframe?: number;
+  iframeSelector?: string;
+  analyzeFirst?: boolean;
+  humanLike?: boolean;
+  aiMatch?: boolean;
+  preferTextFallback?: boolean;
 }
 
 export interface SeePageParams {
-  action?: 'screenshot' | 'analyze' | 'forms' | 'full';
-  selector?: string;
   annotate?: boolean;
   fullPage?: boolean;
+  format?: 'png' | 'jpeg';
   quality?: number;
-}
-
-// ─────────────────────────────────────────────
-// AI Core Types
-// ─────────────────────────────────────────────
-
-export interface AICoreConfig {
-  defaultConfidence: number;
-  maxCacheAge: number;
-  enableAutoHeal: boolean;
-  enableSmartFind: boolean;
-  logLevel: 'debug' | 'info' | 'warn' | 'error';
-  cacheFile: string;
-}
-
-export interface SmartFindResult {
-  found: boolean;
-  selector: string;
-  confidence: number;
-  method: string;
-  element?: ElementHandle;
-  alternatives?: Array<{ selector: string; confidence: number }>;
-}
-
-export interface HealResult {
-  healed: boolean;
-  oldSelector: string;
-  newSelector: string;
-  confidence: number;
-}
-
-// ─────────────────────────────────────────────
-// Connect/Library Types
-// ─────────────────────────────────────────────
-
-export interface ConnectOptions {
-  args?: string[];
-  headless?: boolean;
-  proxy?: ProxyConfig;
-  contextOptions?: Record<string, unknown>;
-  turnstile?: boolean;
-  executablePath?: string;
-  enableBlocker?: boolean;
-}
-
-export interface ConnectResult {
-  browser: Browser;
-  page: Page;
-  blocker: PlaywrightBlocker | null;
-  setupPage: ((page: Page) => Promise<void>) | null;
+  includeElements?: boolean;
+  includeDomText?: boolean;
+  maxElements?: number;
+  path?: string;
+  autoHover?: boolean;
+  watchMutations?: boolean;
 }

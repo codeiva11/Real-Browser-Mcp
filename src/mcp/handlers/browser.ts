@@ -1,29 +1,20 @@
-// @ts-nocheck
-
-import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil, globalCache } from './state';
-
-
-// Auto-generated browser handlers
+import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, resolveWaitUntil } from './state';
+import type { BrowserInitParams, NavigateParams, WaitParams, WaitUntilState } from '../../types';
 
 export const browserHandlers = {
-  async browser_init(params = {}) {
+  async browser_init(params: BrowserInitParams = {}) {
     notifyProgress('browser_init', 'started', 'Initializing browser...');
 
-    const { connect } = require('../../../lib/cjs/index.js');
+    const { connect } = require('../../../lib/cjs/index.js') as { connect: Function };
 
-    // Get headless from params OR environment variable
     const envHeadless = getHeadlessFromEnv();
     const headless = params.headless !== undefined ? params.headless : envHeadless;
 
-    const { proxy = {}, contextOptions = {}, turnstile = false, enableBlocker = true, recordVideo = false } = params;
+    const { proxy = {} as Record<string, unknown>, contextOptions = {} as Record<string, unknown>, turnstile = false, enableBlocker = true, recordVideo = false } = params;
 
     notifyProgress('browser_init', 'progress', `Mode: ${headless ? 'Headless' : 'GUI (Visible)'}`, { headless });
 
-    // Load storage state from globalCache
-    const savedStorage = globalCache.get('storage_state');
-    const mergedContextOptions = savedStorage
-      ? { ...contextOptions, storageState: savedStorage }
-      : contextOptions;
+    const mergedContextOptions: Record<string, unknown> = contextOptions;
 
     const result = await connect({
       headless,
@@ -36,65 +27,48 @@ export const browserHandlers = {
     state.browserInstance = result.browser;
     state.pageInstance = result.page;
     state.blockerInstance = result.blocker;
-    state.setupPageFn = result.setupPage; // Store CDP early injection function
+    state.setupPageFn = result.setupPage;
 
-    // ═══════════════════════════════════════════════════════════════
-    // GLOBAL DIALOG HANDLER - Auto-handle dialogs
-    // Logic: BLOCK redirects to external sites, ACCEPT everything else
-    // ═══════════════════════════════════════════════════════════════
-    state.pageInstance.on('dialog', async (dialog) => {
-      const dialogType = dialog.type();
-      const msg = dialog.message().toLowerCase();
+    if (state.pageInstance) {
+      state.pageInstance.on('dialog', async (dialog: any) => {
+        const dialogType = dialog.type();
+        const msg = dialog.message().toLowerCase();
 
-      notifyProgress('browser_init', 'progress',
-        `🔔 Handling dialog: ${dialogType} - ${dialog.message().substring(0, 100)}...`);
+        notifyProgress('browser_init', 'progress',
+          `🔔 Handling dialog: ${dialogType} - ${dialog.message().substring(0, 100)}...`);
 
-      try {
-        // Critical Fix: BLOCK redirects to external sites (e.g., eCommittee)
-        // These redirects take the user away from the search page
-        if (msg.includes('redirect') || msg.includes('external') || msg.includes('leaving')) {
-          console.error('🚫 Blocking redirect dialog (Dismiss)');
-          await dialog.dismiss(); // Simulate clicking 'Cancel'
-        } else {
-          // Auto-accept other dialogs (like alerts or simple confirmations)
-          await dialog.accept(); // Simulate clicking 'OK'
+        try {
+          if (msg.includes('redirect') || msg.includes('external') || msg.includes('leaving')) {
+            console.error('🚫 Blocking redirect dialog (Dismiss)');
+            await dialog.dismiss();
+          } else {
+            await dialog.accept();
+          }
+        } catch (e) {
+          // Ignore errors (dialog might be closed by injected script)
         }
-      } catch (e) {
-        // Ignore errors (dialog might be closed by injected script)
-      }
-    });
+      });
 
-    // ═══════════════════════════════════════════════════════════════
-    // INJECTED SCRIPT - Silent Handling of Popups
-    // Override window.confirm/alert to handle them inside the page context
-    // Note: Using addInitScript (Playwright) to intercept popups early
-    // ═══════════════════════════════════════════════════════════════
-    await state.pageInstance.addInitScript(() => {
-      window.originalConfirm = window.confirm;
-      window.originalAlert = window.alert;
+      await state.pageInstance.addInitScript(() => {
+        (window as any).originalConfirm = window.confirm;
+        (window as any).originalAlert = window.alert;
 
-      // Smart Confirm Handler
-      window.confirm = (msg) => {
-        console.log('Intercepted Confirm Dialog:', msg);
-        if (msg && (msg.toLowerCase().includes('redirect') || msg.toLowerCase().includes('external'))) {
-          console.log('🚫 Blocking redirect confirmation inside page');
-          return false; // Return FALSE = Click Cancel
-        }
-        return true; // Return TRUE = Click OK
-      };
+        (window as any).confirm = (msg?: string) => {
+          if (msg && (msg.toLowerCase().includes('redirect') || msg.toLowerCase().includes('external'))) {
+            return false;
+          }
+          return true;
+        };
 
-      // Silently ignore alerts (always OK)
-      window.alert = (msg) => {
-        console.log('Blocked Alert Dialog:', msg);
-        return true;
-      };
+        (window as any).alert = (_msg?: string) => {
+          return undefined;
+        };
 
-      // Silently return null for prompts
-      window.prompt = (msg) => {
-        console.log('Blocked Prompt Dialog:', msg);
-        return null;
-      };
-    });
+        (window as any).prompt = (_msg?: string, _default?: string) => {
+          return null;
+        };
+      });
+    }
 
     const pid = (typeof (state.browserInstance as any).process === 'function') ? (state.browserInstance as any).process()?.pid : null;
 
@@ -113,37 +87,28 @@ export const browserHandlers = {
     };
   },
 
-  async navigate(params) {
+  async navigate(params: NavigateParams) {
     const { page } = requireBrowser();
-    let { url, waitUntil = 'networkidle', timeout = 30000, retries = 2 } = params;
-    // Playwright/Patchright wait states: load | domcontentloaded | networkidle | commit
-    waitUntil = resolveWaitUntil(waitUntil);
+    let { url, waitUntil = 'networkidle' as WaitUntilState, timeout = 30000, retries = 2, smartWait = true } = params;
+    waitUntil = resolveWaitUntil(waitUntil) as WaitUntilState;
 
     notifyProgress('navigate', 'started', `Navigating to: ${url}`);
 
-    // ═══════════════════════════════════════════════════════════════
-    // CDP EARLY INJECTION - Setup BEFORE navigation for better ad blocking
-    // This ensures CSS and scripts are injected before page scripts run
-    // ═══════════════════════════════════════════════════════════════
     console.error('[Navigate] state.setupPageFn available:', !!state.setupPageFn);
     if (state.setupPageFn) {
       try {
         await state.setupPageFn(page);
         notifyProgress('navigate', 'progress', 'CDP early injection setup complete');
-        console.error('[Navigate] CDP early injection SUCCESS');
-      } catch (e) {
-        // Non-critical error, continue navigation
-        console.error('[Navigate] CDP early injection failed:', e.message);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('[Navigate] CDP early injection failed:', msg);
       }
-    } else {
-      console.error('[Navigate] No state.setupPageFn available - CDP early injection skipped');
     }
 
-    let lastError = null;
+    let lastError: unknown = null;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        // Wait a bit if this is a retry
         if (attempt > 0) {
           notifyProgress('navigate', 'progress', `Retry attempt ${attempt}...`);
           await new Promise(r => setTimeout(r, 1000));
@@ -151,71 +116,69 @@ export const browserHandlers = {
 
         await page.goto(url, { waitUntil, timeout });
 
-        // Wait for page to stabilize after navigation
+        if (smartWait) {
+          try {
+            await page.waitForFunction(() => {
+              const body = document.body;
+              if (!body) return false;
+              const text = body.innerText || '';
+              return text.length > 50 && !body.querySelector('.loading, .spinner, [class*="loading"]');
+            }, { timeout: 5000 });
+          } catch {
+            // Smart wait timeout — page may still be loading, continue
+          }
+        }
+
         await new Promise(r => setTimeout(r, 500));
 
-        // Try to get title with error handling
         let title = '';
         try {
           title = await page.title();
         } catch (e) {
-          // Title might fail if page is still loading
           title = 'Loading...';
         }
 
         notifyProgress('navigate', 'completed', `Loaded: ${title}`, { url: page.url(), title });
 
-        return {
-          success: true,
-          url: page.url(),
-          title
-        };
-      } catch (error) {
+        return { success: true, url: page.url(), title };
+      } catch (error: unknown) {
         lastError = error;
+        const errMsg = error instanceof Error ? error.message : String(error);
 
-        // Handle specific errors that might be recoverable
-        if (error.message?.includes('Execution context was destroyed') ||
-          error.message?.includes('context') ||
-          error.message?.includes('Target closed')) {
+        if (errMsg.includes('Execution context was destroyed') ||
+          errMsg.includes('context') ||
+          errMsg.includes('Target closed')) {
 
-          notifyProgress('navigate', 'progress', `Navigation interrupted (${error.message.substring(0, 50)}...), waiting for page...`);
+          notifyProgress('navigate', 'progress', `Navigation interrupted (${errMsg.substring(0, 50)}...), waiting for page...`);
 
-          // Wait for any ongoing navigation to complete
           try {
-            await page.waitForNavigation({ timeout: 5000, waitUntil: 'domcontentloaded' }).catch(() => { });
+            await page.waitForNavigation({ timeout: 5000, waitUntil: 'domcontentloaded' as const }).catch(() => {});
           } catch (e) {
             // Ignore timeout
           }
 
-          // Check if we actually landed on the page
           try {
             const currentUrl = page.url();
             if (currentUrl && currentUrl !== 'about:blank') {
               const title = await page.title().catch(() => 'Unknown');
               notifyProgress('navigate', 'completed', `Loaded after recovery: ${title}`, { url: currentUrl, title });
-              return {
-                success: true,
-                url: currentUrl,
-                title,
-                recovered: true
-              };
+              return { success: true, url: currentUrl, title, recovered: true };
             }
           } catch (e) {
             // Continue to retry
           }
         } else {
-          // Non-recoverable error, throw immediately
           throw error;
         }
       }
     }
 
-    // All retries failed
-    notifyProgress('navigate', 'error', `Navigation failed after ${retries + 1} attempts: ${lastError?.message}`);
+    const lastErrMsg = lastError instanceof Error ? lastError.message : String(lastError);
+    notifyProgress('navigate', 'error', `Navigation failed after ${retries + 1} attempts: ${lastErrMsg}`);
     throw lastError || new Error('Navigation failed');
   },
 
-  async wait(params) {
+  async wait(params: WaitParams) {
     const { page } = requireBrowser();
     const { type = 'timeout', value, timeout = 30000 } = params;
 
@@ -223,7 +186,7 @@ export const browserHandlers = {
 
     switch (type) {
       case 'selector':
-        await page.waitForSelector(value, { timeout });
+        await page.waitForSelector(value!, { timeout });
         break;
       case 'navigation':
         await page.waitForNavigation({ timeout });
@@ -233,7 +196,7 @@ export const browserHandlers = {
         break;
       case 'timeout':
       default:
-        await new Promise(r => setTimeout(r, parseInt(value) || 1000));
+        await new Promise(r => setTimeout(r, parseInt(value || '1000') || 1000));
     }
 
     notifyProgress('wait', 'completed', `Wait completed: ${type}`, { type, value });
@@ -241,22 +204,13 @@ export const browserHandlers = {
     return { success: true, type, value };
   },
 
-  async browser_close(params = {}) {
-    const { force = false } = params;
+  async browser_close(params: Record<string, unknown> = {}) {
+    const { force = false, saveSession = false } = params as { force?: boolean; saveSession?: boolean };
 
     notifyProgress('browser_close', 'started', 'Closing browser...');
 
     if (state.browserInstance) {
-      // Save storage state to globalCache before closing
-      if (state.pageInstance) {
-        try {
-          const storageState = await state.pageInstance.context().storageState();
-          globalCache.set('storage_state', storageState);
-          globalCache.saveToDisk();
-        } catch (e) {
-          // ignore error
-        }
-      }
+
 
       try {
         await state.browserInstance.close();

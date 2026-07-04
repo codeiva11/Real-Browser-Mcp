@@ -1,8 +1,17 @@
 #!/usr/bin/env node
-// CRITICAL: Redirect ALL console.log to STDERR BEFORE any imports.
-// MCP uses STDIO transport — STDOUT must contain ONLY JSON-RPC messages.
-// Any console.log from ANY dependency will corrupt the JSON-RPC stream.
+// CRITICAL: Protect STDOUT for MCP STDIO transport.
+// MCP uses STDIO — STDOUT must contain ONLY JSON-RPC messages.
+// Redirect console.log AND intercept process.stdout.write to STDERR.
 console.log = function (...args) { console.error(...args); };
+
+const _originalStdoutWrite = process.stdout.write.bind(process.stdout);
+process.stdout.write = function (chunk: any, ...rest: any[]) {
+  const str = typeof chunk === 'string' ? chunk : chunk?.toString();
+  if (str && !str.startsWith('{') && !str.startsWith('[')) {
+    return _originalStdoutWrite.call(process.stderr, chunk, ...rest);
+  }
+  return _originalStdoutWrite(chunk, ...rest);
+} as any;
 
 /**
  * Brave Real Browser MCP Server - Entry Point

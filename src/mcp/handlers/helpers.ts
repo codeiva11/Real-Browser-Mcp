@@ -2,20 +2,6 @@
 import { requireBrowser, notifyProgress } from './state';
 
 export const helpersHandlers = {
-  _validateCaptchaText(text: string, expectedLength?: number, allowedChars?: string) {
-    if (!text || text.trim() === '') return { valid: false, reason: 'Empty text' };
-    if (expectedLength && text.length !== expectedLength) {
-      return { valid: false, reason: `Expected ${expectedLength} chars, got ${text.length}` };
-    }
-    if (allowedChars) {
-      // ponytail: escape regex special chars to prevent injection
-      const escaped = allowedChars.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp('^[' + escaped + ']+$');
-      if (!regex.test(text)) return { valid: false, reason: 'Contains chars outside allowed set: ' + allowedChars };
-    }
-    return { valid: true };
-  },
-
   async _resolveIframeContext(page: any, iframe: any, iframeSelector: any) {
     let targetFrame: any = page;
     let frameInfo: any = null;

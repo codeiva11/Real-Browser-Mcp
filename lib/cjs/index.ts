@@ -1,8 +1,7 @@
-// @ts-nocheck
-export {};
-const { pageController } = require("./module/pageController.js");
-const { createConnect } = require("../../src/shared/lib-core.js");
+import { pageController } from './module/pageController';
+import { createConnect } from '../../src/shared/lib-core';
 
-const connect = createConnect(pageController);
+const connect: ReturnType<typeof createConnect> = createConnect(pageController);
 
+export { connect };
 module.exports = { connect };

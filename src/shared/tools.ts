@@ -25,7 +25,7 @@ const TOOLS = [
           type: 'object',
           description: 'Universal Playwright BrowserContext options (e.g. httpCredentials, geolocation, extraHTTPHeaders, permissions, viewport, userAgent, etc.)'
         },
-        turnstile: { type: 'boolean', default: true, description: 'Auto-solve Cloudflare Turnstile' },
+        turnstile: { type: 'boolean', default: false, description: 'Auto-solve Cloudflare Turnstile' },
         enableBlocker: { type: 'boolean', default: true, description: 'Block ads and trackers' },
         aiHealing: { type: 'boolean', default: true, description: 'Enable AI auto-healing for broken selectors' },
         recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of session' }
@@ -95,7 +95,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['selector', 'navigation', 'timeout', 'networkidle', 'smart'], default: 'smart' },
+        type: { type: 'string', enum: ['selector', 'navigation', 'timeout', 'networkidle'], default: 'timeout' },
         value: { type: 'string', description: 'Selector or timeout value' },
         timeout: { type: 'number', default: 30000 },
         aiOptimize: { type: 'boolean', default: true, description: 'AI optimizes wait time based on page load patterns' }
@@ -196,7 +196,7 @@ const TOOLS = [
   {
     name: 'solve_captcha',
     emoji: '🔓',
-    description: 'Auto-solve CAPTCHA with AI + Smart Form Automation (Turnstile, reCAPTCHA, hCaptcha, Text/Image OCR)',
+    description: 'Auto-solve CAPTCHA with AI + Smart Form Automation (Turnstile, Text/Image OCR). Note: reCAPTCHA/hCaptcha are not supported — use third-party services for those.',
     descriptionHindi: 'CAPTCHA हल करना + फॉर्म भरना (AI + OCR powered)',
     category: 'interaction',
     requiresBrowser: true,
@@ -207,9 +207,9 @@ const TOOLS = [
         // === CAPTCHA OPTIONS ===
         type: {
           type: 'string',
-          enum: ['turnstile', 'recaptcha', 'hcaptcha', 'text', 'image', 'auto'],
+          enum: ['turnstile', 'text', 'image', 'auto'],
           default: 'auto',
-          description: 'Captcha type: turnstile/recaptcha/hcaptcha (JS-based), text/image (OCR-based), auto (detect)'
+          description: 'Captcha type: turnstile (JS-based), text/image (OCR-based), auto (detect). Note: reCAPTCHA/hCaptcha are not supported — use third-party services.'
         },
         timeout: { type: 'number', default: 30000 },
         captchaSelector: { type: 'string', description: 'CSS selector for captcha image (required for text/image type)' },
@@ -404,7 +404,7 @@ const TOOLS = [
   {
     name: 'media_extractor',
     emoji: '🎬',
-    description: 'Universal media extractor with 6 actions: (1) extract - find all video/audio/HLS/DASH/download URLs from page + nested iframes (3+ levels deep), (2) list_iframes - list all iframes with indices, (3) switch_iframe - switch context to specific iframe, (4) player_control - control video players (JWPlayer, VideoJS, Plyr, VidStack, DooPlayer) via API: play/pause/seek/sources, (5) decode_url - decode obfuscated URLs: auto/url/base64/aes with key+IV, (6) batch_extract - extract from multiple URLs at once. Supports quality selection (best/worst/all) and deep script scanning.',
+    description: 'Universal media extractor with 6 actions: (1) extract - find all video/audio/HLS/DASH/download URLs from page + nested iframes (3+ levels deep), (2) list_iframes - list all iframes with indices, (3) switch_iframe - get iframe URL and info (use iframe/iframeSelector params on other tools to target specific iframes), (4) player_control - control video players (JWPlayer, VideoJS, Plyr, VidStack, DooPlayer) via API: play/pause/seek/sources, (5) decode_url - decode obfuscated URLs: auto/url/base64/aes with key+IV, (6) batch_extract - extract from multiple URLs at once.',
     descriptionHindi: 'मीडिया एक्सट्रैक्टर — 6 actions: extract/list_iframes/switch_iframe/player_control/decode_url/batch_extract। Video players + iframes + decoders।',
     category: 'extraction',
     requiresBrowser: true,
@@ -564,15 +564,6 @@ const CATEGORIES = {
   utility: { name: 'Utility', emoji: '🛠️', description: 'Utility tools' }
 };
 
-// Helper functions
-const getToolByName = (name: string) => TOOLS.find(t => t.name === name);
-const getToolsByCategory = (category: string) => TOOLS.filter(t => t.category === category);
-const getToolNames = () => TOOLS.map(t => t.name);
-const getRequiredParams = (toolName: string) => {
-  const tool = getToolByName(toolName);
-  return tool?.inputSchema?.required || [];
-};
-
 // Export
 const TOOL_DISPLAY = TOOLS.map(t => ({
   name: t.name,
@@ -586,9 +577,5 @@ module.exports = {
   TOOLS,
   TOOL_DISPLAY,
   CATEGORIES,
-  getToolByName,
-  getToolsByCategory,
-  getToolNames,
-  getRequiredParams
 };
 export {}

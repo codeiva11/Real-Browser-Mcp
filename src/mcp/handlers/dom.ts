@@ -1,11 +1,13 @@
 
-import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, decoders, setProgressCallback, resolveWaitUntil } from './state';
+import { state, requireBrowser, notifyProgress } from './state';
 import { helpersHandlers } from './helpers';
+import { resolveIframe } from './handler-utils';
+import type { ClickParams, TypeParams, ScrollParams, PressKeyParams } from '../../types';
 
 // Auto-generated dom handlers
 
 export const domHandlers = {
-  async click(params: any) {
+  async click(params: ClickParams) {
     const { page } = requireBrowser();
     const {
       selector: providedSelector,
@@ -26,6 +28,7 @@ export const domHandlers = {
       // Additional options
       scrollIntoView = true,
       forceClick = false,
+      aiHeal = true,
       // NEW: Auto Video Player Detection & Control
       autoDetectPlayer = false,
       usePlayerAPI = true,
@@ -33,7 +36,7 @@ export const domHandlers = {
       playerTimeout = 15000
     } = params;
 
-    let selector = providedSelector;
+    let selector: string | undefined = providedSelector;
     if (annotationId !== undefined) {
       if (state.activeAnnotations && state.activeAnnotations[annotationId]) {
         selector = state.activeAnnotations[annotationId].selector;
@@ -94,18 +97,9 @@ export const domHandlers = {
 
     // Manual iframe selection (if not auto-detected)
     if (!autoDetectPlayer && (iframe !== undefined || iframeSelector)) {
-      try {
-        const resolved = await helpersHandlers._resolveIframeContext(page, iframe, iframeSelector);
-        if (resolved.success) {
-          context = resolved.targetFrame;
-          frameInfo = resolved.frameInfo;
-          notifyProgress('click', 'progress', `Switched to iframe ${iframe ?? iframeSelector}`);
-        } else {
-          notifyProgress('click', 'progress', `Warning: Could not switch to iframe - ${resolved.error}`);
-        }
-      } catch (e: any) {
-        notifyProgress('click', 'progress', `Warning: Could not switch to iframe - ${e.message}`);
-      }
+      const resolved = await resolveIframe(page, iframe, iframeSelector, 'click');
+      context = resolved.context;
+      frameInfo = resolved.frameInfo;
     }
 
     // Auto-close any blocking modals before clicking
@@ -190,7 +184,7 @@ export const domHandlers = {
             let isPlaying = false;
 
             while (Date.now() - startTime < playerTimeout) {
-              const state: any = await context.evaluate(() => {
+              const videoState: any = await context.evaluate(() => {
                 const video = document.querySelector('video');
                 if (video) {
                   return {
@@ -206,9 +200,9 @@ export const domHandlers = {
                 return { playing: false };
               }).catch(() => ({ playing: false }));
 
-              if (state.playing || state.currentTime > 0) {
+              if (videoState.playing || videoState.currentTime > 0) {
                 isPlaying = true;
-                notifyProgress('click', 'progress', `▶️ Video is now playing (${state.currentTime?.toFixed(1) || 0}s)`);
+                notifyProgress('click', 'progress', `▶️ Video is now playing (${videoState.currentTime?.toFixed(1) || 0}s)`);
                 break;
               }
 
@@ -247,8 +241,36 @@ export const domHandlers = {
         try {
           // Wait for selector with timeout
           try {
-            await context.waitForSelector(selector, { timeout: Math.min(timeout / retries, 10000) });
+            await context.waitForSelector(selector!, { timeout: Math.min(timeout / retries, 10000) });
           } catch (e) {
+            if (aiHeal && attempt === 1) {
+              const healed: string | null = await page.evaluate((sel: string) => {
+                const parts = sel.replace(/[#.[\]]/g, ' ').trim().split(/\s+/).filter(Boolean);
+                const candidates = document.querySelectorAll('a, button, input, [role="button"], [onclick]');
+                for (const el of candidates) {
+                  const text = (el.textContent || '').toLowerCase();
+                  const id = (el.id || '').toLowerCase();
+                  const cls = (el.className || '').toLowerCase();
+                  for (const part of parts) {
+                    if (text.includes(part.toLowerCase()) || id.includes(part.toLowerCase()) || cls.includes(part.toLowerCase())) {
+                      if (el.id) return `#${el.id}`;
+                      if (el.className) return `${el.tagName.toLowerCase()}.${el.className.split(' ')[0]}`;
+                    }
+                  }
+                }
+                return null;
+              }, selector).catch(() => null);
+
+              if (healed) {
+                notifyProgress('click', 'progress', `🔧 AI Healed: ${selector} → ${healed}`);
+                selector = healed;
+                try {
+                  await context.waitForSelector(selector!, { timeout: 5000 });
+                } catch {
+                  // healed selector also not found
+                }
+              }
+            }
             if (attempt < retries) {
               notifyProgress('click', 'progress', `Selector not found, retry ${attempt}/${retries}...`);
               await new Promise(r => setTimeout(r, 1000));
@@ -271,7 +293,7 @@ export const domHandlers = {
             notifyProgress('click', 'progress', `Hovering over ${selector}...`);
 
             try {
-              await context.hover(selector);
+              await context.hover(selector!);
               notifyProgress('click', 'progress', `Hover successful, waiting ${hoverDuration}ms for controls...`);
               await new Promise(r => setTimeout(r, hoverDuration));
             } catch (hoverErr) {
@@ -318,10 +340,10 @@ export const domHandlers = {
               }
               notifyProgress('click', 'progress', 'Used human-like cursor movement');
             } catch (e) {
-              await context.click(selector, { clickCount, delay });
+              await context.click(selector!, { clickCount, delay });
             }
           } else {
-            await context.click(selector, { clickCount, delay });
+            await context.click(selector!, { clickCount, delay });
           }
 
           await new Promise(r => setTimeout(r, 300));
@@ -359,20 +381,21 @@ export const domHandlers = {
     }
   },
 
-  async type(params: any) {
+  async type(params: TypeParams) {
     const { page } = requireBrowser();
     const {
       selector: providedSelector,
       annotationId,
       text,
       delay = 50,
-      clear = false,
+      clear = true,
       // NEW: iframe support
       iframe,
       iframeSelector,
       // NEW: Additional options
       pressEnter = false,
-      waitForSelector = true
+      waitForSelector = true,
+      aiHeal = true
     } = params;
 
     let selector = providedSelector;
@@ -396,18 +419,9 @@ export const domHandlers = {
     let frameInfo = null;
 
     if (iframe !== undefined || iframeSelector) {
-      try {
-        const resolved = await helpersHandlers._resolveIframeContext(page, iframe, iframeSelector);
-        if (resolved.success) {
-          context = resolved.targetFrame;
-          frameInfo = resolved.frameInfo;
-          notifyProgress('type', 'progress', `Switched to iframe ${iframe ?? iframeSelector}`);
-        } else {
-          notifyProgress('type', 'progress', `Warning: Could not switch to iframe - ${resolved.error}`);
-        }
-      } catch (e: any) {
-        notifyProgress('type', 'progress', `Warning: Could not switch to iframe - ${e.message}`);
-      }
+      const resolved = await resolveIframe(page, iframe, iframeSelector, 'type');
+      context = resolved.context;
+      frameInfo = resolved.frameInfo;
     }
 
     // Auto-close any blocking modals before typing
@@ -416,8 +430,32 @@ export const domHandlers = {
     // Wait for selector if enabled
     if (waitForSelector) {
       try {
-        await context.waitForSelector(selector, { timeout: 10000 });
+        await context.waitForSelector(selector!, { timeout: 10000 });
       } catch (e) {
+        if (aiHeal) {
+          const healed = await page.evaluate((sel: string) => {
+            const parts = sel.replace(/[#.[\]]/g, ' ').trim().split(/\s+/).filter(Boolean);
+            const candidates = document.querySelectorAll('input, textarea, select');
+            for (const el of candidates) {
+              const name = (el.getAttribute('name') || '').toLowerCase();
+              const id = (el.id || '').toLowerCase();
+              const placeholder = (el.getAttribute('placeholder') || '').toLowerCase();
+              for (const part of parts) {
+                const p = part.toLowerCase();
+                if (name.includes(p) || id.includes(p) || placeholder.includes(p)) {
+                  if (el.id) return `#${el.id}`;
+                  if (el.getAttribute('name')) return `[name="${el.getAttribute('name')}"]`;
+                }
+              }
+            }
+            return null;
+          }, selector).catch(() => null);
+
+          if (healed) {
+            notifyProgress('type', 'progress', `🔧 AI Healed: ${selector} → ${healed}`);
+            selector = healed;
+          }
+        }
         notifyProgress('type', 'error', `Selector not found: ${selector}`);
         return { success: false, error: `Selector not found: ${selector}. 💡 AI HINT: The element might be hidden, inside an iframe, or the selector is wrong. Run see_page(annotate: true) to verify and get an annotationId.` };
       }
@@ -425,7 +463,7 @@ export const domHandlers = {
 
     // Clear existing text if needed
     if (clear) {
-      await context.click(selector, { clickCount: 3 });
+      await context.click(selector!, { clickCount: 3 });
       await context.evaluate((sel: string) => {
         const el = document.querySelector(sel) as HTMLInputElement;
         if (el) el.value = '';
@@ -447,14 +485,39 @@ export const domHandlers = {
     return { success: true, selector, textLength: text.length, iframe: frameInfo };
   },
 
-  async random_scroll(params: any = {}) {
+  async random_scroll(params: ScrollParams = {}) {
     const { page } = requireBrowser();
-    const { direction = 'down', amount = 0, smooth = true } = params;
+    const { direction = 'down', amount = 0, smooth = true, aiDetectLazyLoad = true } = params;
 
-    const scrollAmount = amount || Math.floor(Math.random() * 500) + 200;
-    const scrollDirection = direction === 'random'
-      ? (Math.random() > 0.5 ? 'down' : 'up')
-      : direction;
+    let scrollAmount = amount || Math.floor(Math.random() * 500) + 200;
+
+    if (aiDetectLazyLoad) {
+      const lazyInfo = await page.evaluate(() => {
+        const lazyImages = document.querySelectorAll('img[loading="lazy"], img[data-src], [data-lazy]');
+        const infiniteScroll = !!document.querySelector('[class*="infinite"], [class*="load-more"]');
+        return { lazyImages: lazyImages.length, infiniteScroll };
+      }).catch(() => ({ lazyImages: 0, infiniteScroll: false }));
+
+      if (lazyInfo.lazyImages > 0) {
+        scrollAmount = Math.min(scrollAmount, 300);
+      }
+    }
+
+    let scrollDirection: string;
+    if (direction === 'random') {
+      scrollDirection = Math.random() > 0.5 ? 'down' : 'up';
+    } else if (direction === 'smart') {
+      const scrollInfo = await page.evaluate(() => ({
+        scrollY: window.scrollY,
+        scrollHeight: document.body.scrollHeight,
+        innerHeight: window.innerHeight
+      }));
+      const atBottom = scrollInfo.scrollY + scrollInfo.innerHeight >= scrollInfo.scrollHeight - 100;
+      const atTop = scrollInfo.scrollY <= 10;
+      scrollDirection = atBottom ? 'up' : atTop ? 'down' : (Math.random() > 0.5 ? 'down' : 'up');
+    } else {
+      scrollDirection = direction;
+    }
 
     notifyProgress('random_scroll', 'started', `Scrolling ${scrollDirection} ${scrollAmount}px`);
 
@@ -472,7 +535,7 @@ export const domHandlers = {
     return { success: true, direction: scrollDirection, amount: scrollAmount };
   },
 
-  async press_key(params: any) {
+  async press_key(params: PressKeyParams) {
     const { page } = requireBrowser();
     const { key, modifiers = [], count = 1 } = params;
 

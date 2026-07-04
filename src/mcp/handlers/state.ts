@@ -1,6 +1,4 @@
 import * as crypto from 'crypto';
-import * as path from 'path';
-import { CacheManager } from '../../shared/cache-manager';
 import type {
   BrowserState,
   ProgressStatus,
@@ -18,15 +16,25 @@ export const state: BrowserState = {
   activeAnnotations: undefined,
   networkRecords: [],
   isRecordingNetwork: false,
+  networkRecorderBoundPage: null,
+  networkRecorderListeners: null,
   progressTasks: {},
   progressCallback: null
 };
 
-// Global cache instance for persistent storage across server restarts
-export const globalCache = new CacheManager({
-  cacheDir: path.join(process.cwd(), '.cache'),
-  autoSaveInterval: 30000,
-});
+export function detachNetworkRecorderListeners(): void {
+  const page = state.networkRecorderBoundPage as any;
+  const listeners = state.networkRecorderListeners as any;
+  if (!page || !listeners) return;
+
+  if (listeners.request) page.off('request', listeners.request);
+  if (listeners.response) page.off('response', listeners.response);
+  if (listeners.framenavigated) page.off('framenavigated', listeners.framenavigated);
+
+  state.networkRecorderBoundPage = null;
+  state.networkRecorderListeners = null;
+}
+
 
 export function setProgressCallback(callback: ProgressCallback): void {
   state.progressCallback = callback;

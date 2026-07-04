@@ -1,8 +1,10 @@
 // Utility handlers — General-purpose tools
 import * as path from 'path';
 import * as fs from 'fs';
-import { state, requireBrowser, notifyProgress, decoders } from './state';
+import { state, requireBrowser, notifyProgress } from './state';
 import { helpersHandlers } from './helpers';
+import { resolveIframe } from './handler-utils';
+import type { ProgressTrackerParams, DeepAnalysisParams, ExecuteJsParams } from '../../types';
 
 // ═══════════════════════════════════════════════════════════════
 // Utility Handlers — General-purpose tools
@@ -10,8 +12,8 @@ import { helpersHandlers } from './helpers';
 
 export const utilityHandlers = {
 
-  async progress_tracker(params: any = {}) {
-    const { action = 'get', taskName, progress } = params;
+  async progress_tracker(params: ProgressTrackerParams = {}) {
+    const { action = 'get', taskName = '', progress, aiEstimate = true } = params;
 
     switch (action) {
       case 'start':
@@ -19,32 +21,44 @@ export const utilityHandlers = {
         notifyProgress('progress_tracker', 'started', `Task started: ${taskName}`);
         break;
       case 'update':
-        if (state.progressTasks[taskName]) {
-          state.progressTasks[taskName].progress = progress;
+        if (taskName && state.progressTasks[taskName]) {
+          state.progressTasks[taskName].progress = progress ?? 0;
           notifyProgress('progress_tracker', 'progress', `${taskName}: ${progress}%`, { taskName, progress });
         }
         break;
       case 'complete':
-        if (state.progressTasks[taskName]) {
+        if (taskName && state.progressTasks[taskName]) {
           state.progressTasks[taskName].progress = 100;
           state.progressTasks[taskName].endTime = Date.now();
-          const duration = state.progressTasks[taskName].endTime - state.progressTasks[taskName].startTime;
+          const duration = state.progressTasks[taskName].endTime! - state.progressTasks[taskName].startTime;
           notifyProgress('progress_tracker', 'completed', `${taskName} completed in ${duration}ms`, { taskName, duration });
         }
         break;
     }
 
-    return { success: true, tasks: state.progressTasks };
+    const result: Record<string, unknown> = { success: true, tasks: state.progressTasks };
+
+    if (aiEstimate && taskName && state.progressTasks[taskName]) {
+      const task = state.progressTasks[taskName];
+      if (task.progress > 0 && task.progress < 100 && !task.endTime) {
+        const elapsed = Date.now() - task.startTime;
+        const rate = task.progress / elapsed;
+        const remaining = (100 - task.progress) / rate;
+        result.estimate = { taskName, remainingMs: Math.round(remaining), remainingSec: Math.round(remaining / 1000) };
+      }
+    }
+
+    return result;
   },
 
-  async deep_analysis(params: any = {}) {
+  async deep_analysis(params: DeepAnalysisParams = {}) {
     const { page } = requireBrowser();
-    const { types = ['all'], detailed = true } = params;
+    const { types = ['all'], detailed = true, aiInsights = true, detectAntiBot = true } = params;
 
     notifyProgress('deep_analysis', 'started', 'Analyzing page...');
 
-    const analysis = await page.evaluate(() => {
-      const result = {
+    const analysis = await page.evaluate(({ detectAntiBot }: any) => {
+      const result: any = {
         seo: {
           title: document.title,
           titleLength: document.title.length,
@@ -71,16 +85,59 @@ export const utilityHandlers = {
           externalScripts: [...document.querySelectorAll('script[src]')].filter(s => !s.src.includes(location.hostname)).length
         }
       };
+
+      if (detectAntiBot) {
+        result.antiBot = {
+          cloudflare: {
+            turnstile: !!document.querySelector('.cf-turnstile, input[name="cf-turnstile-response"]'),
+            challenge: document.title.includes('Just a moment') || !!document.querySelector('#challenge-stage'),
+            waf: !!document.querySelector('[data-cf-waf]')
+          },
+          recaptcha: !!document.querySelector('.g-recaptcha, iframe[src*="recaptcha"]'),
+          hcaptcha: !!document.querySelector('.h-captcha, iframe[src*="hcaptcha"]'),
+          datadome: !!document.querySelector('script[src*="datadome"]'),
+          akamai: !!document.querySelector('script[src*="akamai"]'),
+          perimeterx: !!document.querySelector('script[src*="perimeterx"]'),
+          fingerprint: !!document.querySelector('script[src*="fingerprint"]')
+        };
+      }
+
+      if (detailed) {
+        result.technology = {
+          frameworks: [] as string[],
+          analytics: [] as string[],
+          advertising: [] as string[]
+        };
+        const scripts = [...document.querySelectorAll('script[src]')].map((s: any) => s.src);
+        if (scripts.some(s => s.includes('react'))) result.technology.frameworks.push('React');
+        if (scripts.some(s => s.includes('vue'))) result.technology.frameworks.push('Vue');
+        if (scripts.some(s => s.includes('angular'))) result.technology.frameworks.push('Angular');
+        if (scripts.some(s => s.includes('jquery'))) result.technology.frameworks.push('jQuery');
+        if (scripts.some(s => s.includes('google-analytics') || s.includes('gtag'))) result.technology.analytics.push('Google Analytics');
+        if (scripts.some(s => s.includes('gtm'))) result.technology.analytics.push('Google Tag Manager');
+        if (scripts.some(s => s.includes('adsbygoogle'))) result.technology.advertising.push('Google AdSense');
+      }
+
       return result;
-    });
+    }, { detectAntiBot });
+
+    const insights: string[] = [];
+    if (aiInsights) {
+      if (analysis.performance.domElements > 5000) insights.push('Large DOM detected — may cause slow rendering');
+      if (analysis.performance.scripts > 20) insights.push('Many scripts — consider lazy loading');
+      if (analysis.accessibility.imagesWithoutAlt > 5) insights.push('Multiple images without alt text — accessibility issue');
+      if (!analysis.security.hasCSP) insights.push('No Content-Security-Policy detected');
+      if (analysis.antiBot?.cloudflare?.challenge) insights.push('Cloudflare challenge active — may need turnstile solver');
+      if (analysis.antiBot?.cloudflare?.turnstile) insights.push('Cloudflare Turnstile detected — use solve_captcha if needed');
+    }
 
     notifyProgress('deep_analysis', 'completed', `Analysis complete: ${analysis.performance.domElements} DOM elements`, { domElements: analysis.performance.domElements });
 
-    return { success: true, url: page.url(), analysis };
+    return { success: true, url: page.url(), analysis, insights: aiInsights ? insights : undefined };
   },
 
 
-  async execute_js(params: any) {
+  async execute_js(params: ExecuteJsParams) {
     const { page } = requireBrowser();
     const {
       code,
@@ -98,28 +155,16 @@ export const utilityHandlers = {
     let frameInfo = null;
 
     if (iframe !== undefined || iframeSelector) {
-      try {
-        const resolved = await helpersHandlers._resolveIframeContext(page, iframe, iframeSelector);
-        if (resolved.success) {
-          context = resolved.targetFrame;
-          frameInfo = resolved.frameInfo;
-          notifyProgress('execute_js', 'progress', `Switched to iframe ${iframe ?? iframeSelector}`);
+      const resolved = await resolveIframe(page, iframe, iframeSelector, 'execute_js');
+      context = resolved.context;
+      frameInfo = resolved.frameInfo;
 
-          // Wait for iframe to be ready if needed
-          if (waitForIframe && context !== page) {
-            try {
-              await context.waitForFunction(() => document.readyState === 'complete', { timeout: 5000 });
-            } catch (e) {
-              notifyProgress('execute_js', 'progress', 'Warning: iframe may not be fully loaded');
-            }
-          }
-        } else {
-          notifyProgress('execute_js', 'error', `iframe switch failed: ${resolved.error}`);
-          return { success: false, error: `iframe switch failed: ${resolved.error}` };
+      if (waitForIframe && context !== page) {
+        try {
+          await context.waitForFunction(() => document.readyState === 'complete', { timeout: 5000 });
+        } catch (e) {
+          notifyProgress('execute_js', 'progress', 'Warning: iframe may not be fully loaded');
         }
-      } catch (e: any) {
-        notifyProgress('execute_js', 'error', `iframe switch failed: ${e.message}`);
-        return { success: false, error: `iframe switch failed: ${e.message}` };
       }
     }
 

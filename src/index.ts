@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 /**
  * Real Browser MCP Server
  * 
@@ -9,10 +8,10 @@
  *   node src/index.js --list      - List all available tools
  */
 
-const { TOOLS, TOOL_DISPLAY, CATEGORIES } = require('./shared/tools');
-const { activityLogger, ActivityLogger } = require('./shared/activity-logger');
+const { TOOLS, TOOL_DISPLAY, CATEGORIES } = require('./shared/tools') as { TOOLS: any[]; TOOL_DISPLAY: any[]; CATEGORIES: Record<string, any> };
+const { activityLogger, ActivityLogger } = require('./shared/activity-logger') as { activityLogger: any; ActivityLogger: any };
 
-const { colors } = require('./shared/colors');
+const { colors } = require('./shared/colors') as { colors: Record<string, string> };
 
 /**
  * Display help message

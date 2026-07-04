@@ -1,5 +1,6 @@
 // Media handlers — Stream extraction, player control, media tools
 import { state, requireBrowser, notifyProgress, decoders } from './state';
+import type { MediaExtractorParams } from '../../types';
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -118,8 +119,10 @@ async function extractStreamsFromContext(context: any, contextName = 'main') {
 export async function detectPlayerInContext(context: any, actionOrParams: any, contextName = 'main') {
   const action = typeof actionOrParams === 'string' ? actionOrParams : (actionOrParams?.action || 'info');
   const playerType = typeof actionOrParams === 'object' ? actionOrParams?.playerType : 'auto';
+  const seekTime = typeof actionOrParams === 'object' ? actionOrParams?.seekTime : undefined;
+  const volume = typeof actionOrParams === 'object' ? actionOrParams?.volume : undefined;
 
-  return await context.evaluate(({ playerType, action }: any) => {
+  return await context.evaluate(({ playerType, action, seekTime, volume }: any) => {
     const result: any = { detected: false, type: null, sources: [], info: {} };
 
     // 1. JWPlayer detection
@@ -148,6 +151,8 @@ export async function detectPlayerInContext(context: any, actionOrParams: any, c
 
           if (action === 'play') jw.play?.();
           if (action === 'pause') jw.pause?.();
+          if (action === 'seek' && seekTime !== undefined) jw.seek?.(seekTime);
+          if (action === 'info' && volume !== undefined) jw.setVolume?.(volume);
         }
       } catch (e) { }
     }
@@ -173,6 +178,8 @@ export async function detectPlayerInContext(context: any, actionOrParams: any, c
 
           if (action === 'play') player.play?.();
           if (action === 'pause') player.pause?.();
+          if (action === 'seek' && seekTime !== undefined) player.currentTime?.(seekTime);
+          if (volume !== undefined) player.volume?.(volume);
         }
       } catch (e) { }
     }
@@ -198,6 +205,8 @@ export async function detectPlayerInContext(context: any, actionOrParams: any, c
 
           if (action === 'play') player.play?.();
           if (action === 'pause') player.pause?.();
+          if (action === 'seek' && seekTime !== undefined) player.currentTime = seekTime;
+          if (volume !== undefined) player.volume = volume;
         }
       } catch (e) { }
     }
@@ -244,7 +253,8 @@ export async function detectPlayerInContext(context: any, actionOrParams: any, c
 
         if (action === 'play') video.play();
         if (action === 'pause') video.pause();
-        if (action === 'seek' && typeof actionOrParams === 'object' && actionOrParams.seekTime) video.currentTime = actionOrParams.seekTime;
+        if (action === 'seek' && seekTime !== undefined) video.currentTime = seekTime;
+        if (volume !== undefined) video.volume = volume;
       }
     }
 
@@ -264,7 +274,7 @@ export async function detectPlayerInContext(context: any, actionOrParams: any, c
     }
 
     return result;
-  }, { playerType, action }).catch(() => ({ detected: false }));
+  }, { playerType, action, seekTime, volume }).catch(() => ({ detected: false }));
 }
 
 /**
@@ -286,7 +296,7 @@ function deduplicateStreams(streams: any) {
 
 export const mediaHandlers = {
 
-  async media_extractor(params: any = {}) {
+  async media_extractor(params: MediaExtractorParams = {}) {
     const { page } = requireBrowser();
     const {
       action = 'extract',
@@ -389,8 +399,8 @@ export const mediaHandlers = {
       case 'switch_iframe': {
         const frames = page.frames();
         const targetFrame = selector
-          ? await page.$(selector).then(el => el?.contentFrame())
-          : frames[index];
+          ? await page.$(selector).then((el: any) => el?.contentFrame())
+          : (index !== undefined ? frames[index] : undefined);
 
         if (targetFrame) {
           notifyProgress('media_extractor', 'completed', `Switched to iframe: ${targetFrame.url()}`);
@@ -404,7 +414,7 @@ export const mediaHandlers = {
         const { playerType, seekTime, volume } = params;
         notifyProgress('media_extractor', 'progress', `Player control: ${playerAction}`);
 
-        let result = await detectPlayerInContext(page, playerAction, 'main');
+        let result = await detectPlayerInContext(page, { action: playerAction, seekTime, volume, playerType }, 'main');
 
         if (!result.detected && searchIframes) {
           const frames = page.frames();
@@ -413,7 +423,7 @@ export const mediaHandlers = {
               const frame = frames[i];
               const frameUrl = frame.url();
               if (frameUrl && frameUrl !== 'about:blank') {
-                const frameResult = await detectPlayerInContext(frame, playerAction, `frame-${i}`);
+                const frameResult = await detectPlayerInContext(frame, { action: playerAction, seekTime, volume, playerType }, `frame-${i}`);
                 if (frameResult.detected) {
                   result = { ...frameResult, frameSource: frameUrl };
                   break;

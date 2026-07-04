@@ -2,8 +2,7 @@
  * Activity Logger — JSON-based persistent activity memory
  *
  * Records every tool call (and its outcome) to a local JSON file so that
- * the full activity history survives server restarts. Built on top of the
- * same auto-save-to-disk pattern used by CacheManager.
+ * the full activity history survives server restarts.
  */
 
 import * as fs from 'fs';
