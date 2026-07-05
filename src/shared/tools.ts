@@ -3,7 +3,7 @@ const TOOLS = [
   {
     name: 'browser_init',
     emoji: '🚀',
-    description: 'Initialize Brave browser with stealth, anti-detection, and AI healing.\n\n🤖 AI Usage Guide: Use this FIRST to start the browser session. Only run once per session.',
+    description: 'Initialize browser with stealth, anti-detection, and AI healing.\n\n🤖 AI Usage Guide: Use this FIRST to start the browser session. Only run once per session.',
     descriptionHindi: 'ब्राउज़र शुरू करना (stealth + AI healing)',
     category: 'browser',
     requiresBrowser: false,

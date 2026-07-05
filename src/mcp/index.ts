@@ -14,7 +14,7 @@ process.stdout.write = function (chunk: any, ...rest: any[]) {
 } as any;
 
 /**
- * Brave Real Browser MCP Server - Entry Point
+ * Real Browser MCP Server - Entry Point
  * 
  * Usage:
  *   npm run dev     - Start MCP server

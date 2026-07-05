@@ -30,8 +30,6 @@ interface Window {
   data: any;
   config: any;
 
-  // Brave browser
-  brave: any;
 
   // Dialog overrides
   originalConfirm: typeof window.confirm;

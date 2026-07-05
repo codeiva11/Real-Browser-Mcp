@@ -102,80 +102,6 @@ export function setupRealPage(browser: Browser, page: Page & Record<string, any>
   return page;
 }
 
-export function getBraveExecutablePath(): string | null {
-  if (process.env.BRAVE_PATH && fs.existsSync(process.env.BRAVE_PATH)) {
-    return process.env.BRAVE_PATH;
-  }
-
-  const platform = process.platform;
-  const { execSync } = require('child_process');
-
-  if (platform === 'win32') {
-    const regQueries = [
-      'reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\brave.exe" /ve',
-      'reg query "HKEY_CURRENT_USER\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\brave.exe" /ve',
-      'reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Clients\\StartMenuInternet\\Brave-Browser\\shell\\open\\command" /ve'
-    ];
-
-    for (const cmd of regQueries) {
-      try {
-        const output: string = execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
-        const match = output.match(/REG_SZ\s+(.*)/);
-        if (match && match[1]) {
-          let p = match[1].trim().replace(/^"|"$/g, '');
-          if (!p.toLowerCase().endsWith('.exe')) {
-            const exeIndex = p.toLowerCase().indexOf('.exe');
-            if (exeIndex !== -1) {
-              p = p.substring(0, exeIndex + 4).replace(/^"|"$/g, '');
-            }
-          }
-          if (fs.existsSync(p)) return p;
-        }
-      } catch (e) {}
-    }
-
-    try {
-      const output: string = execSync('where brave.exe', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().split('\r\n')[0];
-      if (output && fs.existsSync(output)) return output;
-    } catch (e) {}
-  } else if (platform === 'darwin') {
-    try {
-      const output: string = execSync('mdfind "kMDItemCFBundleIdentifier == \'com.brave.Browser\'"', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().split('\n')[0];
-      if (output) {
-        const p = path.join(output, 'Contents', 'MacOS', 'Brave Browser');
-        if (fs.existsSync(p)) return p;
-      }
-    } catch (e) {}
-  } else {
-    try {
-      const output: string = execSync('which brave-browser || which brave', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-      if (output && fs.existsSync(output)) return output;
-    } catch (e) {}
-  }
-
-  let paths: string[] = [];
-  if (platform === 'win32') {
-    paths = [
-      path.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
-      path.join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
-      path.join(process.env.LOCALAPPDATA || '', 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe')
-    ].filter(p => p);
-  } else if (platform === 'darwin') {
-    paths = ['/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'];
-  } else {
-    paths = [
-      '/usr/bin/brave-browser', '/usr/bin/brave', '/usr/bin/brave-browser-stable',
-      '/usr/bin/brave-browser-beta', '/usr/bin/brave-browser-nightly',
-      '/usr/local/bin/brave-browser', '/usr/local/bin/brave'
-    ];
-  }
-
-  for (const p of paths) {
-    if (p && fs.existsSync(p)) return p;
-  }
-
-  return null;
-}
 
 export async function applyUserAgentOverride(page: Page, userAgent: string, userAgentMetadata: any): Promise<void> {
   try {
@@ -217,13 +143,10 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
     const tempContext = await tempBrowser.newContext();
     const tempPage = await tempContext.newPage();
     let nativeUa = '';
-    let isBrave = false;
     try {
       nativeUa = await tempPage.evaluate(() => navigator.userAgent);
-      isBrave = await tempPage.evaluate(() => typeof (navigator as any).brave !== 'undefined');
     } catch (e) {
       nativeUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36';
-      isBrave = !!(executablePath && executablePath.toLowerCase().includes('brave'));
     }
     await tempBrowser.close();
 
@@ -233,14 +156,10 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
     const majorVersion = chromeVersion.split('.')[0];
 
     const brands: Array<{ brand: string; version: string }> = [
+      { brand: 'Google Chrome', version: majorVersion },
       { brand: 'Chromium', version: majorVersion },
       { brand: 'Not/A)Brand', version: '99' }
     ];
-    if (isBrave) {
-      brands.unshift({ brand: 'Brave', version: majorVersion });
-    } else {
-      brands.unshift({ brand: 'Google Chrome', version: majorVersion });
-    }
 
     let platformName = 'Windows';
     if (nativeUa.includes('Macintosh') || nativeUa.includes('Mac OS X')) {
@@ -250,14 +169,10 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
     }
 
     const fullVersionList: Array<{ brand: string; version: string }> = [
+      { brand: 'Google Chrome', version: chromeVersion },
       { brand: 'Chromium', version: chromeVersion },
       { brand: 'Not/A)Brand', version: '99.0.0.0' }
     ];
-    if (isBrave) {
-      fullVersionList.unshift({ brand: 'Brave', version: chromeVersion });
-    } else {
-      fullVersionList.unshift({ brand: 'Google Chrome', version: chromeVersion });
-    }
 
     const userAgentMetadata: Record<string, unknown> = {
       brands,
