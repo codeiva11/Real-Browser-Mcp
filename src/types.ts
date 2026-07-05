@@ -224,12 +224,6 @@ export interface ScrollParams {
   aiDetectLazyLoad?: boolean;
 }
 
-export interface FindElementParams {
-  selector?: string;
-  xpath?: string;
-  text?: string;
-  multiple?: boolean;
-}
 
 export interface PressKeyParams {
   key: string;
@@ -277,13 +271,6 @@ export interface NetworkFilter {
   mediaOnly?: boolean;
 }
 
-export interface CookieManagerParams {
-  action?: 'get' | 'set' | 'delete' | 'clear';
-  name?: string;
-  value?: string;
-  domain?: string;
-  expires?: number;
-}
 
 export interface RedirectTracerParams {
   url: string;

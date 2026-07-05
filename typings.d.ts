@@ -14,7 +14,7 @@ declare module "real-browser-mcp-server" {
 		browser: Browser;
 		page: PageWithCursor;
 		/** Blocker instance for advanced usage (null if enableBlocker is false) */
-		blocker: BraveBlocker | null;
+		blocker: AdBlocker | null;
 		/** Setup function to inject stealth into new pages */
 		setupPage: (page: Page) => Promise<void>;
 	};
@@ -25,7 +25,7 @@ declare module "real-browser-mcp-server" {
 		contextOptions?: Record<string, unknown>;
 		proxy?: ProxyOptions;
 		turnstile?: boolean;
-		/** Path to the browser executable (defaults to auto-detected Brave browser or falls back to Chromium) */
+		/** Path to the browser executable (defaults to bundled Chromium) */
 		executablePath?: string;
 		/** Enable blocker on all pages (default: true) */
 		enableBlocker?: boolean;
@@ -38,13 +38,9 @@ declare module "real-browser-mcp-server" {
 		password?: string;
 	}
 
-	/** BraveBlocker class for advanced ad/tracker blocking */
-	interface BraveBlocker {
-		/** Initialize the blocker engine */
-		init(): Promise<void>;
+	/** Ad/tracker blocker powered by @ghostery/adblocker-playwright */
+	interface AdBlocker {
 		/** Enable blocking on a page */
 		enableBlockingInPage(page: Page): Promise<void>;
-		/** Check if a URL should be blocked */
-		shouldBlock(url: string): boolean;
 	}
 }
