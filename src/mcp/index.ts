@@ -5,12 +5,29 @@
 console.log = function (...args) { console.error(...args); };
 
 const _originalStdoutWrite = process.stdout.write.bind(process.stdout);
-process.stdout.write = function (chunk: any, ...rest: any[]) {
-  const str = typeof chunk === 'string' ? chunk : chunk?.toString();
-  if (str && !str.startsWith('{') && !str.startsWith('[')) {
-    return _originalStdoutWrite.call(process.stderr, chunk, ...rest);
+
+function isJsonRpcMessage(str: string): boolean {
+  const s = str.trim();
+  if (!s) return false;
+  // JSON-RPC messages are always JSON objects or arrays
+  if (s.startsWith('{') || s.startsWith('[')) {
+    try {
+      JSON.parse(s);
+      return true;
+    } catch {
+      return false;
+    }
   }
-  return _originalStdoutWrite(chunk, ...rest);
+  return false;
+}
+
+process.stdout.write = function (chunk: any, ...rest: any[]) {
+  const str = typeof chunk === 'string' ? chunk : chunk?.toString('utf8');
+  // Allow only valid JSON-RPC messages through stdout; redirect everything else to stderr
+  if (str && !isJsonRpcMessage(str)) {
+    return (_originalStdoutWrite as any).call(process.stderr, chunk, ...rest);
+  }
+  return (_originalStdoutWrite as any)(chunk, ...rest);
 } as any;
 
 /**

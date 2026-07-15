@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, resolveWaitUntil } from './state';
 import type { BrowserInitParams, NavigateParams, WaitParams, WaitUntilState } from '../../types';
 
@@ -10,7 +12,14 @@ export const browserHandlers = {
     const envHeadless = getHeadlessFromEnv();
     const headless = params.headless !== undefined ? params.headless : envHeadless;
 
-    const { proxy = {} as Record<string, unknown>, contextOptions = {} as Record<string, unknown>, turnstile = false, enableBlocker = true, recordVideo = false } = params;
+    const {
+      proxy = {} as Record<string, unknown>,
+      contextOptions = {} as Record<string, unknown>,
+      turnstile = false,
+      enableBlocker = true,
+      recordVideo = false,
+      aiHealing = true,  // stored in state for use by click/type handlers
+    } = params;
 
     notifyProgress('browser_init', 'progress', `Mode: ${headless ? 'Headless' : 'GUI (Visible)'}`, { headless });
 
@@ -28,6 +37,7 @@ export const browserHandlers = {
     state.pageInstance = result.page;
     state.blockerInstance = result.blocker;
     state.setupPageFn = result.setupPage;
+    state.aiHealingEnabled = aiHealing; // stored for click/type handlers
 
     if (state.pageInstance) {
       state.pageInstance.on('dialog', async (dialog: any) => {
@@ -75,7 +85,8 @@ export const browserHandlers = {
     notifyProgress('browser_init', 'completed', `Browser started (PID: ${pid})`, {
       headless,
       pid,
-      blockerEnabled: enableBlocker
+      blockerEnabled: enableBlocker,
+      aiHealingEnabled: aiHealing,
     });
 
     return {
@@ -83,25 +94,25 @@ export const browserHandlers = {
       message: `Browser initialized in ${headless ? 'headless' : 'GUI'} mode`,
       pid,
       headless,
-      blockerEnabled: enableBlocker
+      blockerEnabled: enableBlocker,
+      aiHealingEnabled: aiHealing,
     };
   },
 
   async navigate(params: NavigateParams) {
     const { page } = requireBrowser();
-    let { url, waitUntil = 'networkidle' as WaitUntilState, timeout = 30000, retries = 2, smartWait = true } = params;
+    let { url, waitUntil = 'networkidle' as WaitUntilState, timeout = 30000, retries = 3, smartWait = true } = params;
     waitUntil = resolveWaitUntil(waitUntil) as WaitUntilState;
 
     notifyProgress('navigate', 'started', `Navigating to: ${url}`);
 
-    console.error('[Navigate] state.setupPageFn available:', !!state.setupPageFn);
     if (state.setupPageFn) {
       try {
         await state.setupPageFn(page);
         notifyProgress('navigate', 'progress', 'CDP early injection setup complete');
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        console.error('[Navigate] CDP early injection failed:', msg);
+        notifyProgress('navigate', 'progress', `CDP early injection failed: ${msg}`);
       }
     }
 
@@ -209,9 +220,23 @@ export const browserHandlers = {
 
     notifyProgress('browser_close', 'started', 'Closing browser...');
 
+    let savedSessionPath: string | null = null;
+
+    if (saveSession && state.pageInstance && state.browserInstance) {
+      try {
+        const cookies = await (state.pageInstance as any).context().cookies();
+        const sessionDir = path.join(process.cwd(), '.cache');
+        if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+        savedSessionPath = path.join(sessionDir, 'session.json');
+        fs.writeFileSync(savedSessionPath, JSON.stringify({ cookies, savedAt: new Date().toISOString() }, null, 2));
+        notifyProgress('browser_close', 'progress', `Session saved to ${savedSessionPath}`);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        notifyProgress('browser_close', 'progress', `Session save failed: ${msg}`);
+      }
+    }
+
     if (state.browserInstance) {
-
-
       try {
         await state.browserInstance.close();
         notifyProgress('browser_close', 'progress', 'Browser closed gracefully');
@@ -231,6 +256,6 @@ export const browserHandlers = {
 
     notifyProgress('browser_close', 'completed', 'Browser closed');
 
-    return { success: true, message: 'Browser closed' };
+    return { success: true, message: 'Browser closed', savedSession: savedSessionPath };
   }
 };

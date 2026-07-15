@@ -90,7 +90,8 @@ test('Cloudflare WAF', async () => {
     await goto("https://nopecha.com/demo/cloudflare");
     let verify = null;
     let startDate = Date.now();
-    while (!verify && (Date.now() - startDate) < 60000) {
+    // WAF test might take up to 30-40 seconds sometimes depending on network
+    while (!verify && (Date.now() - startDate) < 90000) {
         verify = await page.evaluate(() => {
             return document.querySelector('.link_row') || document.querySelector('a[href*="nopecha"]') ? true : null;
         }).catch(() => null);

@@ -1,9 +1,18 @@
 import { notifyProgress } from './state';
+import { helpersHandlers } from './helpers';
 
-export async function resolveIframe(page: any, iframe: number | undefined, iframeSelector: string | undefined, toolName: string): Promise<{ context: any; frameInfo: Record<string, unknown> | null }> {
+/**
+ * Resolves the target execution context to a page or iframe frame.
+ * Returns the context and optional frameInfo for logging.
+ */
+export async function resolveIframe(
+  page: any,
+  iframe: number | undefined,
+  iframeSelector: string | undefined,
+  toolName: string
+): Promise<{ context: any; frameInfo: Record<string, unknown> | null }> {
   if (iframe === undefined && !iframeSelector) return { context: page, frameInfo: null };
 
-  const { helpersHandlers } = require('./helpers');
   const resolved = await helpersHandlers._resolveIframeContext(page, iframe, iframeSelector);
   if (resolved.success) {
     notifyProgress(toolName, 'progress', `Switched to iframe ${iframe ?? iframeSelector}`);

@@ -4,12 +4,10 @@ import * as fs from 'fs';
 import { requireBrowser, notifyProgress } from './state';
 
 
-// Auto-generated extract handlers
-
 export const extractHandlers = {
   async get_content(params: any = {}) {
     const { page } = requireBrowser();
-    let { format = 'text', selector, xpath, text, rawHttpUrl, saveAs, includeMeta = false, multiple = false, extractAttributes = false } = params;
+    let { format = 'text', selector, xpath, text, rawHttpUrl, saveAs, includeMeta = false, multiple = false, extractAttributes = false, waitForJS = true, timeout = 10000 } = params;
 
     const targetSelector = selector || (xpath ? `xpath=${xpath}` : null) || (text ? `text="${text}"` : null);
 
@@ -18,6 +16,15 @@ export const extractHandlers = {
     }
 
     notifyProgress('get_content', 'started', `Extracting ${format} content${targetSelector ? ` from ${targetSelector}` : ''}`);
+
+    // waitForJS: wait for JS to finish rendering before extracting
+    if (waitForJS && format !== 'rawHttp') {
+      try {
+        await page.waitForLoadState('networkidle', { timeout: Math.min(timeout, 10000) });
+      } catch {
+        // networkidle timeout is acceptable - page may still be usable
+      }
+    }
 
     // === elements mode (replaces find_element) ===
     if (format === 'elements' || extractAttributes) {

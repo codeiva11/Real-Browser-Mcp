@@ -1,6 +1,6 @@
 import { state, requireBrowser, notifyProgress, detachNetworkRecorderListeners } from './state';
 
-export async function startRecording(page: any) {
+export async function startRecording(page: any, captureXhrBody = false) {
   detachNetworkRecorderListeners();
   state.networkRecords = [];
   state.isRecordingNetwork = true;
@@ -154,7 +154,8 @@ export async function startRecording(page: any) {
           if (postData) record.requestBody = postData.substring(0, 2000);
           if (isBinaryBody) {
             record.responseBody = `[binary/media body omitted: ${contentType || 'unknown content-type'}]`;
-          } else {
+          } else if (captureXhrBody) {
+            // Only capture response bodies when explicitly requested (saves memory)
             const responseBody = await res.text().catch(() => null);
             if (responseBody) {
               record.responseBody = responseBody.substring(0, 5000);

@@ -207,19 +207,48 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
     if (attempts % 3 === 1) {
       try {
         await page.evaluate(() => {
-          const coordinates: Array<{x: number, y: number, h: number}> = [];
-          document.querySelectorAll('div').forEach(item => {
-            try {
-              const rect = item.getBoundingClientRect();
-              const css = window.getComputedStyle(item);
-              if (rect.width > 290 && rect.width <= 310 && !item.querySelector('*')) {
-                if (css.margin === '0px' && css.padding === '0px') coordinates.push({ x: rect.x, y: rect.y, h: rect.height });
+          const coordinates: Array<{x: number, y: number, w: number, h: number}> = [];
+          
+          // 1. Find via wrappers
+          document.querySelectorAll('.cf-turnstile, #challenge-stage').forEach(wrapper => {
+            const iframes = wrapper.querySelectorAll('iframe');
+            if (iframes.length > 0) {
+              const rect = iframes[0].getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0) coordinates.push({ x: rect.x, y: rect.y, w: rect.width, h: rect.height });
+            } else {
+              const emptyDivs = Array.from(wrapper.querySelectorAll('div')).filter(d => !d.querySelector('*'));
+              if (emptyDivs.length > 0) {
+                const target = emptyDivs.reduce((prev, current) => {
+                  const pRect = prev.getBoundingClientRect(); const cRect = current.getBoundingClientRect();
+                  return (pRect.width * pRect.height > cRect.width * cRect.height) ? prev : current;
+                });
+                const rect = target.getBoundingClientRect();
+                if (rect.width > 50 && rect.height > 20) coordinates.push({ x: rect.x, y: rect.y, w: rect.width, h: rect.height });
               }
-            } catch (_) {}
+            }
           });
+
+          // 2. Fallback heuristic size search
+          if (coordinates.length === 0) {
+            document.querySelectorAll('div, iframe').forEach(item => {
+              try {
+                const rect = item.getBoundingClientRect();
+                const css = window.getComputedStyle(item);
+                const isWidgetSize = rect.width >= 150 && rect.width <= 400 && rect.height >= 40 && rect.height <= 100;
+                if (isWidgetSize) {
+                  if (item.tagName === 'IFRAME') coordinates.push({ x: rect.x, y: rect.y, w: rect.width, h: rect.height });
+                  else if (!item.querySelector('*')) coordinates.push({ x: rect.x, y: rect.y, w: rect.width, h: rect.height });
+                }
+              } catch (_) {}
+            });
+          }
           return coordinates;
-        }).then(async (coords: Array<{x: number, y: number, h: number}>) => {
-          for (const item of coords) await page.mouse.click(item.x + 30, item.y + item.h / 2);
+        }).then(async (coords: Array<{x: number, y: number, w: number, h: number}>) => {
+          for (const item of coords) {
+             const cx = item.x + Math.min(30, item.w / 4);
+             const cy = item.y + item.h / 2;
+             await page.mouse.click(cx, cy);
+          }
         });
       } catch (_) {}
     }

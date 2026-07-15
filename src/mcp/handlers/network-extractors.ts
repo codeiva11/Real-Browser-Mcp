@@ -1,4 +1,4 @@
-import { requireBrowser, notifyProgress } from './state';
+import { requireBrowser, notifyProgress, decoders } from './state';
 
 export async function extractData(params: any = {}) {
   const { page } = requireBrowser();
@@ -120,19 +120,22 @@ export async function extractData(params: any = {}) {
   };
 
   const extractAuto = async () => {
-    const autoResults: any = { meta: null, json: null, structured: null, patterns: [] };
-    try { autoResults.meta = await extractMeta(['all']); } catch (e) { }
-    try { autoResults.json = await extractJson('ld+json'); } catch (e) { }
+    // Run meta, json, and page-text extraction in parallel for speed
+    const [metaResult, jsonResult, pageText] = await Promise.all([
+      extractMeta(['all']).catch(() => null),
+      extractJson('ld+json').catch(() => null),
+      page.evaluate(() => document.body.innerText).catch(() => ''),
+    ]);
+    const autoResults: any = { meta: metaResult, json: jsonResult, structured: null, patterns: [] };
     const commonPatterns = [
       { name: 'emails', pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}' },
       { name: 'phones', pattern: '(\\+?1?[-.\\s]?)?\\(?[0-9]{3}\\)?[-.\\s]?[0-9]{3}[-.\\s]?[0-9]{4}' },
       { name: 'urls', pattern: 'https?://[^\\s<>"{}|\\\\^`\\[\\]]+' },
       { name: 'ipv4', pattern: '\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b' }
     ];
-    const pageText = await page.evaluate(() => document.body.innerText);
     for (const { name, pattern } of commonPatterns) {
       const regex = new RegExp(pattern, 'gi');
-      const matches = [...new Set(pageText.match(regex) || [])];
+      const matches = [...new Set((pageText as string).match(regex) || [])];
       if (matches.length > 0) autoResults.patterns.push({ type: name, count: matches.length, samples: matches.slice(0, 10) });
     }
     return autoResults;
@@ -392,32 +395,10 @@ async function discoverAPIs(page: any) {
     scriptSources: [], inlineApiPatterns: [], postBodies: [], dynamicApis: []
   };
 
+  // Capture already-intercepted APIs from network_recorder (no setTimeout needed)
   try {
-    const runtimeApis = await page.evaluate(() => {
-      return new Promise((resolve) => {
-        const found: any[] = [];
-        if ((window as any).__capturedApis) { resolve((window as any).__capturedApis); return; }
-        const origFetch = window.fetch;
-        window.fetch = function (...args: any[]) {
-          try {
-            const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
-            const opts = args[1] || {};
-            found.push({ type: 'fetch', url, method: opts.method || 'GET', body: typeof opts.body === 'string' ? opts.body.substring(0, 500) : null });
-          } catch (e) { }
-          return origFetch.apply(this, args as any);
-        };
-        const origOpen = XMLHttpRequest.prototype.open;
-        const origSend = XMLHttpRequest.prototype.send;
-        XMLHttpRequest.prototype.open = function (method: string, url: string | URL, ...rest: any[]) { (this as any).__apiUrl = url; (this as any).__apiMethod = method; return origOpen.apply(this, [method, url, ...rest] as any); };
-        XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyInit | null) {
-          found.push({ type: 'xhr', url: (this as any).__apiUrl, method: (this as any).__apiMethod, body: typeof body === 'string' ? body.substring(0, 500) : null });
-          return origSend.apply(this, [body]);
-        };
-        (window as any).__capturedApis = found;
-        setTimeout(() => resolve(found), 3000);
-      });
-    });
-    apiResults.dynamicApis = runtimeApis as any;
+    const capturedApis = await page.evaluate(() => (window as any).__interceptedApis || []).catch(() => []);
+    apiResults.dynamicApis = capturedApis;
   } catch (e) { apiResults.dynamicApis = []; }
 
   const allScriptContent = await page.evaluate(() =>
@@ -466,18 +447,17 @@ async function decryptData(page: any, params: any) {
   if (!dataToDecrypt) return { success: false, error: 'No data to decrypt. Provide encryptedData parameter or start network_recorder first.' };
   decryptResults.original = dataToDecrypt.substring(0, 500);
 
+  // Base64 decoding (multi-level) — use shared decoder
   let b64Data = dataToDecrypt.trim();
   for (let level = 0; level < 5; level++) {
     if (!/^[A-Za-z0-9+/=]+$/.test(b64Data) || b64Data.length < 4) break;
-    try {
-      const decoded = Buffer.from(b64Data, 'base64').toString('utf-8');
-      if (decoded && decoded.length > 0 && !/[\x00-\x08\x0e-\x1f]/.test(decoded.substring(0, 100))) {
-        decryptResults.decoded.push({ level: level + 1, type: 'base64', value: decoded.substring(0, 5000) });
-        decryptResults.detectedEncoding.push('base64');
-        try { decryptResults.decoded.push({ level: level + 1, type: 'base64_json', value: JSON.parse(decoded) }); } catch (e) { }
-        b64Data = decoded;
-      } else break;
-    } catch (e) { break; }
+    const b64Result = decoders.base64Decode(b64Data);
+    if (b64Result.success && b64Result.decoded && b64Result.decoded !== b64Data) {
+      decryptResults.decoded.push({ level: level + 1, type: 'base64', value: b64Result.decoded.substring(0, 5000) });
+      decryptResults.detectedEncoding.push('base64');
+      try { decryptResults.decoded.push({ level: level + 1, type: 'base64_json', value: JSON.parse(b64Result.decoded) }); } catch (e) { }
+      b64Data = b64Result.decoded;
+    } else break;
   }
 
   const hexClean = dataToDecrypt.replace(/\s+/g, '');
@@ -491,16 +471,19 @@ async function decryptData(page: any, params: any) {
     } catch (e) { }
   }
 
+  // URL decoding — use shared decoder
   if (dataToDecrypt.includes('%')) {
-    try {
-      let urlDecoded = decodeURIComponent(dataToDecrypt);
-      decryptResults.decoded.push({ type: 'url', value: urlDecoded.substring(0, 5000) });
+    const urlResult = decoders.urlDecode(dataToDecrypt);
+    if (urlResult.success && urlResult.decoded) {
+      decryptResults.decoded.push({ type: 'url', value: urlResult.decoded.substring(0, 5000) });
       decryptResults.detectedEncoding.push('url');
-      if (urlDecoded.includes('%')) {
-        urlDecoded = decodeURIComponent(urlDecoded);
-        decryptResults.decoded.push({ type: 'url_double', value: urlDecoded.substring(0, 5000) });
+      if (urlResult.decoded.includes('%')) {
+        const doubleResult = decoders.urlDecode(urlResult.decoded);
+        if (doubleResult.success && doubleResult.decoded) {
+          decryptResults.decoded.push({ type: 'url_double', value: doubleResult.decoded.substring(0, 5000) });
+        }
       }
-    } catch (e) { }
+    }
   }
 
   try {
@@ -523,8 +506,8 @@ async function decryptData(page: any, params: any) {
           /CryptoJS\.AES\.decrypt\s*\(\s*\w+\s*,\s*['"]([^'"]+)['"]/g,
           /CryptoJS\.AES\.encrypt\s*\(\s*\w+\s*,\s*['"]([^'"]+)['"]/g,
           /CryptoJS\.enc\.Utf8\.parse\s*\(\s*['"]([^'"]+)['"]/g,
-          /(?:secret|key|pass|password|iv|salt)\s*[:=]\s*['"]([^'"]{8,})['"]/gi,
-          /aes(?:Key|_key|Secret)\s*[:=]\s*['"]([^'"]{8,})['"]/gi
+          /(?:secret|key|pass|password|iv|salt)\s*[:=]\s*['"]([^'"]{8,})['\"]/gi,
+          /aes(?:Key|_key|Secret)\s*[:=]\s*['"]([^'"]{8,})['\"]/gi
         ];
         for (const pat of cryptoPatterns) { let m; while ((m = pat.exec(scripts)) !== null) found.push({ pattern: pat.source.substring(0, 50), key: m[1] }); }
         return found;
@@ -533,34 +516,17 @@ async function decryptData(page: any, params: any) {
     } catch (e) { }
   }
 
+  // AES decryption — use shared decoder from state.ts
   const aesKey = params.aesKey || (decryptResults.extractedKeys[0]?.key);
   if (aesKey && dataToDecrypt.length > 10) {
-    try {
-      const crypto = require('crypto');
-      for (const keyEncoding of ['utf8', 'hex', 'base64']) {
-        try {
-          let keyBuf;
-          if (keyEncoding === 'utf8') { keyBuf = Buffer.alloc(32); const kb = Buffer.from(aesKey as string, 'utf8'); kb.copy(keyBuf); }
-          else keyBuf = Buffer.from(aesKey as string, keyEncoding as BufferEncoding);
-          const dataBuf = Buffer.from(dataToDecrypt as string, 'base64');
-          if (dataBuf.length > 16) {
-            const iv = params.aesIV ? Buffer.from(params.aesIV as string, keyEncoding as BufferEncoding) : dataBuf.slice(0, 16);
-            const encrypted = params.aesIV ? dataBuf : dataBuf.slice(16);
-            const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuf, iv);
-            decipher.setAutoPadding(true);
-            let decrypted = decipher.update(encrypted, undefined, 'utf8');
-            decrypted += decipher.final('utf8');
-            if (decrypted && decrypted.length > 0) {
-              decryptResults.aesDecrypted = decrypted.substring(0, 5000);
-              decryptResults.detectedEncoding.push('aes-256-cbc');
-              try { decryptResults.aesDecrypted = JSON.parse(decrypted); } catch (e) { }
-              break;
-            }
-          }
-        } catch (e) { continue; }
-      }
-    } catch (e) { }
+    const aesResult = decoders.decryptAES(dataToDecrypt, aesKey, params.aesIV || null);
+    if (aesResult.success && aesResult.decrypted) {
+      decryptResults.aesDecrypted = aesResult.decrypted.substring(0, 5000);
+      decryptResults.detectedEncoding.push(aesResult.algorithm);
+      try { decryptResults.aesDecrypted = JSON.parse(aesResult.decrypted); } catch (e) { }
+    }
   }
 
   return decryptResults;
 }
+

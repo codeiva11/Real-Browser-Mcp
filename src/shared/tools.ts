@@ -55,7 +55,7 @@ const TOOLS = [
     }
   },
 
-  // 3. Get Content (MERGED: get_content + js_scrape + save_content_as_markdown + find_element)
+  // 3. Get Content
   {
     name: 'get_content',
     emoji: '📄',
@@ -104,7 +104,7 @@ const TOOLS = [
     }
   },
 
-  // 5. Click (ENHANCED: iframe + hover + auto video player detection)
+  // 5. Click
   {
     name: 'click',
     emoji: '👆',
@@ -145,7 +145,7 @@ const TOOLS = [
     }
   },
 
-  // 6. Type (ENHANCED: iframe support)
+  // 6. Type
   {
     name: 'type',
     emoji: '⌨️',
@@ -192,7 +192,7 @@ const TOOLS = [
     }
   },
 
-  // 8. Solve Captcha (MERGED with form_automator - Enhanced with OCR + Form Automation)
+  // 8. Solve Captcha
   {
     name: 'solve_captcha',
     emoji: '🔓',
@@ -257,7 +257,7 @@ const TOOLS = [
 
 
 
-  // 12. Redirect Tracer
+  // 10. Redirect Tracer
   {
     name: 'redirect_tracer',
     emoji: '🔀',
@@ -280,7 +280,7 @@ const TOOLS = [
     }
   },
 
-  // 13. Extract Data (MERGED: search_regex + extract_json + scrape_meta_tags + link_harvester + POWER FEATURES)
+  // 11. Extract Data
   {
     name: 'extract_data',
     emoji: '🔎',
@@ -309,7 +309,7 @@ const TOOLS = [
     }
   },
 
-  // 14. Press Key
+  // 12. Press Key
   {
     name: 'press_key',
     emoji: '🎹',
@@ -330,7 +330,7 @@ const TOOLS = [
     }
   },
 
-  // 15. Progress Tracker
+  // 13. Progress Tracker
   {
     name: 'progress_tracker',
     emoji: '📈',
@@ -350,7 +350,7 @@ const TOOLS = [
     }
   },
 
-  // 16. Deep Analysis
+  // 14. Deep Analysis
   {
     name: 'deep_analysis',
     emoji: '🧠',
@@ -370,7 +370,7 @@ const TOOLS = [
     }
   },
 
-  // 17. Network Recorder (POWER ENHANCED)
+  // 15. Network Recorder
   {
     name: 'network_recorder',
     emoji: '📡',
@@ -400,7 +400,7 @@ const TOOLS = [
 
 
 
-  // 21. Media Extractor (MERGED: iframe_handler + stream_extractor + player_api_hook)
+  // 16. Media Extractor
   {
     name: 'media_extractor',
     emoji: '🎬',
@@ -439,7 +439,7 @@ const TOOLS = [
     }
   },
 
-  // 22. Execute JS (ENHANCED: iframe context fix)
+  // 17. Execute JS
   {
     name: 'execute_js',
     emoji: '💻',
@@ -465,7 +465,7 @@ const TOOLS = [
   },
 
 
-  // 23. Storage Inspector
+  // 18. Storage Inspector
   {
     name: 'storage_inspector',
     emoji: '🗄️',
@@ -482,7 +482,7 @@ const TOOLS = [
     }
   },
 
-  // 24. Replay Request
+  // 19. Replay Request
   {
     name: 'replay_request',
     emoji: '🔁',
@@ -503,7 +503,7 @@ const TOOLS = [
     }
   },
 
-  // 24b. API Analyzer
+  // 20. API Analyzer
   {
     name: 'api_analyzer',
     emoji: '🧩',
@@ -524,7 +524,7 @@ const TOOLS = [
     }
   },
 
-  // 25. See Page (AI Vision — "eyes")
+  // 21. See Page (AI Vision)
   {
     name: 'see_page',
     emoji: '👁️',

@@ -28,7 +28,7 @@ export const domHandlers = {
       // Additional options
       scrollIntoView = true,
       forceClick = false,
-      aiHeal = true,
+      aiHeal = state.aiHealingEnabled,  // respect global aiHealing setting
       // NEW: Auto Video Player Detection & Control
       autoDetectPlayer = false,
       usePlayerAPI = true,
@@ -389,13 +389,13 @@ export const domHandlers = {
       text,
       delay = 50,
       clear = true,
-      // NEW: iframe support
+      // iframe support
       iframe,
       iframeSelector,
-      // NEW: Additional options
+      // Additional options
       pressEnter = false,
       waitForSelector = true,
-      aiHeal = true
+      aiHeal = state.aiHealingEnabled,  // respect global aiHealing setting
     } = params;
 
     let selector = providedSelector;
@@ -537,7 +537,7 @@ export const domHandlers = {
 
   async press_key(params: PressKeyParams) {
     const { page } = requireBrowser();
-    const { key, modifiers = [], count = 1 } = params;
+    const { key, modifiers = [], count = 1, humanDelay = true } = params as PressKeyParams & { humanDelay?: boolean };
 
     notifyProgress('press_key', 'started', `Pressing: ${modifiers.length ? modifiers.join('+') + '+' : ''}${key} x${count}`);
 
@@ -547,6 +547,10 @@ export const domHandlers = {
         await page.keyboard.press(keyCombo);
       } else {
         await page.keyboard.press(key);
+      }
+      // humanDelay: natural random pause between key presses
+      if (humanDelay && count > 1 && i < count - 1) {
+        await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
       }
     }
 

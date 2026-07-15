@@ -36,6 +36,7 @@ export interface BrowserState {
   networkRecorderListeners?: Record<string, unknown> | null;
   progressTasks: Record<string, ProgressTask>;
   progressCallback: ProgressCallback | null;
+  aiHealingEnabled: boolean;
 }
 
 // ─────────────────────────────────────────────

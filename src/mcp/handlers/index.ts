@@ -4,18 +4,18 @@ import { domHandlers } from './dom';
 import { networkHandlers } from './network';
 import { visionHandlers } from './vision';
 import { extractHandlers } from './extract';
-import { helpersHandlers } from './helpers';
 import { utilityHandlers } from './utility-handlers';
 import { mediaHandlers } from './media-handlers';
 import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser } from './state';
 import { activityLogger } from '../../shared/activity-logger';
+
+// Public tool handlers only — internal helpers (_fillFormFields etc.) are NOT exposed
 export const handlers: any = {
   ...browserHandlers,
   ...domHandlers,
   ...networkHandlers,
   ...visionHandlers,
   ...extractHandlers,
-  ...helpersHandlers,
   ...utilityHandlers,
   ...mediaHandlers
 };
@@ -58,7 +58,7 @@ export async function cleanup() {
   }
 
   if (state.browserInstance) {
-
+    // Reuse the same close logic as browser_close handler
     try {
       await state.browserInstance.close();
     } catch (e) {

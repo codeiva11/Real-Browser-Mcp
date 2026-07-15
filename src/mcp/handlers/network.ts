@@ -95,7 +95,7 @@ export const networkHandlers = {
     const { action = 'get', filter = {}, captureXhrBody = false } = params;
 
     switch (action) {
-      case 'start': return startRecording(page).then(() => ({ success: true, message: 'Recording started' }));
+      case 'start': return startRecording(page, captureXhrBody).then(() => ({ success: true, message: 'Recording started', captureXhrBody }));
       case 'stop': stopRecording(); return { success: true };
       case 'clear': await clearRecording(page); return { success: true };
       case 'get_media': return getMediaRecords();

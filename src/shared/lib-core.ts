@@ -3,11 +3,65 @@ import { createCursor } from 'ghost-cursor-patchright';
 import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getHeadlessFromEnv } from '../mcp/handlers/state';
+import { getHeadlessFromEnv } from './env-utils';
 import type { Browser, Page } from 'patchright';
 
 let adBlockerInstance: PlaywrightBlocker | null = null;
 let adBlockerPromise: Promise<PlaywrightBlocker | null> | null = null;
+
+// Cache the detected user-agent string so we don't launch a temp browser on every connect()
+let cachedNativeUa: string | null = null;
+const UA_CACHE_FILE = path.join(process.cwd(), '.cache', 'ua-cache.txt');
+
+function loadCachedUa(): string | null {
+  try {
+    if (fs.existsSync(UA_CACHE_FILE)) {
+      const ua = fs.readFileSync(UA_CACHE_FILE, 'utf8').trim();
+      if (ua && ua.includes('Chrome/')) return ua;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveCachedUa(ua: string): void {
+  try {
+    const dir = path.dirname(UA_CACHE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(UA_CACHE_FILE, ua, 'utf8');
+  } catch { /* ignore */ }
+}
+
+async function getNativeUserAgent(executablePath?: string): Promise<string> {
+  // Return in-memory cache first
+  if (cachedNativeUa) return cachedNativeUa;
+
+  // Return disk cache if available and no custom executablePath
+  if (!executablePath) {
+    const diskCached = loadCachedUa();
+    if (diskCached) {
+      cachedNativeUa = diskCached;
+      return cachedNativeUa;
+    }
+  }
+
+  // Launch temp browser only when cache misses
+  try {
+    const tempBrowser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      ...(executablePath ? { executablePath } : {}),
+    });
+    const tempContext = await tempBrowser.newContext();
+    const tempPage = await tempContext.newPage();
+    const ua = await tempPage.evaluate(() => navigator.userAgent);
+    await tempBrowser.close();
+    cachedNativeUa = ua;
+    if (!executablePath) saveCachedUa(ua);
+    return ua;
+  } catch (e) {
+    return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36';
+  }
+}
 
 function getAdBlocker(): Promise<PlaywrightBlocker | null> {
   if (!adBlockerPromise) {
@@ -30,6 +84,8 @@ function getAdBlocker(): Promise<PlaywrightBlocker | null> {
 export function getDefaultHeadless(): boolean {
   return getHeadlessFromEnv();
 }
+
+export { getHeadlessFromEnv };
 
 export function setupRealPage(browser: Browser, page: Page & Record<string, any>): Page & Record<string, any> {
   if ((page as any)._setupApplied) return page;
@@ -118,7 +174,7 @@ export async function applyUserAgentOverride(page: Page, userAgent: string, user
 export function createConnect(pageController: (opts: { browser: Browser; page: Page; proxy: Record<string, unknown>; turnstile: boolean }) => Promise<Page>) {
   return async function connect({
     args = [],
-    headless = getDefaultHeadless(),
+    headless = getHeadlessFromEnv(),
     proxy = {} as Record<string, unknown>,
     contextOptions = {} as Record<string, unknown>,
     turnstile = false,
@@ -135,20 +191,8 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       }
     }
 
-    const tempBrowser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      ...(executablePath ? { executablePath } : {}),
-    });
-    const tempContext = await tempBrowser.newContext();
-    const tempPage = await tempContext.newPage();
-    let nativeUa = '';
-    try {
-      nativeUa = await tempPage.evaluate(() => navigator.userAgent);
-    } catch (e) {
-      nativeUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36';
-    }
-    await tempBrowser.close();
+    // Use cached UA — avoids launching an extra browser every time
+    const nativeUa = await getNativeUserAgent(executablePath);
 
     let modifiedUa = nativeUa.replace(/HeadlessChrome\//g, 'Chrome/');
     const chromeVersionMatch = modifiedUa.match(/Chrome\/([\d.]+)/);

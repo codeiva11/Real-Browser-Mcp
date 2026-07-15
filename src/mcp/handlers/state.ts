@@ -1,4 +1,5 @@
 import * as crypto from 'crypto';
+import { getHeadlessFromEnv as _getHeadlessFromEnv } from '../../shared/env-utils';
 import type {
   BrowserState,
   ProgressStatus,
@@ -7,6 +8,9 @@ import type {
   DecodeResult,
   AESDecryptResult,
 } from '../../types';
+
+// Re-export for backward compatibility with existing imports
+export { _getHeadlessFromEnv as getHeadlessFromEnv };
 
 export const state: BrowserState = {
   browserInstance: null,
@@ -19,7 +23,8 @@ export const state: BrowserState = {
   networkRecorderBoundPage: null,
   networkRecorderListeners: null,
   progressTasks: {},
-  progressCallback: null
+  progressCallback: null,
+  aiHealingEnabled: true,
 };
 
 export function detachNetworkRecorderListeners(): void {
@@ -69,28 +74,6 @@ export function notifyProgress(
   }
 
   return notification;
-}
-
-export function getHeadlessFromEnv(): boolean {
-  const envHeadless = process.env.HEADLESS;
-
-  if (envHeadless !== undefined && envHeadless !== null && envHeadless !== '') {
-    const value = envHeadless.toLowerCase().trim();
-    return value === 'true' || value === '1' || value === 'yes';
-  }
-
-  if (process.env.CI || process.env.GITHUB_ACTIONS || process.env.TRAVIS || process.env.CIRCLECI) {
-    return true;
-  }
-
-  if (process.platform === 'linux') {
-    const hasDisplay = process.env.DISPLAY || process.env.WAYLAND_DISPLAY;
-    if (!hasDisplay) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 export function getState() {
