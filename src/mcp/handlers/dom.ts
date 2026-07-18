@@ -1,7 +1,7 @@
 
 import { state, requireBrowser, notifyProgress } from './state';
 import { helpersHandlers } from './helpers';
-import { resolveIframe } from './handler-utils';
+import { resolveIframe, healSelector } from './handler-utils';
 import type { ClickParams, TypeParams, ScrollParams, PressKeyParams } from '../../types';
 
 // Auto-generated dom handlers
@@ -243,27 +243,13 @@ export const domHandlers = {
           try {
             await context.waitForSelector(selector!, { timeout: Math.min(timeout / retries, 10000) });
           } catch (e) {
-            if (aiHeal && attempt === 1) {
-              const healed: string | null = await page.evaluate((sel: string) => {
-                const parts = sel.replace(/[#.[\]]/g, ' ').trim().split(/\s+/).filter(Boolean);
-                const candidates = document.querySelectorAll('a, button, input, [role="button"], [onclick]');
-                for (const el of candidates) {
-                  const text = (el.textContent || '').toLowerCase();
-                  const id = (el.id || '').toLowerCase();
-                  const cls = (el.className || '').toLowerCase();
-                  for (const part of parts) {
-                    if (text.includes(part.toLowerCase()) || id.includes(part.toLowerCase()) || cls.includes(part.toLowerCase())) {
-                      if (el.id) return `#${el.id}`;
-                      if (el.className) return `${el.tagName.toLowerCase()}.${el.className.split(' ')[0]}`;
-                    }
-                  }
-                }
-                return null;
-              }, selector).catch(() => null);
-
-              if (healed) {
-                notifyProgress('click', 'progress', `🔧 AI Healed: ${selector} → ${healed}`);
-                selector = healed;
+            // AI healing runs on every attempt (not just the first) so a changed DOM
+            // that settles after a retry can still be recovered.
+            if (aiHeal) {
+              const healed = await healSelector(context, selector!, 'click');
+              if (healed && healed.selector !== selector) {
+                notifyProgress('click', 'progress', `🔧 AI Healed: ${selector} → ${healed.selector} (match "${healed.label}", score ${healed.score})`);
+                selector = healed.selector;
                 try {
                   await context.waitForSelector(selector!, { timeout: 5000 });
                 } catch {
@@ -432,32 +418,25 @@ export const domHandlers = {
       try {
         await context.waitForSelector(selector!, { timeout: 10000 });
       } catch (e) {
+        let recovered = false;
         if (aiHeal) {
-          const healed = await page.evaluate((sel: string) => {
-            const parts = sel.replace(/[#.[\]]/g, ' ').trim().split(/\s+/).filter(Boolean);
-            const candidates = document.querySelectorAll('input, textarea, select');
-            for (const el of candidates) {
-              const name = (el.getAttribute('name') || '').toLowerCase();
-              const id = (el.id || '').toLowerCase();
-              const placeholder = (el.getAttribute('placeholder') || '').toLowerCase();
-              for (const part of parts) {
-                const p = part.toLowerCase();
-                if (name.includes(p) || id.includes(p) || placeholder.includes(p)) {
-                  if (el.id) return `#${el.id}`;
-                  if (el.getAttribute('name')) return `[name="${el.getAttribute('name')}"]`;
-                }
-              }
+          const healed = await healSelector(context, selector!, 'type');
+          if (healed && healed.selector !== selector) {
+            notifyProgress('type', 'progress', `🔧 AI Healed: ${selector} → ${healed.selector} (match "${healed.label}", score ${healed.score})`);
+            selector = healed.selector;
+            // Verify the healed selector actually resolves before continuing.
+            try {
+              await context.waitForSelector(selector!, { timeout: 5000 });
+              recovered = true;
+            } catch {
+              // healed selector also not found
             }
-            return null;
-          }, selector).catch(() => null);
-
-          if (healed) {
-            notifyProgress('type', 'progress', `🔧 AI Healed: ${selector} → ${healed}`);
-            selector = healed;
           }
         }
-        notifyProgress('type', 'error', `Selector not found: ${selector}`);
-        return { success: false, error: `Selector not found: ${selector}. 💡 AI HINT: The element might be hidden, inside an iframe, or the selector is wrong. Run see_page(annotate: true) to verify and get an annotationId.` };
+        if (!recovered) {
+          notifyProgress('type', 'error', `Selector not found: ${selector}`);
+          return { success: false, error: `Selector not found: ${selector}. 💡 AI HINT: The element might be hidden, inside an iframe, or the selector is wrong. Run see_page(annotate: true) to verify and get an annotationId.` };
+        }
       }
     }
 

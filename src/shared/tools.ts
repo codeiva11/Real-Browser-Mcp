@@ -528,24 +528,24 @@ const TOOLS = [
   {
     name: 'see_page',
     emoji: '👁️',
-    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does. Captures a screenshot and returns the actual image to the AI agent so it can visually understand the layout, AND returns a "visual map" of all visible interactive elements (buttons, links, inputs) with their on-screen position (x/y/width/height), text label, and a click-ready selector. Use this to look at a page before deciding where to click/type.\n\n🤖 AI Usage Guide: PREFER a single FULL-PAGE view (set fullPage: true) so the whole page and all its interactive elements are mapped in one shot, then plan and perform ALL needed actions for that page (read, click, type, extract) from this single view. Call see_page a SECOND time ONLY IF the task genuinely cannot be completed from the first view, OR after the page actually changes — navigation, a modal/popup opens, or new dynamic content loads. Do NOT re-capture the SAME unchanged page repeatedly.',
-    descriptionHindi: 'AI विज़न ("आँखें"): पेज को इंसान की तरह देखना। स्क्रीनशॉट image सीधे AI को भेजता है ताकि वह layout देख सके + सभी दिखने वाले clickable elements का visual map (position + text + selector) देता है। नियम: पहले पूरे पेज का full-page view लें (fullPage: true) ताकि पूरा पेज और उसके सारे elements एक ही बार में map हो जाएँ, फिर उसी एक view से उस पेज के सारे ज़रूरी काम (पढ़ना, क्लिक, टाइप, data निकालना) एक साथ पूरे करें। दूसरी बार see_page सिर्फ़ तभी लें जब पहले view से काम पूरा न हो पाए, या पेज सच में बदल जाए (navigation, modal/popup खुले, या नया dynamic content load हो)। बिना बदलाव के उसी पेज का दोबारा स्क्रीनशॉट न लें।',
+    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does — in ONE single shot. By default, this tool captures the FULL page (fullPage: true), annotates all interactive elements with numbered red boxes (annotate: true), auto-hovers over menus to reveal dropdowns (autoHover: true), and watches for DOM mutations (watchMutations: true). You get back a screenshot image PLUS a numbered visual map of every clickable element. Just call see_page ONCE — then use the returned annotationId numbers with click({ annotationId: N }) or type({ annotationId: N, text: "..." }) to interact instantly.\n\n🤖 AI Usage Guide: This tool is FULLY AUTOMATIC — just call it with no arguments and it behaves like a human looking at the whole page. Call see_page a SECOND time ONLY if the page actually changes (navigation, modal/popup, new dynamic content). Do NOT re-capture the same unchanged page repeatedly.',
+    descriptionHindi: 'AI विज़न ("आँखें"): इंसान की तरह एक ही बार में पूरा पेज देखें। डिफ़ॉल्ट रूप से यह पूरा पेज (fullPage), लाल बॉक्स annotation (annotate), menu hover (autoHover), और DOM mutation tracking — सब अपने आप करता है। बस see_page कॉल करें, फिर लौटाए गए annotationId नंबरों से click({ annotationId: N }) या type({ annotationId: N, text: "..." }) करें। दूसरी बार सिर्फ़ तभी लें जब पेज बदल जाए।',
     category: 'vision',
     requiresBrowser: true,
     requiresPage: true,
     inputSchema: {
       type: 'object',
       properties: {
-        annotate: { type: 'boolean', default: false, description: 'Super Vision: Draw red bounding boxes with numbers over all interactive elements for instant click/type targeting' },
-        fullPage: { type: 'boolean', default: false, description: 'See the entire scrollable page (true) or just the current viewport (false)' },
+        annotate: { type: 'boolean', default: true, description: 'Super Vision: Draw red bounding boxes with numbers over all interactive elements for instant click/type targeting (DEFAULT: ON)' },
+        fullPage: { type: 'boolean', default: true, description: 'See the entire scrollable page (true) or just the current viewport (false) — DEFAULT: true (human-like full view)' },
         format: { type: 'string', enum: ['png', 'jpeg'], default: 'jpeg', description: 'Image format (jpeg = smaller, faster for vision)' },
         quality: { type: 'number', default: 70, description: 'JPEG quality 0-100 (lower = smaller image to the AI)' },
         includeElements: { type: 'boolean', default: true, description: 'Include the visual map of interactive elements' },
         includeDomText: { type: 'boolean', default: false, description: 'Include the full text content of the page (DOM reading)' },
-        maxElements: { type: 'number', default: 60, description: 'Max number of interactive elements to map' },
+        maxElements: { type: 'number', default: 80, description: 'Max number of interactive elements to map (default 80 for comprehensive view)' },
         path: { type: 'string', description: 'Optional file path to also save the captured image' },
-        autoHover: { type: 'boolean', default: false, description: 'Hover over menus before taking screenshot to reveal dropdowns' },
-        watchMutations: { type: 'boolean', default: false, description: 'Check for DOM mutations (popups/alerts) since last view' }
+        autoHover: { type: 'boolean', default: true, description: 'Hover over menus before taking screenshot to reveal hidden dropdowns (DEFAULT: ON, human-like)' },
+        watchMutations: { type: 'boolean', default: true, description: 'Check for DOM mutations (popups/alerts) since last view (DEFAULT: ON)' }
       }
     }
   }

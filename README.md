@@ -112,7 +112,8 @@ Add the following to your `claude_desktop_config.json`:
         "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
       ],
       "env": {
-        "HEADLESS": "false"
+        "HEADLESS": "false",
+        "AI_HEALING": "true"
       }
     }
   }
@@ -141,7 +142,8 @@ Add the server entry to your global MCP settings file (typically found at `%APPD
         "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
       ],
       "env": {
-        "HEADLESS": "false"
+        "HEADLESS": "false",
+        "AI_HEALING": "true"
       },
       "disabled": false,
       "autoApprove": [],
@@ -163,7 +165,8 @@ Configure the server in your `~/.codeium/windsurf/mcp_config.json`:
         "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
       ],
       "env": {
-        "HEADLESS": "false"
+        "HEADLESS": "false",
+        "AI_HEALING": "true"
       }
     }
   }
@@ -185,7 +188,44 @@ Configure the server in your `opencode.jsonc` or standard MCP settings configura
         "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
       ],
       "env": {
-        "HEADLESS": "false"
+        "HEADLESS": "false",
+        "AI_HEALING": "true"
+      }
+    }
+  }
+}
+```
+
+---
+
+## ⚙️ Environment Variables
+
+You can configure `browser_init` defaults directly from the MCP client `env` block, without passing parameters on every call. Explicit parameters passed to `browser_init` always override these environment variables.
+
+| Variable | Values | Default | Controls |
+|:---|:---|:---|:---|
+| `HEADLESS` | `true` / `false` / `1` / `0` / `yes` / `no` | auto (CI + no-display detection) | Run browser headless (no visible window) |
+| `AI_HEALING` | `true` / `false` / `1` / `0` / `yes` / `no` / `on` / `off` | `true` | Auto-repair broken CSS selectors in `click`/`type` |
+| `ENABLE_BLOCKER` | `true` / `false` / `1` / `0` / `yes` / `no` / `on` / `off` | `true` | Block ads and trackers |
+| `TURNSTILE` | `true` / `false` / `1` / `0` / `yes` / `no` / `on` / `off` | `false` | Auto-solve Cloudflare Turnstile |
+
+Values are case-insensitive. Priority for each option is: **explicit `browser_init` param > environment variable > built-in default**.
+
+Example (`env` block with all options set):
+
+```json
+{
+  "mcpServers": {
+    "real-browser-mcp-server": {
+      "command": "node",
+      "args": [
+        "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
+      ],
+      "env": {
+        "HEADLESS": "false",
+        "AI_HEALING": "true",
+        "ENABLE_BLOCKER": "true",
+        "TURNSTILE": "false"
       }
     }
   }

@@ -1,5 +1,10 @@
 import * as crypto from 'crypto';
-import { getHeadlessFromEnv as _getHeadlessFromEnv } from '../../shared/env-utils';
+import {
+  getHeadlessFromEnv as _getHeadlessFromEnv,
+  getAiHealingFromEnv as _getAiHealingFromEnv,
+  getEnableBlockerFromEnv as _getEnableBlockerFromEnv,
+  getTurnstileFromEnv as _getTurnstileFromEnv,
+} from '../../shared/env-utils';
 import type {
   BrowserState,
   ProgressStatus,
@@ -11,6 +16,9 @@ import type {
 
 // Re-export for backward compatibility with existing imports
 export { _getHeadlessFromEnv as getHeadlessFromEnv };
+export { _getAiHealingFromEnv as getAiHealingFromEnv };
+export { _getEnableBlockerFromEnv as getEnableBlockerFromEnv };
+export { _getTurnstileFromEnv as getTurnstileFromEnv };
 
 export const state: BrowserState = {
   browserInstance: null,
