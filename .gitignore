@@ -14,6 +14,8 @@ coverage
 
 # Cache files (regenerated at runtime)
 **/cache/filter-cache.json
+.cache/
+adblocker.bin
 
 # Build artifacts
 dist-esm
