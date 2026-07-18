@@ -147,7 +147,6 @@ Add the server entry to your global MCP settings file (typically found at `%APPD
       },
       "disabled": false,
       "autoApprove": [],
-      "timeout": 120
     }
   }
 }
