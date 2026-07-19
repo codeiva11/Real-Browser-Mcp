@@ -3,7 +3,7 @@ const TOOLS = [
   {
     name: 'browser_init',
     emoji: '🚀',
-    description: 'Initialize browser with stealth, anti-detection, and AI healing.\n\n🤖 AI Usage Guide: Use this FIRST to start the browser session. Only run once per session.',
+    description: 'Initialize browser with reliability, AI healing, and automation assist.\n\n🤖 AI Usage Guide: Use this FIRST to start the browser session. Only run once per session.',
     descriptionHindi: 'ब्राउज़र शुरू करना (stealth + AI healing)',
     category: 'browser',
     requiresBrowser: false,
@@ -25,7 +25,7 @@ const TOOLS = [
           type: 'object',
           description: 'Universal Playwright BrowserContext options (e.g. httpCredentials, geolocation, extraHTTPHeaders, permissions, viewport, userAgent, etc.)'
         },
-        turnstile: { type: 'boolean', default: false, description: 'Auto-solve Cloudflare Turnstile' },
+        turnstile: { type: 'boolean', default: false, description: 'Assist with Cloudflare Turnstile challenges' },
         enableBlocker: { type: 'boolean', default: true, description: 'Block ads and trackers' },
         aiHealing: { type: 'boolean', default: true, description: 'Enable AI auto-healing for broken selectors' },
         recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of session' }
@@ -108,7 +108,7 @@ const TOOLS = [
   {
     name: 'click',
     emoji: '👆',
-    description: 'Human-like click with AI healing, iframe support, hover for dynamic controls, and auto video player detection.\n\n🤖 AI Usage Guide: If a CSS selector fails or you are unsure of the selector, DO NOT guess repeatedly. Call `see_page` with `annotate: true` to get the `annotationId`, then click using `annotationId` instead of `selector`.',
+    description: 'Natural click with AI healing, iframe support, hover for dynamic controls, and auto video player detection.\n\n🤖 AI Usage Guide: If a CSS selector fails or you are unsure of the selector, DO NOT guess repeatedly. Call `see_page` with `annotate: true` to get the `annotationId`, then click using `annotationId` instead of `selector`.',
     descriptionHindi: 'क्लिक करना (AI healing + iframe + auto video player detection)',
     category: 'interaction',
     requiresBrowser: true,
@@ -118,7 +118,7 @@ const TOOLS = [
       properties: {
         selector: { type: 'string', description: 'CSS selector (AI auto-heals if element not found)' },
         annotationId: { type: 'number', description: 'Alternative to selector: Pass the number from see_page(annotate: true) to click instantly' },
-        humanLike: { type: 'boolean', default: true, description: 'Ghost cursor human movement' },
+        humanLike: { type: 'boolean', default: true, description: 'Ghost cursor natural movement' },
         aiHeal: { type: 'boolean', default: true, description: 'Auto-find alternative selector if broken' },
         autoAcceptDialogs: { type: 'boolean', default: true, description: 'Auto-accept alerts/confirms to prevent blocking' },
         retries: { type: 'number', default: 3, description: 'Auto-retry on failure' },
@@ -149,8 +149,8 @@ const TOOLS = [
   {
     name: 'type',
     emoji: '⌨️',
-    description: 'Type text with human speed variation, smart clearing, and iframe support.\n\n🤖 AI Usage Guide: Like `click`, if the selector fails, use `see_page` with `annotate: true` and pass the `annotationId`.',
-    descriptionHindi: 'टेक्स्ट टाइप करना (human speed + iframe support)',
+    description: 'Type text with natural speed variation, smart clearing, and iframe support.\n\n🤖 AI Usage Guide: Like `click`, if the selector fails, use `see_page` with `annotate: true` and pass the `annotationId`.',
+    descriptionHindi: 'टेक्स्ट टाइप करना (natural speed + iframe support)',
     category: 'interaction',
     requiresBrowser: true,
     requiresPage: true,
@@ -160,7 +160,7 @@ const TOOLS = [
         selector: { type: 'string' },
         annotationId: { type: 'number', description: 'Alternative to selector: Pass the number from see_page(annotate: true) to type instantly' },
         text: { type: 'string' },
-        delay: { type: 'number', default: 50, description: 'Keystroke delay with natural variation' },
+        delay: { type: 'number', default: 50, description: 'Keystroke delay with natural timing' },
         clear: { type: 'boolean', default: true },
         aiHeal: { type: 'boolean', default: true },
         // NEW: iframe support
@@ -196,8 +196,8 @@ const TOOLS = [
   {
     name: 'solve_captcha',
     emoji: '🔓',
-    description: 'Auto-solve CAPTCHA with AI + Smart Form Automation (Turnstile, Text/Image OCR). Note: reCAPTCHA/hCaptcha are not supported — use third-party services for those.',
-    descriptionHindi: 'CAPTCHA हल करना + फॉर्म भरना (AI + OCR powered)',
+    description: 'Assist with CAPTCHA challenges using AI + Smart Form Automation (Turnstile, Text/Image OCR). Note: reCAPTCHA/hCaptcha are not supported — use third-party services for those.',
+    descriptionHindi: 'CAPTCHA सहायता + फॉर्म भरना (AI + OCR powered)',
     category: 'interaction',
     requiresBrowser: true,
     requiresPage: true,
@@ -228,7 +228,7 @@ const TOOLS = [
         formData: { type: 'object', description: 'Form field data to fill (AI matches fields automatically)' },
         formSelector: { type: 'string', description: 'Form selector (AI auto-detects if not provided)' },
         submit: { type: 'boolean', default: false, description: 'Auto-submit form after filling and captcha solving' },
-        humanLike: { type: 'boolean', default: true, description: 'Human-like typing with random delays' },
+        humanLike: { type: 'boolean', default: true, description: 'Natural typing with random delays' },
         aiMatch: { type: 'boolean', default: true, description: 'AI matches fields even if names differ' },
         analyzeFirst: { type: 'boolean', default: true, description: 'Analyze page structure before solving' }
       }
@@ -239,8 +239,8 @@ const TOOLS = [
   {
     name: 'random_scroll',
     emoji: '📜',
-    description: 'Human-like scroll with AI pattern detection',
-    descriptionHindi: 'स्क्रॉल करना (human-like + AI)',
+    description: 'Natural scroll with AI pattern detection',
+    descriptionHindi: 'स्क्रॉल करना (natural + AI)',
     category: 'interaction',
     requiresBrowser: true,
     requiresPage: true,
@@ -284,7 +284,7 @@ const TOOLS = [
   {
     name: 'extract_data',
     emoji: '🔎',
-    description: 'Universal data extractor with 9 modes: (1) regex, (2) json, (3) meta, (4) structured, (5) auto, (6) deobfuscate, (7) apiDiscovery, (8) decrypt, (9) links - extract all links including hidden, iframe, and obfuscated links.\n\n🤖 AI Usage Guide: Use this INSTEAD of executing custom JS (`execute_js`) to scrape data. If you need links, use type="links". For general info, use type="auto".',
+    description: 'Universal data extractor with 9 modes: (1) regex, (2) json, (3) meta, (4) structured, (5) auto, (6) deobfuscate, (7) apiDiscovery, (8) decrypt, (9) links - extract all links including hidden and iframe links.\n\n🤖 AI Usage Guide: Use this INSTEAD of executing custom JS (`execute_js`) to extract data. If you need links, use type="links". For general info, use type="auto".',
     descriptionHindi: 'यूनिवर्सल डेटा एक्सट्रैक्टर — 9 modes: regex, json, meta, structured, auto, deobfuscate, apiDiscovery, decrypt, links (extract all links)।',
     category: 'extraction',
     requiresBrowser: true,
@@ -313,7 +313,7 @@ const TOOLS = [
   {
     name: 'press_key',
     emoji: '🎹',
-    description: 'Press keyboard keys with human-like timing',
+    description: 'Press keyboard keys with natural timing',
     descriptionHindi: 'की प्रेस करना',
     category: 'interaction',
     requiresBrowser: true,
@@ -324,7 +324,7 @@ const TOOLS = [
         key: { type: 'string' },
         modifiers: { type: 'array', items: { type: 'string' } },
         count: { type: 'number', default: 1 },
-        humanDelay: { type: 'boolean', default: true, description: 'Natural delay between presses' }
+        humanDelay: { type: 'boolean', default: true, description: 'Natural timing between presses' }
       },
       required: ['key']
     }
@@ -354,8 +354,8 @@ const TOOLS = [
   {
     name: 'deep_analysis',
     emoji: '🧠',
-    description: 'Deep page analysis: DOM structure, scripts, styles, accessibility, performance metrics, SEO tags, security headers, anti-bot detection (Cloudflare, DataDome, reCAPTCHA), technology stack identification, and AI-powered recommendations for scraping strategy.\n\n🤖 AI Usage Guide: Use this if you are getting blocked or if elements are mysteriously absent, to check for anti-bot measures or iFrames.',
-    descriptionHindi: 'गहरा पेज विश्लेषण — DOM, scripts, anti-bot detection, tech stack, SEO, AI recommendations।',
+    description: 'Deep page analysis: DOM structure, scripts, styles, accessibility, performance metrics, SEO tags, security headers, bot-detection signals (Cloudflare, DataDome, reCAPTCHA), technology stack identification, and AI-powered recommendations for extraction strategy.\n\n🤖 AI Usage Guide: Use this if elements are mysteriously absent, to check for bot-detection signals or iFrames.',
+    descriptionHindi: 'गहरा पेज विश्लेषण — DOM, scripts, bot-detection signals, tech stack, SEO, AI recommendations।',
     category: 'analysis',
     requiresBrowser: true,
     requiresPage: true,
@@ -365,7 +365,7 @@ const TOOLS = [
         types: { type: 'array', items: { type: 'string' }, default: ['all'] },
         detailed: { type: 'boolean', default: true },
         aiInsights: { type: 'boolean', default: true, description: 'AI provides recommendations' },
-        detectAntiBot: { type: 'boolean', default: true, description: 'Detect anti-bot measures' }
+        detectAntiBot: { type: 'boolean', default: true, description: 'Detect bot-detection signals' }
       }
     }
   },
@@ -404,7 +404,7 @@ const TOOLS = [
   {
     name: 'media_extractor',
     emoji: '🎬',
-    description: 'Universal media extractor with 6 actions: (1) extract - find all video/audio/HLS/DASH/download URLs from page + nested iframes (3+ levels deep), (2) list_iframes - list all iframes with indices, (3) switch_iframe - get iframe URL and info (use iframe/iframeSelector params on other tools to target specific iframes), (4) player_control - control video players (JWPlayer, VideoJS, Plyr, VidStack, DooPlayer) via API: play/pause/seek/sources, (5) decode_url - decode obfuscated URLs: auto/url/base64/aes with key+IV, (6) batch_extract - extract from multiple URLs at once.',
+    description: 'Universal media extractor with 6 actions: (1) extract - find all video/audio/HLS/DASH/download URLs from page + nested iframes (3+ levels deep), (2) list_iframes - list all iframes with indices, (3) switch_iframe - get iframe URL and info (use iframe/iframeSelector params on other tools to target specific iframes), (4) player_control - control video players (JWPlayer, VideoJS, Plyr, VidStack, DooPlayer) via API: play/pause/seek/sources, (5) decode_url - decode encoded URLs: auto/url/base64/aes with key+IV, (6) batch_extract - extract from multiple URLs at once.',
     descriptionHindi: 'मीडिया एक्सट्रैक्टर — 6 actions: extract/list_iframes/switch_iframe/player_control/decode_url/batch_extract। Video players + iframes + decoders।',
     category: 'extraction',
     requiresBrowser: true,
@@ -486,7 +486,7 @@ const TOOLS = [
   {
     name: 'replay_request',
     emoji: '🔁',
-    description: 'Replay a captured API request directly in the browser context (bypasses CORS, attaches auth/cookies).',
+    description: 'Replay a captured API request within the browser context (same-origin, with cookies attached).',
     descriptionHindi: 'कैप्चर की गई रिक्वेस्ट को फिर से ब्राउज़र में भेजना।',
     category: 'network',
     requiresBrowser: true,
@@ -556,7 +556,7 @@ const CATEGORIES = {
   browser: { name: 'Browser', emoji: '🌐', description: 'Browser lifecycle management' },
   navigation: { name: 'Navigation', emoji: '🧭', description: 'Page navigation' },
   interaction: { name: 'Interaction', emoji: '👆', description: 'User interactions' },
-  extraction: { name: 'Extraction', emoji: '📄', description: 'Content extraction and scraping' },
+  extraction: { name: 'Extraction', emoji: '📄', description: 'Content extraction' },
   network: { name: 'Network', emoji: '📡', description: 'Network operations' },
   analysis: { name: 'Analysis', emoji: '🧠', description: 'Page analysis' },
 

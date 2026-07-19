@@ -1,7 +1,7 @@
 {
   "name": "real-browser-mcp-server",
   "version": "2.0.8",
-  "description": "MCP Server for Real Browser - Patchright (undetected Playwright fork) with Stealth Mode, Ad Blocker, and Turnstile Auto-Solver for undetectable web automation.",
+  "description": "MCP Server for Real Browser - Patchright (reliable Playwright fork) with Ad Blocker, AI Healing, and Automation Assist for controlled web automation and testing.",
   "main": "dist/src/index.js",
   "module": "dist/lib/esm/index.mjs",
   "type": "commonjs",
@@ -40,9 +40,10 @@
     "model-context-protocol",
     "patchright",
     "playwright",
-    "stealth",
-    "cloudflare-bypass",
-    "turnstile-solver"
+    "browser-automation",
+    "web-automation",
+    "web-testing",
+    "automation"
   ],
   "author": "codeiva4u",
   "license": "ISC",
