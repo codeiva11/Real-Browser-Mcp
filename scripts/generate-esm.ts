@@ -1,8 +1,16 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-const cjsDir = path.join(__dirname, '..', 'lib', 'cjs');
-const esmDir = path.join(__dirname, '..', 'lib', 'esm');
+// When compiled, this script runs from dist/scripts/generate-esm.js, so __dirname = dist/scripts.
+// The project root is therefore two levels up: path.join(__dirname, '..', '..').
+const projectRoot = path.join(__dirname, '..', '..');
+
+// Source CJS files live in <projectRoot>/lib/cjs (committed TypeScript sources).
+const cjsDir = path.join(projectRoot, 'lib', 'cjs');
+
+// ESM output must be written to dist/lib/esm so that package.json "exports"."."."import"
+// resolves to "./dist/lib/esm/index.mjs".
+const esmDir = path.join(projectRoot, 'dist', 'lib', 'esm');
 
 function convertCjsToEsm(content: string, _filename: string): string {
   let out = content;
@@ -61,10 +69,28 @@ function processDir(cjsSubDir: string, esmSubDir: string): void {
   }
 }
 
+// Guard: if the source CJS directory does not exist, fail with a clear message
+// instead of crashing inside fs.readdirSync with an ENOENT stack trace.
+if (!fs.existsSync(cjsDir)) {
+  console.error(`\n❌ ESM generation failed: source directory not found: ${cjsDir}`);
+  console.error(`   Make sure lib/cjs exists in the project root before running this script.`);
+  process.exit(1);
+}
+
 processDir(cjsDir, esmDir);
 
+// Copy any non-TS assets (e.g. adblocker.bin) from lib/cjs -> dist/lib/esm so that
+// runtime imports of binary assets resolve correctly in the published package.
+for (const entry of fs.readdirSync(cjsDir, { withFileTypes: true })) {
+  if (!entry.isDirectory() && !entry.name.endsWith('.ts')) {
+    const src = path.join(cjsDir, entry.name);
+    const dest = path.join(esmDir, entry.name);
+    fs.copyFileSync(src, dest);
+  }
+}
+
 const indexEsm = `import { pageController } from "./module/pageController.mjs";
-import { createConnect } from "../../dist/src/shared/lib-core.js";
+import { createConnect } from "../../src/shared/lib-core.js";
 
 export const connect = createConnect(pageController);
 `;
