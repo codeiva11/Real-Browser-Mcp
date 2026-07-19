@@ -102,6 +102,11 @@ module.exports = {
   activityLogger,
   ActivityLogger,
   startMCP: () => require('./mcp/index'),
+  // Re-export `connect` from compiled lib/cjs entry so CJS consumers (and tests)
+  // get the same function the ESM entry exposes, without loading patchright on startup.
+  get connect() {
+    return require('../lib/cjs/index').connect;
+  },
 };
 
 // Run if called directly

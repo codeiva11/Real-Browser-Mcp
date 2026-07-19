@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 const type = process.argv.includes('--esm') ? 'esm' : 'cjs';
-const libPath = type === 'esm' ? '../lib/esm/index.mjs' : '../dist/lib/cjs/index.js';
+const libPath = type === 'esm' ? '../dist/lib/esm/index.mjs' : '../dist/src/index.js';
 const { connect } = await import(libPath);
 
 console.log(`🧪 Running ${type.toUpperCase()} Tests`);

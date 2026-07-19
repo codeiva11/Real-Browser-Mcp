@@ -17,6 +17,6 @@
     "sourceMap": true,
     "noEmitOnError": false
   },
-  "include": ["src/**/*", "test/**/*", "scripts/**/*"],
-  "exclude": ["lib/**/*", "dist/**/*", "node_modules/**/*"]
+  "include": ["src/**/*", "lib/**/*", "test/**/*", "scripts/**/*"],
+  "exclude": ["dist/**/*", "node_modules/**/*"]
 }
