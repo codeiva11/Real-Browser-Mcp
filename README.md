@@ -33,14 +33,21 @@ Add the following to your MCP Configuration file (e.g. `cline_mcp_settings.json`
 
 ### 🌍 Global Installation
 
-You can also install it globally on your system:
+Install it globally on your system. The hardened browser (Patchright Chromium) is **downloaded automatically** during install — no extra steps needed:
 
 ```bash
+# One command: installs the server AND auto-downloads Patchright Chromium
 npm install -g real-browser-mcp-server
 
 # Run the MCP server
 real-browser-mcp mcp
 ```
+
+> [!NOTE]
+> The `postinstall` step automatically runs `npx patchright install chromium`, which detects your OS and CPU architecture (Windows / Linux / macOS × x64 / arm64 / arm) and fetches the correct binary. If auto-download is skipped (e.g. offline), run it manually:
+> ```bash
+> npx patchright install chromium
+> ```
 
 ### 🛠️ Local Development & Build (Git Clone)
 
@@ -53,22 +60,19 @@ git clone https://github.com/codeiva4u/Real-Browser-Mcp-Server.git
 # 2. Navigate to the project directory
 cd Real-Browser-Mcp-Server
 
-# 3. Install dependencies
+# 3. Install dependencies (Patchright Chromium is auto-downloaded via postinstall)
 npm install
 
-# 4. IMPORTANT: Install Chromium-Driver for Patchright (Hardened Browser binary)
-npx patchright install chromium
-
-# 5. Build the TypeScript files
+# 4. Build the TypeScript files
 npm run build
 
-# 6. Start the MCP server
+# 5. Start the MCP server
 npm run mcp
 ```
 
 > [!NOTE]
 > *Why does `npm run build` not build the entire project alone?*
-> `npm run build` only compiles the TypeScript code into JavaScript (`dist/`). However, the hardened browser engine (`patchright`) requires you to explicitly download its browser binaries using `npx patchright install chromium`. Without this step, the server will crash trying to find Chromium.
+> `npm run build` only compiles the TypeScript code into JavaScript (`dist/`). However, the hardened browser engine (`patchright`) requires the browser binaries, which are now fetched **automatically** by the `postinstall` hook (`npx patchright install chromium`). If you skipped it, run that command manually. Without Chromium, the server will crash trying to find it.
 
 ### 🐳 Run via Docker (Recommended for Servers)
 

@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 # Copy package files first for better layer caching
 COPY package*.json ./
 
+# Skip the postinstall browser auto-download (handled explicitly below for multi-arch support)
+ENV CI=true
+
 # Install dependencies
 RUN npm ci
 
