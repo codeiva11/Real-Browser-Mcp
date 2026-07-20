@@ -403,8 +403,11 @@ export const mediaHandlers = {
           : (index !== undefined ? frames[index] : undefined);
 
         if (targetFrame) {
+          const resolvedIndex: number = selector
+            ? frames.findIndex((f: any) => f === targetFrame)
+            : (index ?? -1);
           notifyProgress('media_extractor', 'completed', `Switched to iframe: ${targetFrame.url()}`);
-          return { success: true, action: 'switch_iframe', switched: true, url: targetFrame.url(), frameIndex: index };
+          return { success: true, action: 'switch_iframe', switched: true, url: targetFrame.url(), frameIndex: resolvedIndex >= 0 ? resolvedIndex : undefined };
         }
         notifyProgress('media_extractor', 'error', 'Iframe not found');
         return { success: false, error: 'Iframe not found' };

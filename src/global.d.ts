@@ -27,8 +27,6 @@ interface Window {
   __DATA__: any;
   __INITIAL_STATE__: any;
   __APP_DATA__: any;
-  data: any;
-  config: any;
 
 
   // Dialog overrides

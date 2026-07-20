@@ -196,7 +196,7 @@ const TOOLS = [
   {
     name: 'solve_captcha',
     emoji: '🔓',
-    description: 'Handle verification widgets and smart form automation for automated testing of your own pages (interactive challenge widgets, text/image recognition via OCR). Note: some third-party widgets are not supported — use dedicated services for those.',
+    description: 'Handle verification widgets and smart form automation for automated testing of your own pages (Turnstile challenges, text/image recognition via OCR). Note: reCAPTCHA/hCaptcha are not supported — use third-party services for those.',
     descriptionHindi: 'वेरिफिकेशन widget हैंडल करना + फॉर्म भरना (अपने पेज की टेस्टिंग के लिए, OCR powered)',
     category: 'interaction',
     requiresBrowser: true,
@@ -209,7 +209,7 @@ const TOOLS = [
           type: 'string',
           enum: ['turnstile', 'text', 'image', 'auto'],
           default: 'auto',
-          description: 'Verification type: turnstile (JS-based), text/image (OCR-based), auto (detect). Note: some third-party widgets are not supported — use dedicated services.'
+          description: 'Verification type: turnstile (JS-based), text/image (OCR-based), auto (detect). Note: reCAPTCHA/hCaptcha are not supported — use third-party services.'
         },
         timeout: { type: 'number', default: 30000 },
         captchaSelector: { type: 'string', description: 'CSS selector for captcha image (required for text/image type)' },
@@ -342,7 +342,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['start', 'update', 'complete', 'get'], default: 'get' },
+        action: { type: 'string', enum: ['start', 'update', 'complete', 'get', 'clear'], default: 'get' },
         taskName: { type: 'string' },
         progress: { type: 'number', description: '0-100' },
         aiEstimate: { type: 'boolean', default: true, description: 'AI estimates remaining time' }
@@ -354,7 +354,7 @@ const TOOLS = [
   {
     name: 'deep_analysis',
     emoji: '🧠',
-    description: 'Deep page analysis: DOM structure, scripts, styles, accessibility, performance metrics, SEO tags, response headers, technology stack identification, and recommendations for the best content-loading strategy.\n\n🤖 AI Usage Guide: Use this if a page fails to load fully or if elements are unexpectedly absent, to check for platform restrictions or iFrames.',
+    description: 'Deep page analysis: DOM structure, scripts, styles, accessibility, performance metrics, SEO tags, security headers, protection-service detection (Cloudflare, DataDome, reCAPTCHA), technology stack identification, and recommendations for the best content-loading strategy.\n\n🤖 AI Usage Guide: Use this if a page fails to load fully or if elements are unexpectedly absent, to check for protection services or iFrames.',
     descriptionHindi: 'गहरा पेज विश्लेषण — DOM, scripts, protection-service detection, tech stack, SEO, recommendations।',
     category: 'analysis',
     requiresBrowser: true,
@@ -528,8 +528,8 @@ const TOOLS = [
   {
     name: 'see_page',
     emoji: '👁️',
-    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does. Captures a screenshot and returns the actual image to the AI agent so it can visually understand the layout, AND returns a "visual map" of all visible interactive elements (buttons, links, inputs) with their on-screen position (x/y/width/height), text label, and a click-ready selector. Use this to look at a page before deciding where to click/type.\n\n🤖 AI Usage Guide: PREFER a single FULL-PAGE view (set fullPage: true) so the whole page and all its interactive elements are mapped in one shot, then plan and perform ALL needed actions for that page (read, click, type, extract) from this single view. Call see_page a SECOND time ONLY IF the task genuinely cannot be completed from the first view, OR after the page actually changes — navigation, a modal/popup opens, or new dynamic content loads. Do NOT re-capture the SAME unchanged page repeatedly.',
-    descriptionHindi: 'AI विज़न ("आँखें"): पेज को इंसान की तरह देखना। स्क्रीनशॉट image सीधे AI को भेजता है ताकि वह layout देख सके + सभी दिखने वाले clickable elements का visual map (position + text + selector) देता है। नियम: पहले पूरे पेज का full-page view लें (fullPage: true) ताकि पूरा पेज और उसके सारे elements एक ही बार में map हो जाएँ, फिर उसी एक view से उस पेज के सारे ज़रूरी काम (पढ़ना, क्लिक, टाइप, data निकालना) एक साथ पूरे करें। दूसरी बार see_page सिर्फ़ तभी लें जब पहले view से काम पूरा न हो पाए, या पेज सच में बदल जाए (navigation, modal/popup खुले, या नया dynamic content load हो)। बिना बदलाव के उसी पेज का दोबारा स्क्रीनशॉट न लें।',
+    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does. Returns a screenshot image AND a RICH SINGLE-SHOT MAP of the entire page in one call: full page text, all visible interactive elements (buttons, links, inputs) with position/selector, AND an iframe inventory — so you can plan and execute a whole multi-step task from ONE view without re-capturing the page after every action.\n\n🤖 AI Usage Guide (HUMAN-LIKE WORKFLOW):\n1. Call see_page ONCE with fullPage:true, includePageText:true, scanIframes:true, annotate:true.\n2. From that single view, PLAN and RUN all actions for this page in a CONTINUOUS sequence (click, type, press_key, random_scroll, extract_data…) WITHOUT calling see_page again for the same unchanged page.\n3. ONLY call see_page AGAIN after the page genuinely changes (navigation to a new URL, a modal/popup opens, or new dynamic content loads). Never re-capture the same unchanged page.\n4. For multi-page tasks (login → dashboard → settings), let each navigation trigger a fresh single see_page, then continue the continuous action sequence. This mimics how a human watches a page once, acts, then looks again only when the page actually changes.',
+    descriptionHindi: 'AI विज़न ("आँखें"): पेज को इंसान की तरह देखना — एक ही call में screenshot + पूरा page text + सभी clickable elements का map + iframe inventory। नियम: पहले एक बार fullPage:true से देखो, फिर उसी एक view से सारे actions (click/type/extract) लगातार करो बिना बीच-बीच में दोबारा screenshot लिए। दोबारा see_page सिर्फ तभी जब पेज वाकई बदले (navigation/modal/new content)। Multi-page tasks में हर नए पेज पर एक बार देखो, फिर लगातार काम करो — ठीक वैसे जैसे इंसान करता है।',
     category: 'vision',
     requiresBrowser: true,
     requiresPage: true,
@@ -542,11 +542,52 @@ const TOOLS = [
         quality: { type: 'number', default: 70, description: 'JPEG quality 0-100 (lower = smaller image to the AI)' },
         includeElements: { type: 'boolean', default: true, description: 'Include the visual map of interactive elements' },
         includeDomText: { type: 'boolean', default: false, description: 'Include the full text content of the page (DOM reading)' },
+        includePageText: { type: 'boolean', default: true, description: 'Include cleaned page text so the agent can plan actions without re-capturing' },
+        scanIframes: { type: 'boolean', default: true, description: 'List all iframes (index + url) so cross-frame navigation is planned in one view' },
         maxElements: { type: 'number', default: 60, description: 'Max number of interactive elements to map' },
         path: { type: 'string', description: 'Optional file path to also save the captured image' },
         autoHover: { type: 'boolean', default: false, description: 'Hover over menus before taking screenshot to reveal dropdowns' },
         watchMutations: { type: 'boolean', default: false, description: 'Check for DOM mutations (popups/alerts) since last view' }
       }
+    }
+  },
+
+  // 22. Browse Task (Human-like continuous workflow helper)
+  {
+    name: 'browse_task',
+    emoji: '🧭',
+    description: 'HUMAN-LIKE TASK RUNNER: Execute a sequence of browsing actions on the current page in ONE continuous flow, exactly like a person who looks once then acts. Pass a list of steps (click / type / press_key / scroll / wait / extract / see) and they run back-to-back WITHOUT pausing for a screenshot between steps. Use see_page FIRST (once, fullPage) to map the page, then call browse_task with the planned steps. The tool captures a BEFORE screenshot, runs all steps in order, then an AFTER screenshot — so you only "look" twice, not after every micro-step. Ideal for multi-step forms, wizards, and checkouts. Steps use the same selectors/annotationIds as click/type.\n\n🤖 AI Usage Guide: Plan the whole task from a single see_page view, then hand the step list to browse_task. Only re-run see_page + browse_task when the page genuinely navigates/changes.',
+    descriptionHindi: 'इंसान जैसा task runner: एक ही लगातार flow में browsing actions चलाए (बीच में हर step के बाद screenshot नहीं)। पहले see_page (एक बार, fullPage) से पेज map करो, फिर steps की list browse_task को दो — वह BEFORE screenshot लेगा, सारे steps लगातार चलाएगा, फिर AFTER screenshot। Multi-step forms/wizards के लिए बेहतरीन।',
+    category: 'vision',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        steps: {
+          type: 'array',
+          description: 'Ordered list of actions to run continuously. Each item: { action: "click"|"type"|"press_key"|"scroll"|"wait"|"extract"|"see", selector?, annotationId?, text?, key?, direction?, amount?, value?, format?, timeout? }',
+          items: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', enum: ['click', 'type', 'press_key', 'scroll', 'wait', 'extract', 'see'] },
+              selector: { type: 'string', description: 'CSS selector (or annotationId instead)' },
+              annotationId: { type: 'number', description: 'Numeric id from a prior see_page(annotate:true)' },
+              text: { type: 'string', description: 'For type: text to enter' },
+              key: { type: 'string', description: 'For press_key: key to press' },
+              direction: { type: 'string', enum: ['up', 'down', 'random', 'smart'], description: 'For scroll' },
+              amount: { type: 'number', description: 'For scroll: pixels' },
+              value: { type: 'string', description: 'For wait: selector/value' },
+              format: { type: 'string', enum: ['html', 'text', 'markdown', 'rawHttp', 'elements'], description: 'For extract' },
+              timeout: { type: 'number', description: 'Per-step timeout (ms)' }
+            }
+          }
+        },
+        captureBefore: { type: 'boolean', default: true, description: 'Take a screenshot before running steps' },
+        captureAfter: { type: 'boolean', default: true, description: 'Take a screenshot after running steps' },
+        stopOnError: { type: 'boolean', default: true, description: 'Stop the sequence if a step fails (true) or continue (false)' }
+      },
+      required: ['steps']
     }
   }
 ];
@@ -573,77 +614,9 @@ const TOOL_DISPLAY = TOOLS.map(t => ({
   category: t.category
 }));
 
-// ─────────────────────────────────────────────
-// Content-filter safe-guard
-//
-// Some AI platforms / model gateways run an outbound content filter on the
-// tool list and tool responses they proxy to the model. If a tool name,
-// description, or response contains certain automation / security related
-// trigger words, the gateway returns:
-//   { "name": "UnknownError", "data": { "message": "[400]: content-blocked (request id: ...)" } }
-// This is NOT a bug in the MCP server itself — the server still emits a
-// valid JSON-RPC message; the block happens on the client/gateway side.
-//
-// To keep the server usable inside those environments we normalise the
-// exposed surface so that no safety-trigger vocabulary leaks into the
-// tool metadata that the gateway scans. The actual functionality is
-// unchanged — only the wording is neutralised.
-// ─────────────────────────────────────────────
-
-// Words that commonly trip outbound content filters on AI gateways.
-const SENSITIVE_TERMS: Array<[RegExp, string]> = [
-  [/\b(bypass|circumvent|evade|beat|trick)\b/gi, 'handle'],
-  [/\b(stealth|cloudflare|datadome|recaptcha|hcaptcha|turnstile|akamai|perimeterx|fingerprint|bot\s*detect|antibot|protection\s*service)\b/gi, 'platform'],
-  [/\b(captcha|capcha)\b/gi, 'verification'],
-  [/\b(solve|breaking|breaking\s*selector|self[\s-]?healing)\b/gi, 'smart'],
-  [/\b(automation|bypass|hardened|ad[\s-]?blocker)\b/gi, 'control'],
-  [/\b(blocked|security\s*header|challenge|waf)\b/gi, 'header'],
-];
-
-function neutralizeText(input: string): string {
-  if (typeof input !== 'string' || input.length === 0) return input;
-  let out = input;
-  for (const [pattern, replacement] of SENSITIVE_TERMS) {
-    out = out.replace(pattern, replacement);
-  }
-  // Collapse accidental double spaces left by replacements
-  return out.replace(/\s{2,}/g, ' ').trim();
-}
-
-/**
- * Returns a content-filter-safe description for a tool.
- * Used when advertising tools to clients/gateways.
- */
-export function sanitizeToolDescription(tool: { name: string; emoji: string; description: string }): string {
-  return `${tool.emoji} ${neutralizeText(tool.description)}`;
-}
-
-/**
- * Recursively neutralise any safety-trigger vocabulary inside a tool
- * response object before it is sent back to the client/gateway.
- */
-export function sanitizeToolResult(payload: unknown): unknown {
-  if (payload === null || payload === undefined) return payload;
-  if (typeof payload === 'string') return neutralizeText(payload);
-  if (typeof payload === 'number' || typeof payload === 'boolean') return payload;
-  if (Array.isArray(payload)) return payload.map((item) => sanitizeToolResult(item));
-  if (typeof payload === 'object') {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
-      // Never let raw error strings carry trigger words to the gateway
-      result[key] = sanitizeToolResult(value);
-    }
-    return result;
-  }
-  return payload;
-}
-
 module.exports = {
   TOOLS,
   TOOL_DISPLAY,
   CATEGORIES,
-  sanitizeToolDescription,
-  sanitizeToolResult,
-  neutralizeText,
 };
 export {}

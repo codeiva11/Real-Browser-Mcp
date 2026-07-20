@@ -3,19 +3,12 @@ import * as fs from 'fs';
 import { state, requireBrowser, notifyProgress } from './state';
 import type { SeePageParams } from '../../types';
 
-/**
- * Resolve a user-supplied output path to a location INSIDE the current
- * working directory. Writing outside cwd (path traversal) is rejected.
- */
+/** Resolve a user-supplied save path, preventing path traversal outside cwd. */
 function safeResolve(savePath: string): string | null {
-  try {
-    const resolved = path.resolve(savePath);
-    const cwd = path.resolve(process.cwd());
-    if (resolved !== cwd && !resolved.startsWith(cwd + path.sep)) return null;
-    return resolved;
-  } catch {
-    return null;
-  }
+  const resolved = path.resolve(savePath);
+  const cwd = path.resolve(process.cwd());
+  if (resolved !== cwd && !resolved.startsWith(cwd + path.sep)) return null;
+  return resolved;
 }
 
 export async function seePage(params: SeePageParams = {}) {
@@ -27,6 +20,8 @@ export async function seePage(params: SeePageParams = {}) {
     includeElements = true,
     annotate = false,
     includeDomText = false,
+    includePageText = true,
+    scanIframes = true,
     maxElements = 60,
     path: savePath,
     autoHover = false,
@@ -182,12 +177,24 @@ export async function seePage(params: SeePageParams = {}) {
     elements = data.elements || [];
     pageInfo = data.info || {};
 
+    // Rich single-shot extras: full page text + iframe inventory, so the
+    // AI agent can plan and execute an entire multi-step task from ONE view
+    // instead of re-capturing the page after every action.
+    if (includePageText) {
+      pageInfo.pageText = await page.evaluate(() => (document.body ? document.body.innerText : '').replace(/\s+/g, ' ').trim().slice(0, 8000)).catch(() => '');
+    }
+    if (scanIframes) {
+      try {
+        pageInfo.iframes = page.frames().map((f: any, i: number) => ({ index: i, url: f.url(), name: f.name() }));
+      } catch { /* ignore */ }
+    }
+
     state.activeAnnotations = {};
     for (const el of elements) state.activeAnnotations[el.id] = { selector: el.selector, text: el.text, type: el.kind };
   }
 
-   const shotOpts: any = { type: format, fullPage };
-   if (typeof quality === 'number') shotOpts.quality = quality;
+  const shotOpts: any = { type: format, fullPage };
+  if (format === 'jpeg' && typeof quality === 'number') shotOpts.quality = quality;
 
   let buffer;
   try {
@@ -210,15 +217,12 @@ export async function seePage(params: SeePageParams = {}) {
 
   let savedTo = null;
   if (savePath) {
-    const safePath = safeResolve(savePath);
-    if (!safePath) {
-      notifyProgress('see_page', 'error', 'Invalid save path (outside working directory).');
-    } else {
-      const dir = path.dirname(safePath);
-      if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(safePath, buffer);
-      savedTo = safePath;
-    }
+    const resolved = safeResolve(savePath);
+    if (!resolved) return { success: false, error: 'path is outside the working directory (path traversal blocked).' };
+    const dir = path.dirname(resolved);
+    if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(resolved, buffer);
+    savedTo = resolved;
   }
 
   notifyProgress('see_page', 'completed',
@@ -232,6 +236,8 @@ export async function seePage(params: SeePageParams = {}) {
     viewport: pageInfo.viewport,
     scroll: { y: pageInfo.scrollY, pageHeight: pageInfo.scrollHeight },
     visibleInteractiveElements: elements.length,
+    pageText: pageInfo.pageText,
+    iframes: pageInfo.iframes,
     domText,
     mutationsSinceLastCheck: watchMutations ? mutationsSinceLastCheck : undefined,
     elements,
@@ -239,10 +245,10 @@ export async function seePage(params: SeePageParams = {}) {
   };
 
   return {
+    success: true,
     mcpContent: [
       { type: 'image', data: base64, mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png' },
       { type: 'text', text: `If the current model cannot read images, ignore the attached image and use this JSON summary instead.\n\n${JSON.stringify(summary, null, 2)}` }
-    ],
-    ...summary
+    ]
   };
 }

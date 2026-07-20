@@ -15,5 +15,6 @@
     "sourceMap": true,
     "noEmitOnError": false
   },
-  "include": ["src/**/*", "lib/**/*", "test/**/*", "scripts/**/*"]
+  "include": ["src/**/*", "lib/cjs/**/*", "test/**/*", "scripts/**/*"],
+  "exclude": ["lib/esm/**/*"]
 }

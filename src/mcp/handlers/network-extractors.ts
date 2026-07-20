@@ -43,12 +43,13 @@ export async function extractData(params: any = {}) {
       for (const match of matches.slice(0, maxJsonObjects)) { try { jsonData.push(JSON.parse(match)); } catch { } }
     } else if (jsonSource === 'api') {
       const apiData = await page.evaluate(() => {
+        const w = window as any;
         const data: any[] = [];
-        if (window.__DATA__) data.push(window.__DATA__);
-        if (window.__INITIAL_STATE__) data.push(window.__INITIAL_STATE__);
-        if (window.__APP_DATA__) data.push(window.__APP_DATA__);
-        if (window.data) data.push(window.data);
-        if (window.config) data.push(window.config);
+        if (w.__DATA__) data.push(w.__DATA__);
+        if (w.__INITIAL_STATE__) data.push(w.__INITIAL_STATE__);
+        if (w.__APP_DATA__) data.push(w.__APP_DATA__);
+        if (w.data) data.push(w.data);
+        if (w.config) data.push(w.config);
         return data;
       });
       jsonData.push(...apiData);
@@ -395,9 +396,9 @@ async function discoverAPIs(page: any) {
     scriptSources: [], inlineApiPatterns: [], postBodies: [], dynamicApis: []
   };
 
-   // Capture already-intercepted APIs from network_recorder (no setTimeout needed)
+  // Capture already-intercepted APIs from network_recorder (no setTimeout needed)
   try {
-    const capturedApis = await page.evaluate(() => (window as any).__interceptedApis || []);
+    const capturedApis = await page.evaluate(() => (window as any).__interceptedApis || []).catch(() => []);
     apiResults.dynamicApis = capturedApis;
   } catch (e) { apiResults.dynamicApis = []; }
 

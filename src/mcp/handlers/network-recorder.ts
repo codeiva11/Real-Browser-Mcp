@@ -5,6 +5,11 @@ export async function startRecording(page: any, captureXhrBody = false) {
   state.networkRecords = [];
   state.isRecordingNetwork = true;
 
+  // Inject the API/WebSocket interception shim only once per page. Re-running
+  // startRecording (e.g. stop -> start) would otherwise stack multiple
+  // fetch/XHR monkey-patches and duplicate every captured request.
+  if (!page._networkRecorderInjected) {
+    page._networkRecorderInjected = true;
   try {
     await page.addInitScript(() => {
       window.__interceptedApis = [];
@@ -98,13 +103,14 @@ export async function startRecording(page: any, captureXhrBody = false) {
 
         return ws;
       } as any;
-      (window.WebSocket as any).prototype = OrigWS.prototype;
+      window.WebSocket.prototype = OrigWS.prototype;
       (window.WebSocket as any).CONNECTING = OrigWS.CONNECTING;
       (window.WebSocket as any).OPEN = OrigWS.OPEN;
       (window.WebSocket as any).CLOSING = OrigWS.CLOSING;
       (window.WebSocket as any).CLOSED = OrigWS.CLOSED;
     });
   } catch (e) { }
+  }
 
   const requestListener = (req: any) => {
     if (state.isRecordingNetwork) {

@@ -9,7 +9,7 @@ const {
   McpError,
 } = require('@modelcontextprotocol/sdk/types.js');
 
-const { TOOLS, sanitizeToolDescription, sanitizeToolResult } = require('../shared/tools');
+const { TOOLS } = require('../shared/tools');
 const { executeTool, cleanup } = require('./handlers');
 
 // Single source of truth: read version from package.json (avoids version drift)
@@ -45,7 +45,7 @@ function createServer() {
     return {
       tools: TOOLS.map((tool: any) => ({
         name: tool.name,
-        description: sanitizeToolDescription(tool),
+        description: `${tool.emoji} ${tool.description}`,
         inputSchema: tool.inputSchema,
       })),
     };
@@ -70,12 +70,11 @@ function createServer() {
 
       // Format response
       if (result.success === false && result.error) {
-        const safe = sanitizeToolResult({ error: result.error });
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(safe, null, 2),
+              text: JSON.stringify({ error: result.error }, null, 2),
             },
           ],
           isError: true,
@@ -90,17 +89,16 @@ function createServer() {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(sanitizeToolResult(result), null, 2),
+            text: JSON.stringify(result, null, 2),
           },
         ],
       };
     } catch (error: any) {
-      const safe = sanitizeToolResult({ error: error.message });
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(safe, null, 2),
+            text: JSON.stringify({ error: error.message }, null, 2),
           },
         ],
         isError: true,

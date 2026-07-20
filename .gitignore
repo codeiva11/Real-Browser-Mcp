@@ -13,8 +13,9 @@ coverage
 *.tgz
 
 # Cache files (regenerated at runtime)
-.cache/
 **/cache/filter-cache.json
+# Legacy project-local cache (server now uses OS temp dir instead)
+.cache/
 
 # Build artifacts
 dist-esm

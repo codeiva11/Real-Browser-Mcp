@@ -15,6 +15,11 @@ export const utilityHandlers = {
   async progress_tracker(params: ProgressTrackerParams = {}) {
     const { action = 'get', taskName = '', progress, aiEstimate = true } = params;
 
+    if (action === 'clear') {
+      state.progressTasks = {};
+      return { success: true, message: 'All tasks cleared', tasks: state.progressTasks };
+    }
+
     switch (action) {
       case 'start':
         state.progressTasks[taskName] = { progress: 0, startTime: Date.now() };
@@ -57,7 +62,7 @@ export const utilityHandlers = {
 
     notifyProgress('deep_analysis', 'started', 'Analyzing page...');
 
-    const analysis = await page.evaluate(({ detectAntiBot }: any) => {
+    const analysis = await page.evaluate(({ detectAntiBot, detailed }: any) => {
       const result: any = {
         seo: {
           title: document.title,
@@ -119,7 +124,7 @@ export const utilityHandlers = {
       }
 
       return result;
-    }, { detectAntiBot });
+    }, { detectAntiBot, detailed });
 
     const insights: string[] = [];
     if (aiInsights) {
@@ -215,10 +220,9 @@ export const utilityHandlers = {
           return regs.map(r => ({ scope: r.scope, active: !!r.active }));
         });
         return { success: true, count: sw.length, serviceWorkers: sw };
-      } 
-      
+      }
+
       if (action === 'indexeddb') {
-        // ponytail: evaluate to extract native indexedDB list without CDP overhead
         const idbs = await page.evaluate(async () => {
           if (!indexedDB.databases) return [];
           const dbs = await indexedDB.databases();
@@ -226,6 +230,8 @@ export const utilityHandlers = {
         });
         return { success: true, count: idbs.length, databases: idbs };
       }
+
+      return { success: false, error: `Unknown action: ${action}. Supported: indexeddb, service_workers` };
     } catch (e: any) {
       return { success: false, error: e.message };
     }

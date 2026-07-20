@@ -7,7 +7,7 @@
 
 A production-ready **Model Context Protocol (MCP)** server that equips AI agents with a reliable, controlled web browser for automation and testing. Built on **Patchright** (a hardened Playwright fork) and integrated with **Ghostery Adblocker**, **Ghost Cursor** (natural mouse dynamics), and an automation assistant for Cloudflare Turnstile challenges.
 
-This server is **100% compatible with all major AI IDEs** (Cursor, VS Code, Cline, Roo Code, Windsurf, PearAI, OpenCode, and Claude Desktop) using standard **STDIO** communication.
+This server is **100% compatible with all major AI IDEs** (Cursor, VS Code, Cline, Roo Code, Windsurf, PearAI, OpenCode, Kilo Code, and Claude Desktop) using standard **STDIO** communication.
 
 > 📋 See [POLICY.md](./POLICY.md) for acceptable use guidelines. This tool is intended for QA, testing, accessibility automation, and authorized research.
 
@@ -67,7 +67,7 @@ npm run mcp
 ```
 
 > [!NOTE]
-> *Why does `npm run build` not build the entire project alone?* 
+> *Why does `npm run build` not build the entire project alone?*
 > `npm run build` only compiles the TypeScript code into JavaScript (`dist/`). However, the hardened browser engine (`patchright`) requires you to explicitly download its browser binaries using `npx patchright install chromium`. Without this step, the server will crash trying to find Chromium.
 
 ### 🐳 Run via Docker (Recommended for Servers)
@@ -91,10 +91,11 @@ docker run -i --rm ghcr.io/codeiva4u/real-browser-mcp-server:latest
 * **Reliable Browser Engine**: Powered by **Patchright Chromium**, a hardened Playwright fork that reduces false-positives in automation environments (does not expose automation indicators or Webdriver/BiDi flags).
 * **Integrated Ad & Tracker Blocker**: Utilizes `@ghostery/adblocker-playwright` with asynchronous pre-compiled filter caching to `adblocker.bin`, blocking ads and speed-bumps completely offline.
 * **Natural Interactions**: Integrates **ghost-cursor-patchright** (Bézier curves) to simulate natural mouse movements, velocity, and hover-before-click behaviors. Features **Physics-based Smooth Scrolling** (`page.realScroll`) utilizing real mouse-wheel events and Cubic Ease-Out deceleration to mimic manual trackpad/mouse flicks for reliable interaction with dynamic UIs.
+* **Human-like Browsing**: The new `browse_task` tool lets the AI agent plan an entire multi-step task from **one** `see_page` view and execute all actions in a single continuous flow — no screenshot pause after every micro-step, just like a human.
+* **Rich Single-Shot Vision**: `see_page` now returns a screenshot **plus** full page text, all interactive elements with selectors, and an iframe inventory in one call — eliminating the need to re-capture the same page repeatedly.
 * **Turnstile Assist**: Detects and assists with Cloudflare Turnstile challenges on pages you are authorized to access.
 * **Anti-Race Condition Guards**: Robust state-guards ensure popup blockers, shims, and adblockers attach exactly once per page, preventing context destruction.
-* **TypeScript**: Entire codebase is written in TypeScript for type safety and maintainability.
-
+* **TypeScript**: Entire codebase is written in TypeScript with `strict: true` for type safety and maintainability.
 
 ---
 
@@ -109,10 +110,8 @@ Add the following to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "real-browser-mcp-server": {
-      "command": "node",
-      "args": [
-        "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
-      ],
+      "command": "npx",
+      "args": ["-y", "real-browser-mcp-server@latest", "mcp"],
       "env": {
         "HEADLESS": "false",
         "AI_HEALING": "true"
@@ -128,7 +127,7 @@ Add the following to your `claude_desktop_config.json`:
 3. Configure as follows:
    * **Name**: `real-browser-mcp-server`
    * **Type**: `command`
-   * **Command**: `node c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js`
+   * **Command**: `npx -y real-browser-mcp-server@latest mcp`
 4. Click **Save**.
 
 ### 3. Cline / Roo Code (VS Code)
@@ -139,29 +138,28 @@ Add the server entry to your global MCP settings file (typically found at `%APPD
   "mcpServers": {
     "real-browser-mcp-server": {
       "type": "stdio",
-      "command": "C:/Program Files/nodejs/node.exe",
-      "args": [
-        "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
-      ],
+      "command": "npx",
+      "args": ["-y", "real-browser-mcp-server@latest", "mcp"],
       "env": {
         "HEADLESS": "false",
         "AI_HEALING": "true"
       },
       "disabled": false,
-      "autoApprove": [],
+      "autoApprove": []
     }
   }
 }
 ```
-### 3. Kilo Codee (VS Code)
-Add the server entry to your global MCP settings file (typically found at kilo.jsonc
+
+### 4. Kilo Code (VS Code)
+Add the server entry to your `kilo.jsonc`:
 
 ```json
 {
   "mcp": {
     "real-browser-mcp-server": {
       "type": "local",
-      "command": ["node", "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"],
+      "command": ["npx", "-y", "real-browser-mcp-server@latest", "mcp"],
       "environment": {
         "HEADLESS": "false",
         "AI_HEALING": "true"
@@ -172,17 +170,15 @@ Add the server entry to your global MCP settings file (typically found at kilo.j
 }
 ```
 
-### 4. Windsurf IDE
+### 5. Windsurf IDE
 Configure the server in your `~/.codeium/windsurf/mcp_config.json`:
 
 ```json
 {
   "mcpServers": {
     "real-browser-mcp-server": {
-      "command": "node",
-      "args": [
-        "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
-      ],
+      "command": "npx",
+      "args": ["-y", "real-browser-mcp-server@latest", "mcp"],
       "env": {
         "HEADLESS": "false",
         "AI_HEALING": "true"
@@ -192,20 +188,30 @@ Configure the server in your `~/.codeium/windsurf/mcp_config.json`:
 }
 ```
 
-### 5. PearAI
-Add the configuration via **PearAI Settings** ➔ **MCP Servers** using the standard `command` setup pointing to `node` and the built entrypoint at `dist/src/index.js`.
+### 6. PearAI
+Add the configuration via **PearAI Settings** ➔ **MCP Servers** using the standard `command` setup:
 
-### 6. OpenCode AI IDE
+```json
+{
+  "mcpServers": {
+    "real-browser-mcp-server": {
+      "command": "npx",
+      "args": ["-y", "real-browser-mcp-server@latest", "mcp"],
+      "env": { "HEADLESS": "false" }
+    }
+  }
+}
+```
+
+### 7. OpenCode AI IDE
 Configure the server in your `opencode.jsonc` or standard MCP settings configuration:
 
 ```jsonc
 {
   "mcpServers": {
     "real-browser-mcp-server": {
-      "command": "node",
-      "args": [
-        "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
-      ],
+      "command": "npx",
+      "args": ["-y", "real-browser-mcp-server@latest", "mcp"],
       "env": {
         "HEADLESS": "false",
         "AI_HEALING": "true"
@@ -230,85 +236,71 @@ You can configure `browser_init` defaults directly from the MCP client `env` blo
 
 Values are case-insensitive. Priority for each option is: **explicit `browser_init` param > environment variable > built-in default**.
 
-Example (`env` block with all options set):
-
-```json
-{
-  "mcpServers": {
-    "real-browser-mcp-server": {
-      "command": "node",
-      "args": [
-        "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
-      ],
-      "env": {
-        "HEADLESS": "false",
-        "AI_HEALING": "true",
-        "ENABLE_BLOCKER": "true",
-        "TURNSTILE": "false"
-      }
-    }
-  }
-}
-```
-
 ---
 
-## 🌐 Complete MCP Tool Reference (21 Tools)
+## 🌐 Complete MCP Tool Reference (22 Tools)
 
-The server exposes 21 tools categorized into functional units:
+The server exposes **22 tools** categorized into functional units:
 
 ### 🌐 Browser & Session
-| Tool Name | Description | Parameters |
+| Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `browser_init` | Initialize Patchright browser with ad blocker, AI healing, and Turnstile assist. | `headless` (boolean), `proxy` (object) |
-| `browser_close` | Close browser with cleanup and session saving. | `force` (boolean), `saveSession` (boolean) |
+| `browser_init` | Initialize Patchright browser with ad blocker, AI healing, and Turnstile assist. | `headless`, `proxy`, `turnstile`, `enableBlocker`, `aiHealing`, `recordVideo` |
+| `browser_close` | Close browser with cleanup and optional session saving. | `force`, `saveSession` |
 
 ### 🧭 Navigation
-| Tool Name | Description | Parameters |
+| Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `navigate` | Navigate to URL with smart retry and configurable wait strategy. | `url` (string), `waitUntil` (string), `timeout` (number), `retries` (number) |
+| `navigate` | Navigate to URL with smart retry and configurable wait strategy. | `url`, `waitUntil`, `timeout`, `retries`, `smartWait` |
 
 ### 👆 Natural Interaction
-| Tool Name | Description | Parameters |
+| Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `click` | Natural click using ghost cursor with iframe support. | `selector` (string), `hoverFirst` (boolean) |
-| `type` | Type text with natural speed variation, smart clearing, and iframe support. | `selector` (string), `text` (string) |
-| `solve_captcha` | Assists with CAPTCHA challenges (Turnstile) and returns OCR/vision guidance for image CAPTCHAs. reCAPTCHA/hCaptcha are detected honestly but not solved automatically. | `type` (string), `captchaSelector` (string) |
-| `random_scroll` | Natural scrolling with natural patterns and lazy-load triggers. | `direction` (string), `amount` (number), `smooth` (boolean) |
-| `press_key` | Press keyboard keys with modifier key support (Ctrl/Shift/Alt). | `key` (string), `modifiers` (array) |
-| `execute_js` | Run custom asynchronous/synchronous JavaScript inside a page or iframe. | `code` (string), `iframeIndex` (number) |
+| `click` | Natural click using ghost cursor with iframe, hover, and video player support. | `selector`, `annotationId`, `humanLike`, `hoverFirst`, `iframe`, `autoDetectPlayer` |
+| `type` | Type text with natural speed variation, smart clearing, and iframe support. | `selector`, `annotationId`, `text`, `clear`, `pressEnter`, `iframe` |
+| `solve_captcha` | Assists with CAPTCHA challenges (Turnstile, image OCR). reCAPTCHA/hCaptcha not supported. | `type`, `captchaSelector`, `formData`, `submit` |
+| `random_scroll` | Natural scrolling with lazy-load detection. | `direction`, `amount`, `smooth`, `aiDetectLazyLoad` |
+| `press_key` | Press keyboard keys with modifier key support (Ctrl/Shift/Alt). | `key`, `modifiers`, `count` |
+| `execute_js` | Run custom JavaScript inside a page or iframe. ⚠️ Use with trusted input only. | `code`, `async`, `iframe`, `timeout` |
 
 ### 📄 Extraction & Decoding
-| Tool Name | Description | Parameters |
+| Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `get_content` | Retrieve page content in `html`, `text`, `markdown`, or direct `rawHttp` modes. | `format` (string) |
-| `extract_data` | Advanced extractor for regex, JSON, metadata, structured data, decoding, API discovery, and decrypt flows. | `type` (string), `source` (string) |
-| `media_extractor` | Capture and control HLS, DASH, JWPlayer, Plyr, or dynamic streaming content. | `action` (string), `types` (array), `quality` (string) |
+| `get_content` | Retrieve page content in `html`, `text`, `markdown`, `rawHttp`, or `elements` mode. | `format`, `selector`, `xpath`, `saveAs` |
+| `extract_data` | Advanced extractor: regex, JSON, meta, structured, auto, deobfuscate, apiDiscovery, decrypt, links. | `type`, `pattern`, `source`, `aesKey` |
+| `media_extractor` | Extract HLS/DASH/MP4, control JWPlayer/VideoJS/Plyr, decode encoded URLs. | `action`, `types`, `quality`, `playerAction` |
 
 ### 📡 Network & Utilities
-| Tool Name | Description | Parameters |
+| Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `redirect_tracer` | Trace complete redirect chains (HTTP 301/302, JS location, meta refresh). | `url` (string) |
-| `network_recorder` | Capture requests, responses, intercepted APIs, GraphQL payloads, WebSockets, and media URLs. | `action` (string), `captureXhrBody` (boolean) |
-| `deep_analysis` | Detailed analysis of DOM structure, scripts, bot-detection signals, stack, and page signals. | `types` (array) |
-| `wait` | Smart delay for selectors, navigation, or fixed timeout. | `type` (string), `value` (string) |
-| `progress_tracker` | Track running automation progress with AI-estimated remaining times. | `taskName` (string), `progress` (number) |
-| `storage_inspector` | Inspect IndexedDB and Service Workers natively via JS. | None |
-| `replay_request` | Replay a captured API request within the browser context (same-origin, with cookies attached). | `url` (string), `method` (string) |
-| `api_analyzer` | Generate schemas, diff JSONs, and create SDK boilerplates (Python/TypeScript). | `action` (string), `data` (string) |
+| `redirect_tracer` | Trace full redirect chains (HTTP 301/302, JS, meta refresh). | `url`, `maxRedirects`, `decodeURLs` |
+| `network_recorder` | Capture requests, responses, intercepted APIs, GraphQL, WebSockets, media URLs. Export HAR. | `action`, `captureXhrBody` |
+| `deep_analysis` | DOM structure, scripts, bot-detection signals, tech stack, SEO, and recommendations. | `types`, `detailed`, `detectAntiBot` |
+| `wait` | Smart delay for selectors, navigation events, or fixed timeout. | `type`, `value`, `timeout` |
+| `progress_tracker` | Track automation progress with AI-estimated remaining time. | `action`, `taskName`, `progress` |
+| `storage_inspector` | Inspect IndexedDB databases and Service Workers. | `action` |
+| `replay_request` | Replay a captured API request in browser context (with cookies). | `url`, `method`, `headers`, `body` |
+| `api_analyzer` | Generate JSON schemas, diff two JSONs, or create SDK boilerplates (Python/TypeScript). | `action`, `data`, `lang` |
 
-### 👁️ AI Vision (Eyes)
-| Tool Name | Description | Parameters |
+### 👁️ AI Vision & Human-like Workflow
+| Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `see_page` | Lets the AI **visually SEE** the page like human eyes: returns a screenshot image plus a text JSON summary and a visual map of visible interactive elements. | `fullPage` (boolean), `format` (png/jpeg) |
+| `see_page` | **Rich single-shot vision**: screenshot + page text + all interactive elements + iframe inventory in ONE call. The AI agent plans the whole task from this view and runs all actions continuously without re-capturing. | `fullPage`, `annotate`, `includePageText`, `scanIframes`, `maxElements`, `format`, `quality` |
+| `browse_task` | **Human-like continuous runner**: executes a sequence of actions (click/type/scroll/press_key/wait/extract/see) back-to-back in ONE flow with no screenshot pause between steps. Returns a before + after screenshot and a per-step report. | `steps[]`, `captureBefore`, `captureAfter`, `stopOnError` |
 
-If the current model cannot consume images, `see_page` still returns a text summary, and `solve_captcha` can return text-only fallback guidance when called with `preferTextFallback: true`.
+> **Human-like Workflow Pattern:**
+> ```
+> OLD (repetitive): see_page → click → see_page → type → see_page → click ...
+> NEW (human-like): see_page (once, fullPage) → browse_task [click, type, scroll, extract] → see_page (only on page change)
+> ```
+
+If the current model cannot consume images, `see_page` still returns a full text + JSON summary, and `solve_captcha` can return text-only fallback guidance when called with `preferTextFallback: true`.
 
 ---
 
 ## 📈 Reliability & Test Coverage
 
-Our test suites cover several real-world pages, plus a fast MCP smoke test. Results depend on environment, third-party site changes, and network conditions.
+Our test suites cover several real-world pages. Results depend on environment, third-party site changes, and network conditions.
 
 | Target Test Platform | Detection Type | Status |
 |:---|:---|:---|
@@ -316,29 +308,20 @@ Our test suites cover several real-world pages, plus a fast MCP smoke test. Resu
 | **Cloudflare WAF** | Web Application Firewall challenge | ✅ Pass |
 | **Cloudflare Turnstile** | CAPTCHA widget assist | ✅ Pass |
 | **FingerprintJS Bot Detector** | Fingerprint-based bot detection | ✅ Pass |
-| **reCAPTCHA v3 Score** | Google Trust Score test (target: not obviously bot-like) | ✅ Environment-dependent |
-| **Pixelscan Fingerprint** | Masque & Canvas fingerprint check | ✅ Pass (No Masking Detected) |
+| **reCAPTCHA v3 Score** | Google Trust Score test | ✅ Environment-dependent |
+| **Pixelscan Fingerprint** | Canvas fingerprint check | ✅ Pass (No Masking Detected) |
+| **Rebrowser Bot Detector** | Advanced bot signal detection | ✅ Pass |
 
-### 🧪 Local Test Suite Execution Status
+### 🧪 Local Test Suite
 
-Both the CommonJS and ES Module test suites execute and pass successfully under Node.js:
-
-| Test Suite / Environment | Test Case | Status |
+| Test Suite | Test Case | Status |
 |:---|:---|:---|
-| **CommonJS (`cjs_test`)** | Sannysoft WebDriver Detector | ✅ Passed |
-| **CommonJS (`cjs_test`)** | Cloudflare WAF | ✅ Passed |
-| **CommonJS (`cjs_test`)** | Cloudflare Turnstile | ✅ Passed |
-| **CommonJS (`cjs_test`)** | Fingerprint JS Bot Detector | ✅ Passed |
-| **CommonJS (`cjs_test`)** | Recaptcha V3 Score | ✅ Passed |
-| **CommonJS (`cjs_test`)** | Pixelscan Fingerprint Check | ✅ Passed |
-| **ES Module (`esm_test`)** | Sannysoft WebDriver Detector | ✅ Passed |
-| **ES Module (`esm_test`)** | Cloudflare WAF | ✅ Passed |
-| **ES Module (`esm_test`)** | Cloudflare Turnstile | ✅ Passed |
-| **ES Module (`esm_test`)** | Fingerprint JS Bot Detector | ✅ Passed |
-| **ES Module (`esm_test`)** | Recaptcha V3 Score | ✅ Passed |
-| **ES Module (`esm_test`)** | Pixelscan Fingerprint Check | ✅ Passed |
-| **MCP Smoke (`mcp_test`)** | Tool Registry Check | ✅ Passed |
-| **MCP Smoke (`mcp_test`)** | JSON-RPC Initialize Handshake | ✅ Passed |
+| **CJS + ESM** | Sannysoft WebDriver Detector | ✅ Passed |
+| **CJS + ESM** | Cloudflare WAF | ✅ Passed |
+| **CJS + ESM** | Cloudflare Turnstile | ✅ Passed |
+| **CJS + ESM** | Fingerprint JS Bot Detector | ✅ Passed |
+| **CJS + ESM** | Recaptcha V3 Score | ✅ Passed |
+| **CJS + ESM** | Pixelscan Fingerprint Check | ✅ Passed |
 
 ---
 
@@ -357,13 +340,13 @@ const { connect } = require('real-browser-mcp-server');
   });
 
   await page.goto('https://example.com');
-  
+
   // Natural mouse movement and click
   await page.realClick('#my-button');
-  
+
   // Natural smooth scrolling (60FPS Cubic Ease-Out physics)
   await page.realScroll(400); // scrolls down 400px smoothly
-  
+
   await browser.close();
 })();
 ```
@@ -395,15 +378,15 @@ Run these scripts from the project root directory:
 | Command | Description |
 |:---|:---|
 | `npm start` | Start the MCP server using standard STDIO transport. |
-| `npm run dev` | Alias to start the MCP server. |
+| `npm run dev` | Build and start the MCP server. |
 | `npm run mcp` | Start the MCP server. |
-| `npm run mcp:verbose` | Start the MCP server with verbose logging on `stderr`. |
-| `npm run list` | List all registered MCP tools with categories. |
+| `npm run mcp:verbose` | Start the MCP server with verbose tool listing on `stderr`. |
+| `npm run list` | List all 22 registered MCP tools with categories. |
 | `npm run build` | Compile TypeScript into the `dist/` folder. |
 | `npm test` | Execute the full test suite (CJS & ESM). |
 | `npm run cjs_test` | Run CommonJS test scripts. |
 | `npm run esm_test` | Run ECMAScript Module test scripts. |
-| `npm run mcp_test` | Fast, network-independent MCP smoke test (handshake + tool registry validation). |
+| `npm run mcp_test` | Fast, network-independent MCP smoke test — verifies tool registry (all 22 tools), JSON-RPC initialize handshake, and tools/list response. No browser launch needed. |
 
 ---
 
@@ -412,16 +395,18 @@ Run these scripts from the project root directory:
 ### Design
 
 - **MCP-first**: every tool is defined in `src/shared/tools.ts` and dispatched through a single `executeTool()` router.
-- **Handler modules**: `src/mcp/handlers/` contains focused helper files (`network-recorder.ts`, `network-extractors.ts`, `vision-captcha.ts`, `vision-see-page.ts`) with thin wrapper files (`network.ts`, `vision.ts`) for the tool-facing API.
-- **Browser state**: a single global `state` object in `src/mcp/handlers/state.ts` holds the current browser/page instance and network recorder data. `createSessionContext()` provides a typed accessor pattern for handlers.
-- **Persistent activity log**: `src/shared/activity-logger.ts` survives server restarts via a JSON file on disk.
+- **Handler modules**: `src/mcp/handlers/` contains focused files — `network-recorder.ts`, `network-extractors.ts`, `vision-captcha.ts`, `vision-see-page.ts`, `vision-browse-task.ts` — with thin wrappers (`network.ts`, `vision.ts`) for the tool-facing API.
+- **Browser state**: a single global `state` object in `src/mcp/handlers/state.ts` holds the current browser/page instance and network recorder data. `requireBrowser()` / `getState()` provide typed accessors for handlers.
+- **Human-like workflow**: `browse_task` orchestrates the existing `click`/`type`/`scroll`/`press_key`/`wait`/`extract` handlers in a continuous sequence — no extra LLM or API key required. The AI agent (LLM client) plans the steps; `browse_task` executes them without pausing.
+- **No project pollution**: runtime caches (User-Agent detection, saved sessions) are written to the OS temp directory (`os.tmpdir()/real-browser-mcp`), **never** inside the project or working directory. The server does **not** create a `.cache` folder in your project tree.
+- **`execute_js` caveat**: the `execute_js` tool runs arbitrary JavaScript inside the controlled browser page context (a sandboxed browser tab). Only invoke it with trusted input.
 
 ### Known Limitations
 
 - **Single-session model**: the MCP server manages one browser instance at a time. Concurrent multi-session isolation is not supported.
 - **reCAPTCHA / hCaptcha**: detected honestly but not solved automatically. Use a third-party service for these.
-- **Vision tools require image-capable models**: `see_page` and `solve_captcha` return images. Non-vision models get a text JSON summary fallback, but image reading itself requires a multimodal client.
-- **TypeScript strict mode**: the project compiles with `strict: true`, though some legacy bridge files still use `@ts-nocheck`.
+- **Vision tools require image-capable models**: `see_page`, `browse_task`, and `solve_captcha` return images. Non-vision models get a full text + JSON summary fallback.
+- **TypeScript strict mode**: the project compiles with `strict: true` across all source files. `tsc --noEmit` passes cleanly.
 
 ---
 

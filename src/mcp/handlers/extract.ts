@@ -4,24 +4,18 @@ import * as fs from 'fs';
 import { requireBrowser, notifyProgress } from './state';
 
 /**
- * Resolve a user-supplied output path to a location INSIDE the current
- * working directory. Writing outside cwd (path traversal, e.g.
- * ../../etc/passwd) is rejected to avoid arbitrary file overwrite.
+ * Resolve a user-supplied save path, preventing path traversal outside cwd.
+ * Returns null if the resolved path would escape the working directory.
  */
 function safeResolve(savePath: string): string | null {
-  try {
-    const resolved = path.resolve(savePath);
-    const cwd = path.resolve(process.cwd());
-    const rel = path.relative(cwd, resolved);
-    if (rel.startsWith('..') || path.isAbsolute(rel) && !resolved.startsWith(cwd)) return null;
-    if (resolved !== cwd && !resolved.startsWith(cwd + path.sep)) return null;
-    return resolved;
-  } catch {
+  const resolved = path.resolve(savePath);
+  const cwd = path.resolve(process.cwd());
+  // Allow writing only inside cwd (or its subfolders) to avoid traversal escapes
+  if (resolved !== cwd && !resolved.startsWith(cwd + path.sep)) {
     return null;
   }
+  return resolved;
 }
-
-export { safeResolve };
 
 
 export const extractHandlers = {
@@ -70,11 +64,12 @@ export const extractHandlers = {
       }
       notifyProgress('get_content', 'completed', `Found ${elements.length} element(s)`);
       if (saveAs) {
-        const _safePath = safeResolve(saveAs);
-        if (!_safePath) return { success: false, error: 'Invalid saveAs path (outside working directory).' };
-        fs.writeFileSync(_safePath, JSON.stringify(elements, null, 2));
+        const out = safeResolve(saveAs);
+        if (!out) return { success: false, error: 'saveAs path is outside the working directory (path traversal blocked).' };
+        fs.writeFileSync(out, JSON.stringify(elements, null, 2));
+        saveAs = out;
       }
-      return { success: true, format: 'elements', found: elements.length, elements, savedTo: saveAs ? path.resolve(saveAs) : null };
+      return { success: true, format: 'elements', found: elements.length, elements, savedTo: saveAs ? saveAs : null };
     }
 
     // === rawHttp mode: fetch raw HTTP response without JS rendering ===
@@ -105,14 +100,15 @@ export const extractHandlers = {
         
         let outHtml = rawHtml;
         if (saveAs) {
-          const _safePath = safeResolve(saveAs);
-          if (!_safePath) return { success: false, error: 'Invalid saveAs path (outside working directory).' };
-          fs.writeFileSync(_safePath, outHtml);
+          const out = safeResolve(saveAs);
+          if (!out) return { success: false, error: 'saveAs path is outside the working directory (path traversal blocked).' };
+          fs.writeFileSync(out, outHtml);
+          saveAs = out;
         }
         return {
           success: true, rawHtml, renderedHtml, diff,
           url, finalUrl: response.url, statusCode: response.status, format: 'rawHttp',
-          savedTo: saveAs ? path.resolve(saveAs) : null
+          savedTo: saveAs ? saveAs : null
         };
       } catch (e: any) {
         return { success: false, error: `Raw HTTP fetch failed: ${e.message}` };
@@ -202,7 +198,7 @@ export const extractHandlers = {
 
     if (saveAs) {
       const outputPath = safeResolve(saveAs);
-      if (!outputPath) return { success: false, error: 'Invalid saveAs path (outside working directory).' };
+      if (!outputPath) return { success: false, error: 'saveAs path is outside the working directory (path traversal blocked).' };
       fs.writeFileSync(outputPath, content);
       notifyProgress('get_content', 'completed', `Saved ${content.length} chars to ${saveAs}`, { format, length: content.length, savedTo: outputPath });
       return { success: true, url: page.url(), format, length: content.length, savedTo: outputPath };

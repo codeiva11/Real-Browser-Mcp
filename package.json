@@ -1,6 +1,6 @@
 {
   "name": "real-browser-mcp-server",
-  "version": "2.1.2",
+  "version": "2.1.4",
   "description": "MCP Server for Real Browser - Patchright Ad Blocker.",
   "main": "dist/lib/cjs/index.js",
   "module": "lib/esm/index.mjs",
@@ -34,7 +34,8 @@
     "list": "node dist/src/index.js --list",
     "test": "npm run cjs_test && npm run esm_test",
     "cjs_test": "node ./test/test.mjs --cjs",
-    "esm_test": "node ./test/test.mjs --esm"
+    "esm_test": "node ./test/test.mjs --esm",
+    "mcp_test": "node --test ./test/mcp-smoke.mjs"
   },
   "keywords": [
     "mcp-server",

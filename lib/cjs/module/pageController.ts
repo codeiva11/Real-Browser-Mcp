@@ -1,28 +1,38 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-export { pageController };
-import * as turnstile_shim_1 from './turnstile-shim.mjs';
-async function pageController({ browser, page, proxy, turnstile }) {
-    if (page._pageControllerApplied)
-        return page;
+import { checkTurnstile } from './turnstile';
+
+async function pageController({ browser, page, proxy, turnstile }: { browser: any; page: any; proxy: any; turnstile: boolean }) {
+    if (page._pageControllerApplied) return page;
     page._pageControllerApplied = true;
+
     let solveStatus = turnstile;
+
     page.on('close', () => {
         solveStatus = false;
     });
+
     async function turnstileSolver() {
         while (solveStatus) {
-            await (0, turnstile_shim_1.checkTurnstile)({ page }).catch(() => { });
-            await new Promise(r => setTimeout(r, 1000));
+            await checkTurnstile({ page }).catch(() => { });
+            // Unref the idle timer so this background loop never keeps the
+            // Node process alive on its own. It still runs while the event
+            // loop is active (i.e. while the server/browser is running).
+            await new Promise<void>(r => {
+                const t = setTimeout(r, 1000);
+                if (typeof t.unref === 'function') t.unref();
+            });
         }
     }
+
     if (solveStatus) {
-        turnstileSolver();
+        // Fire-and-forget background solver. It stops itself when the page
+        // closes (page.on('close') sets solveStatus=false).
+        turnstileSolver().catch(() => { });
     }
+
     const context = page.context();
     if (!context._popupBlockerApplied) {
         context._popupBlockerApplied = true;
-        context.on('page', async (newPage) => {
+        context.on('page', async (newPage: any) => {
             try {
                 const opener = await newPage.opener();
                 if (opener) {
@@ -38,12 +48,14 @@ async function pageController({ browser, page, proxy, turnstile }) {
                         console.error('[popup-blocker] Blocked popup ad:', url.substring(0, 50));
                     }
                 }
-            }
-            catch (_e) {
+            } catch (_e) {
                 // Ignore errors
             }
         });
     }
+
     return page;
 }
-//# sourceMappingURL=page-controller.js.map
+
+export { pageController };
+module.exports = { pageController };

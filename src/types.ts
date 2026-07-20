@@ -243,7 +243,7 @@ export interface ExecuteJsParams {
 }
 
 export interface ExtractDataParams {
-  type?: 'auto' | 'regex' | 'json' | 'meta' | 'structured' | 'deobfuscate' | 'apiDiscovery' | 'decrypt' | 'links';
+  type?: 'auto' | 'regex' | 'json' | 'meta' | 'structured' | 'deobfuscate';
   pattern?: string;
   selector?: string;
   jsonPath?: string;
@@ -311,7 +311,7 @@ export interface DeepAnalysisParams {
 }
 
 export interface ProgressTrackerParams {
-  action?: 'start' | 'update' | 'complete' | 'get';
+  action?: 'start' | 'update' | 'complete' | 'get' | 'clear';
   taskName?: string;
   progress?: number;
   aiEstimate?: boolean;
@@ -370,6 +370,8 @@ export interface SeePageParams {
   quality?: number;
   includeElements?: boolean;
   includeDomText?: boolean;
+  includePageText?: boolean;
+  scanIframes?: boolean;
   maxElements?: number;
   path?: string;
   autoHover?: boolean;

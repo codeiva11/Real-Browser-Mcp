@@ -2,6 +2,7 @@ import { chromium } from 'patchright';
 import { createCursor } from 'ghost-cursor-patchright';
 import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { getHeadlessFromEnv } from './env-utils';
 import type { Browser, Page } from 'patchright';
@@ -9,9 +10,12 @@ import type { Browser, Page } from 'patchright';
 let adBlockerInstance: PlaywrightBlocker | null = null;
 let adBlockerPromise: Promise<PlaywrightBlocker | null> | null = null;
 
-// Cache the detected user-agent string so we don't launch a temp browser on every connect()
+// Cache the detected user-agent string so we don't launch a temp browser on every connect().
+// Stored in the OS temp directory (never inside the project / cwd) so the project tree
+// stays clean and we don't pollute the user's working directory.
 let cachedNativeUa: string | null = null;
-const UA_CACHE_FILE = path.join(process.cwd(), '.cache', 'ua-cache.txt');
+const UA_CACHE_DIR = path.join(os.tmpdir(), 'real-browser-mcp');
+const UA_CACHE_FILE = path.join(UA_CACHE_DIR, 'ua-cache.txt');
 
 function loadCachedUa(): string | null {
   try {
@@ -25,8 +29,7 @@ function loadCachedUa(): string | null {
 
 function saveCachedUa(ua: string): void {
   try {
-    const dir = path.dirname(UA_CACHE_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(UA_CACHE_DIR)) fs.mkdirSync(UA_CACHE_DIR, { recursive: true });
     fs.writeFileSync(UA_CACHE_FILE, ua, 'utf8');
   } catch { /* ignore */ }
 }

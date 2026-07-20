@@ -170,14 +170,12 @@ export const decoders = {
         encryptedBuffer = Buffer.from(encryptedData as string, 'base64');
       }
 
-      let decipher: crypto.Decipheriv;
+      let decipher: crypto.Decipher;
       if (iv) {
         const ivBuffer = Buffer.isBuffer(iv) ? iv : Buffer.from(iv, 'utf-8');
         decipher = crypto.createDecipheriv(algorithm, keyBuffer, ivBuffer);
       } else {
-        // ECB mode: derive a valid algorithm name without a mode suffix
-        const ecbAlgo = algorithm.replace(/-(cbc|ctr|gcm|cfb|ofb)$/i, '-ecb');
-        decipher = crypto.createDecipheriv(ecbAlgo, keyBuffer, Buffer.alloc(0));
+        decipher = crypto.createDecipheriv(algorithm.replace('-cbc', '-ecb'), keyBuffer, Buffer.alloc(0));
       }
 
       let decrypted = decipher.update(encryptedBuffer);

@@ -23,9 +23,13 @@ export async function executeTool(name: string, args: any = {}) {
   if (handlers[name]) {
     try {
       const result = await handlers[name](args);
+      // Guarantee a well-formed response even if a handler returns undefined/non-object
+      if (!result || typeof result !== 'object') {
+        return { success: true, result };
+      }
       return result;
     } catch (error: any) {
-      return { success: false, error: error.message };
+      return { success: false, error: error?.message || String(error) };
     }
   }
   return { success: false, error: `Tool ${name} not implemented` };

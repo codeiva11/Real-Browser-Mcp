@@ -128,7 +128,7 @@ export const domHandlers = {
       // ═══════════════════════════════════════════════════════════════
       // USE PLAYER API - More reliable than DOM click for video players
       // ═══════════════════════════════════════════════════════════════
-      if (usePlayerAPI && detectedPlayer && (selector === 'video' || selector.includes('play') || selector.includes('Play'))) {
+      if (usePlayerAPI && detectedPlayer && (selector === 'video' || /\bplay\b/i.test(selector))) {
         notifyProgress('click', 'progress', `🎬 Using ${detectedPlayer.type} API for playback...`);
 
         playerResult = await context.evaluate((playerType: any) => {
@@ -244,7 +244,7 @@ export const domHandlers = {
             await context.waitForSelector(selector!, { timeout: Math.min(timeout / retries, 10000) });
           } catch (e) {
             if (aiHeal && attempt === 1) {
-              const healed: string | null = await page.evaluate((sel: string) => {
+              const healed: string | null = await context.evaluate((sel: string) => {
                 const parts = sel.replace(/[#.[\]]/g, ' ').trim().split(/\s+/).filter(Boolean);
                 const candidates = document.querySelectorAll('a, button, input, [role="button"], [onclick]');
                 for (const el of candidates) {
@@ -327,14 +327,9 @@ export const domHandlers = {
               const cursor = createCursor(page);
 
               if (context !== page) {
-                const element = await context.$(selector);
-                if (element) {
-                  const box = await element.boundingBox();
-                  if (box) {
-                    await cursor.moveTo({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
-                    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { clickCount, delay });
-                  }
-                }
+                // cursor operates on page-level coordinates; for iframes rely on
+                // Playwright's frame-aware click which correctly maps element coords.
+                await context.click(selector!, { clickCount, delay });
               } else {
                 await cursor.click(selector);
               }
@@ -433,7 +428,7 @@ export const domHandlers = {
         await context.waitForSelector(selector!, { timeout: 10000 });
       } catch (e) {
         if (aiHeal) {
-          const healed = await page.evaluate((sel: string) => {
+          const healed = await context.evaluate((sel: string) => {
             const parts = sel.replace(/[#.[\]]/g, ' ').trim().split(/\s+/).filter(Boolean);
             const candidates = document.querySelectorAll('input, textarea, select');
             for (const el of candidates) {
