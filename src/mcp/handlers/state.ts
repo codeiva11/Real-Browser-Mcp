@@ -170,7 +170,7 @@ export const decoders = {
         encryptedBuffer = Buffer.from(encryptedData as string, 'base64');
       }
 
-      let decipher: crypto.Decipher;
+      let decipher: ReturnType<typeof crypto.createDecipheriv>;
       if (iv) {
         const ivBuffer = Buffer.isBuffer(iv) ? iv : Buffer.from(iv, 'utf-8');
         decipher = crypto.createDecipheriv(algorithm, keyBuffer, ivBuffer);
