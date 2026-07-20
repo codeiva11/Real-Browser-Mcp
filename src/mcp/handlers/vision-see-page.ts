@@ -3,96 +3,66 @@ import * as fs from 'fs';
 import { state, requireBrowser, notifyProgress } from './state';
 import type { SeePageParams } from '../../types';
 
-/**
- * seePage — AI Vision ("Eyes")
- *
- * यह फंक्शन इंसान की तरह पेज को देखता है:
- * - डिफ़ॉल्ट रूप से पूरा पेज (fullPage) देखता है ताकि एक ही बार में सब कुछ दिख जाए
- * - डिफ़ॉल्ट रूप से annotate करता है ताकि AI तुरंत annotationId से click/type कर सके
- * - डिफ़ॉल्ट रूप से autoHover करता है ताकि hidden dropdowns/menus खुल जाएँ
- * - डिफ़ॉल्ट रूप से watchMutations चालू है ताकि DOM बदलाव पकड़े जाएँ
- *
- * AI एजेंट को बस see_page कॉल करना है — बाकी सब अपने आप हो जाता है।
- */
 export async function seePage(params: SeePageParams = {}) {
   const { page } = requireBrowser();
-
-  // ─── इंसान की तरह डिफ़ॉल्ट: एक ही बार में पूरा पेज देखो ───
   const {
-    fullPage = true,          // पूरा पेज एक शॉट में (इंसान भी पूरा देखता है)
+    fullPage = false,
     format = 'jpeg',
     quality = 70,
     includeElements = true,
-    annotate = true,          // डिफ़ॉल्ट रूप से annotation चालू (AI तुरंत click/type कर सके)
+    annotate = false,
     includeDomText = false,
-    maxElements = 80,         // 60 → 80: ज्यादा elements देखने के लिए
+    maxElements = 60,
     path: savePath,
-    autoHover = true,          // डिफ़ॉल्ट रूप से hover करें (hidden dropdowns reveal करने)
-    watchMutations = true     // डिफ़ॉल्ट रूप से mutations देखें
+    autoHover = false,
+    watchMutations = false
   } = params;
 
   notifyProgress('see_page', 'started', `👁️ Looking at the page (${fullPage ? 'full page' : 'viewport'})${annotate ? ' with Super Annotations' : ''}...`);
 
-  // ─── FIX: state.activeAnnotations हमेशा reset करें (stale डेटा से बचने) ───
-  state.activeAnnotations = {};
-
-  // ─── MutationObserver with memory cap (memory leak fix) ───
   let mutationsSinceLastCheck: any[] = [];
   if (watchMutations) {
     mutationsSinceLastCheck = await page.evaluate(() => {
-      const MAX_MUTATIONS = 100; // cap to prevent memory leak
       if (!(window as any).__mutations) {
         (window as any).__mutations = [];
-        (window as any).__mutationObserver = new MutationObserver((mutations) => {
+        const observer = new MutationObserver((mutations) => {
           for (const m of mutations) {
             if (m.addedNodes.length) {
               const text = Array.from(m.addedNodes).map((n: any) => n.innerText || '').join(' ').trim();
-              if (text.length > 5) {
-                (window as any).__mutations.push({ time: Date.now(), text: text.slice(0, 100) });
-                // cap the array — remove oldest entries
-                if ((window as any).__mutations.length > MAX_MUTATIONS) {
-                  (window as any).__mutations = (window as any).__mutations.slice(-MAX_MUTATIONS);
-                }
-              }
+              if (text.length > 5) (window as any).__mutations.push({ time: Date.now(), text: text.slice(0, 100) });
             }
           }
         });
-        (window as any).__mutationObserver.observe(document.body, { childList: true, subtree: true });
+        observer.observe(document.body, { childList: true, subtree: true });
       }
       const recent = [...(window as any).__mutations];
       (window as any).__mutations = [];
       return recent;
-    }).catch((e: any) => {
-      notifyProgress('see_page', 'warn', `Mutation watch failed: ${e.message}`);
-      return [];
     });
   }
 
-  // ─── autoHover: hidden dropdowns/menus reveal करें (इंसान भी hover करता है) ───
   if (autoHover) {
     notifyProgress('see_page', 'progress', 'Hovering over menus to reveal dropdowns...');
     await page.evaluate(() => {
-      const hoverables = document.querySelectorAll('nav, li, [role="menuitem"], .dropdown, [aria-haspopup="true"], [role="menu"], [role="menubar"]');
+      const hoverables = document.querySelectorAll('nav, li, [role="menuitem"], .dropdown, [aria-haspopup="true"]');
       hoverables.forEach(el => {
         try {
           el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
           el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-          el.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
         } catch(e) {}
       });
-    }).catch(() => {});
+    });
     await new Promise(r => setTimeout(r, 400));
   }
 
   let elements: any[] = [];
   let pageInfo: any = {};
 
-  // ─── Interactive elements का visual map (annotate + includeElements) ───
   if (includeElements || annotate) {
     const data = await page.evaluate(({ maxEls, isFullPage, doAnnotate }: any) => {
       const out: any[] = [];
       const seen = new Set();
-      const sel = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [role="checkbox"], [role="radio"], [onclick], [tabindex], summary, details, label[for]';
+      const sel = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [onclick], [tabindex]';
       const nodes = document.querySelectorAll(sel);
 
       const cssPath = (el: any) => {
@@ -131,17 +101,13 @@ export async function seePage(params: SeePageParams = {}) {
         }
 
         const tag = el.tagName.toLowerCase();
-        let label = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('alt') || el.getAttribute('for') || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+        let label = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('alt') || '').trim().replace(/\s+/g, ' ').slice(0, 80);
         let kind = tag;
         if (tag === 'a') kind = 'link';
         else if (tag === 'button' || el.getAttribute('role') === 'button') kind = 'button';
         else if (tag === 'input') kind = `input:${el.type || 'text'}`;
         else if (tag === 'select') kind = 'select';
         else if (tag === 'textarea') kind = 'textarea';
-        else if (tag === 'summary') kind = 'summary';
-        else if (tag === 'label') kind = 'label';
-        else if (el.getAttribute('role') === 'checkbox') kind = 'checkbox';
-        else if (el.getAttribute('role') === 'radio') kind = 'radio';
 
         const selector = cssPath(el);
         if (seen.has(selector + '|' + label)) continue;
@@ -196,19 +162,15 @@ export async function seePage(params: SeePageParams = {}) {
           scrollY: Math.round(window.scrollY), scrollHeight: document.body ? document.body.scrollHeight : 0
         }
       };
-    }, { maxEls: maxElements, isFullPage: fullPage, doAnnotate: annotate }).catch((e: any) => {
-      notifyProgress('see_page', 'error', `Element extraction failed: ${e.message}`);
-      return { elements: [], info: {} };
-    });
+    }, { maxEls: maxElements, isFullPage: fullPage, doAnnotate: annotate }).catch((e: any) => { console.error(e); return { elements: [], info: {} } });
 
     elements = data.elements || [];
     pageInfo = data.info || {};
 
-    // ─── activeAnnotations अपडेट करें (click/type टूल्स के लिए) ───
+    state.activeAnnotations = {};
     for (const el of elements) state.activeAnnotations[el.id] = { selector: el.selector, text: el.text, type: el.kind };
   }
 
-  // ─── स्क्रीनशॉट कैप्चर ───
   const shotOpts: any = { type: format, fullPage };
   if (format === 'jpeg' && typeof quality === 'number') shotOpts.quality = quality;
 
@@ -219,7 +181,6 @@ export async function seePage(params: SeePageParams = {}) {
     return { success: false, error: `Vision capture failed: ${e.message}` };
   }
 
-  // ─── annotation cleanup (स्क्रीनशॉट के बाद हटा दो) ───
   if (annotate) {
     await page.evaluate(() => {
       const container = document.getElementById('real-browser-annotations');
@@ -234,14 +195,10 @@ export async function seePage(params: SeePageParams = {}) {
 
   let savedTo = null;
   if (savePath) {
-    try {
-      const dir = path.dirname(savePath);
-      if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(savePath, buffer);
-      savedTo = savePath;
-    } catch (e: any) {
-      notifyProgress('see_page', 'warn', `Could not save screenshot: ${e.message}`);
-    }
+    const dir = path.dirname(savePath);
+    if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(savePath, buffer);
+    savedTo = savePath;
   }
 
   notifyProgress('see_page', 'completed',
@@ -258,11 +215,7 @@ export async function seePage(params: SeePageParams = {}) {
     domText,
     mutationsSinceLastCheck: watchMutations ? mutationsSinceLastCheck : undefined,
     elements,
-    savedTo,
-    // ─── AI के लिए निर्देश: अब annotationId से click/type कर सकते हैं ───
-    hint: elements.length > 0
-      ? `Use annotationId (1-${elements.length}) with click/type tools to interact with elements. Example: click({ annotationId: 1 }) or type({ annotationId: 5, text: "hello" }).`
-      : undefined
+    savedTo
   };
 
   return {

@@ -3,8 +3,8 @@ const TOOLS = [
   {
     name: 'browser_init',
     emoji: '🚀',
-    description: 'Initialize browser with reliability, AI healing, and automation assist.\n\n🤖 AI Usage Guide: Use this FIRST to start the browser session. Only run once per session.',
-    descriptionHindi: 'ब्राउज़र शुरू करना (stealth + AI healing)',
+    description: 'Initialize a reliable browser session with automatic recovery and self-healing selectors.\n\n🤖 AI Usage Guide: Use this FIRST to start the browser session. Only run once per session.',
+    descriptionHindi: 'ब्राउज़र सेशन शुरू करना (auto-recovery + self-healing)',
     category: 'browser',
     requiresBrowser: false,
     requiresPage: false,
@@ -25,7 +25,7 @@ const TOOLS = [
           type: 'object',
           description: 'Universal Playwright BrowserContext options (e.g. httpCredentials, geolocation, extraHTTPHeaders, permissions, viewport, userAgent, etc.)'
         },
-        turnstile: { type: 'boolean', default: false, description: 'Assist with Cloudflare Turnstile challenges' },
+        turnstile: { type: 'boolean', default: false, description: 'Automatically handle Cloudflare Turnstile challenges' },
         enableBlocker: { type: 'boolean', default: true, description: 'Block ads and trackers' },
         aiHealing: { type: 'boolean', default: true, description: 'Enable AI auto-healing for broken selectors' },
         recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of session' }
@@ -59,7 +59,7 @@ const TOOLS = [
   {
     name: 'get_content',
     emoji: '📄',
-    description: 'Get page content in multiple formats: html, text, markdown, rawHttp, or elements. Extracts text, attributes, or visual bounding boxes (rects). Can optionally save directly to a file.\n\n🤖 AI Usage Guide: Prefer format="rawHttp" for static sites to bypass JS loading entirely (10x faster). If you need coordinates, use format="elements" with an xpath or text selector.',
+    description: 'Get page content in multiple formats: html, text, markdown, rawHttp, or elements. Extracts text, attributes, or visual bounding boxes (rects). Can optionally save directly to a file.\n\n🤖 AI Usage Guide: Prefer format="rawHttp" for static sites to fetch raw HTML directly without JavaScript rendering (10x faster). If you need coordinates, use format="elements" with an xpath or text selector.',
     descriptionHindi: 'पेज का कंटेंट लेना — formats: html/text/markdown/rawHttp/elements। AI healing + selector/xpath/text targeting। Save to file option।',
     category: 'extraction',
     requiresBrowser: true,
@@ -108,8 +108,8 @@ const TOOLS = [
   {
     name: 'click',
     emoji: '👆',
-    description: 'Natural click with AI healing, iframe support, hover for dynamic controls, and auto video player detection.\n\n🤖 AI Usage Guide: If a CSS selector fails or you are unsure of the selector, DO NOT guess repeatedly. Call `see_page` with `annotate: true` to get the `annotationId`, then click using `annotationId` instead of `selector`.',
-    descriptionHindi: 'क्लिक करना (AI healing + iframe + auto video player detection)',
+    description: 'Reliable click with self-healing selectors, iframe support, hover for dynamic controls, and automatic video player detection.\n\n🤖 AI Usage Guide: If a CSS selector fails or you are unsure of the selector, DO NOT guess repeatedly. Call `see_page` with `annotate: true` to get the `annotationId`, then click using `annotationId` instead of `selector`.',
+    descriptionHindi: 'क्लिक करना (self-healing selectors + iframe + auto video player detection)',
     category: 'interaction',
     requiresBrowser: true,
     requiresPage: true,
@@ -118,7 +118,7 @@ const TOOLS = [
       properties: {
         selector: { type: 'string', description: 'CSS selector (AI auto-heals if element not found)' },
         annotationId: { type: 'number', description: 'Alternative to selector: Pass the number from see_page(annotate: true) to click instantly' },
-        humanLike: { type: 'boolean', default: true, description: 'Ghost cursor natural movement' },
+        humanLike: { type: 'boolean', default: true, description: 'Smooth natural cursor movement' },
         aiHeal: { type: 'boolean', default: true, description: 'Auto-find alternative selector if broken' },
         autoAcceptDialogs: { type: 'boolean', default: true, description: 'Auto-accept alerts/confirms to prevent blocking' },
         retries: { type: 'number', default: 3, description: 'Auto-retry on failure' },
@@ -160,7 +160,7 @@ const TOOLS = [
         selector: { type: 'string' },
         annotationId: { type: 'number', description: 'Alternative to selector: Pass the number from see_page(annotate: true) to type instantly' },
         text: { type: 'string' },
-        delay: { type: 'number', default: 50, description: 'Keystroke delay with natural timing' },
+        delay: { type: 'number', default: 50, description: 'Keystroke delay with natural timing variation' },
         clear: { type: 'boolean', default: true },
         aiHeal: { type: 'boolean', default: true },
         // NEW: iframe support
@@ -196,8 +196,8 @@ const TOOLS = [
   {
     name: 'solve_captcha',
     emoji: '🔓',
-    description: 'Assist with CAPTCHA challenges using AI + Smart Form Automation (Turnstile, Text/Image OCR). Note: reCAPTCHA/hCaptcha are not supported — use third-party services for those.',
-    descriptionHindi: 'CAPTCHA सहायता + फॉर्म भरना (AI + OCR powered)',
+    description: 'Handle verification widgets and smart form automation for automated testing of your own pages (Turnstile challenges, text/image recognition via OCR). Note: reCAPTCHA/hCaptcha are not supported — use third-party services for those.',
+    descriptionHindi: 'वेरिफिकेशन widget हैंडल करना + फॉर्म भरना (अपने पेज की टेस्टिंग के लिए, OCR powered)',
     category: 'interaction',
     requiresBrowser: true,
     requiresPage: true,
@@ -209,7 +209,7 @@ const TOOLS = [
           type: 'string',
           enum: ['turnstile', 'text', 'image', 'auto'],
           default: 'auto',
-          description: 'Captcha type: turnstile (JS-based), text/image (OCR-based), auto (detect). Note: reCAPTCHA/hCaptcha are not supported — use third-party services.'
+          description: 'Verification type: turnstile (JS-based), text/image (OCR-based), auto (detect). Note: reCAPTCHA/hCaptcha are not supported — use third-party services.'
         },
         timeout: { type: 'number', default: 30000 },
         captchaSelector: { type: 'string', description: 'CSS selector for captcha image (required for text/image type)' },
@@ -227,8 +227,8 @@ const TOOLS = [
         // === FORM AUTOMATION OPTIONS (merged from form_automator) ===
         formData: { type: 'object', description: 'Form field data to fill (AI matches fields automatically)' },
         formSelector: { type: 'string', description: 'Form selector (AI auto-detects if not provided)' },
-        submit: { type: 'boolean', default: false, description: 'Auto-submit form after filling and captcha solving' },
-        humanLike: { type: 'boolean', default: true, description: 'Natural typing with random delays' },
+        submit: { type: 'boolean', default: false, description: 'Auto-submit form after filling and verification' },
+        humanLike: { type: 'boolean', default: true, description: 'Natural typing with variable delays' },
         aiMatch: { type: 'boolean', default: true, description: 'AI matches fields even if names differ' },
         analyzeFirst: { type: 'boolean', default: true, description: 'Analyze page structure before solving' }
       }
@@ -239,8 +239,8 @@ const TOOLS = [
   {
     name: 'random_scroll',
     emoji: '📜',
-    description: 'Natural scroll with AI pattern detection',
-    descriptionHindi: 'स्क्रॉल करना (natural + AI)',
+    description: 'Natural scrolling with adaptive pattern detection',
+    descriptionHindi: 'स्क्रॉल करना (natural + adaptive)',
     category: 'interaction',
     requiresBrowser: true,
     requiresPage: true,
@@ -284,8 +284,8 @@ const TOOLS = [
   {
     name: 'extract_data',
     emoji: '🔎',
-    description: 'Universal data extractor with 9 modes: (1) regex, (2) json, (3) meta, (4) structured, (5) auto, (6) deobfuscate, (7) apiDiscovery, (8) decrypt, (9) links - extract all links including hidden and iframe links.\n\n🤖 AI Usage Guide: Use this INSTEAD of executing custom JS (`execute_js`) to extract data. If you need links, use type="links". For general info, use type="auto".',
-    descriptionHindi: 'यूनिवर्सल डेटा एक्सट्रैक्टर — 9 modes: regex, json, meta, structured, auto, deobfuscate, apiDiscovery, decrypt, links (extract all links)।',
+    description: 'Universal data extractor with 9 modes: (1) regex, (2) json, (3) meta, (4) structured, (5) auto, (6) deobfuscate (decode encoded strings), (7) apiDiscovery, (8) decrypt (decode encoded data), (9) links - extract all links including hidden, iframe, and encoded links.\n\n🤖 AI Usage Guide: Use this INSTEAD of executing custom JS (`execute_js`) to read data. If you need links, use type="links". For general info, use type="auto".',
+    descriptionHindi: 'यूनिवर्सल डेटा एक्सट्रैक्टर — 9 modes: regex, json, meta, structured, auto, deobfuscate (decode), apiDiscovery, decrypt (decode), links।',
     category: 'extraction',
     requiresBrowser: true,
     requiresPage: true,
@@ -300,7 +300,7 @@ const TOOLS = [
         autoDecode: { type: 'boolean', default: true, description: 'Auto-decode Base64/URL in results' },
         flags: { type: 'string', default: 'gi', description: 'Regex flags' },
         encryptedData: { type: 'string', description: 'For decrypt: data to decode/decrypt' },
-        autoFindKey: { type: 'boolean', default: true, description: 'For decrypt: auto-extract AES keys from page scripts' },
+        autoFindKey: { type: 'boolean', default: true, description: 'For decrypt: automatically locate decoding keys from page scripts' },
         aesKey: { type: 'string', description: 'For decrypt: AES decryption key' },
         aesIV: { type: 'string', description: 'For decrypt: AES initialization vector' },
         includeHidden: { type: 'boolean', default: true, description: 'For links: Include hidden links' },
@@ -324,7 +324,7 @@ const TOOLS = [
         key: { type: 'string' },
         modifiers: { type: 'array', items: { type: 'string' } },
         count: { type: 'number', default: 1 },
-        humanDelay: { type: 'boolean', default: true, description: 'Natural timing between presses' }
+        humanDelay: { type: 'boolean', default: true, description: 'Natural delay between presses' }
       },
       required: ['key']
     }
@@ -354,8 +354,8 @@ const TOOLS = [
   {
     name: 'deep_analysis',
     emoji: '🧠',
-    description: 'Deep page analysis: DOM structure, scripts, styles, accessibility, performance metrics, SEO tags, security headers, bot-detection signals (Cloudflare, DataDome, reCAPTCHA), technology stack identification, and AI-powered recommendations for extraction strategy.\n\n🤖 AI Usage Guide: Use this if elements are mysteriously absent, to check for bot-detection signals or iFrames.',
-    descriptionHindi: 'गहरा पेज विश्लेषण — DOM, scripts, bot-detection signals, tech stack, SEO, AI recommendations।',
+    description: 'Deep page analysis: DOM structure, scripts, styles, accessibility, performance metrics, SEO tags, security headers, protection-service detection (Cloudflare, DataDome, reCAPTCHA), technology stack identification, and recommendations for the best content-loading strategy.\n\n🤖 AI Usage Guide: Use this if a page fails to load fully or if elements are unexpectedly absent, to check for protection services or iFrames.',
+    descriptionHindi: 'गहरा पेज विश्लेषण — DOM, scripts, protection-service detection, tech stack, SEO, recommendations।',
     category: 'analysis',
     requiresBrowser: true,
     requiresPage: true,
@@ -365,7 +365,7 @@ const TOOLS = [
         types: { type: 'array', items: { type: 'string' }, default: ['all'] },
         detailed: { type: 'boolean', default: true },
         aiInsights: { type: 'boolean', default: true, description: 'AI provides recommendations' },
-        detectAntiBot: { type: 'boolean', default: true, description: 'Detect bot-detection signals' }
+        detectAntiBot: { type: 'boolean', default: true, description: 'Detect page protection services' }
       }
     }
   },
@@ -486,8 +486,8 @@ const TOOLS = [
   {
     name: 'replay_request',
     emoji: '🔁',
-    description: 'Replay a captured API request within the browser context (same-origin, with cookies attached).',
-    descriptionHindi: 'कैप्चर की गई रिक्वेस्ट को फिर से ब्राउज़र में भेजना।',
+    description: 'Replay a captured API request directly within the page context, reusing the existing session cookies and headers.',
+    descriptionHindi: 'कैप्चर की गई रिक्वेस्ट को पेज context में फिर से भेजना (मौजूदा session cookies के साथ)।',
     category: 'network',
     requiresBrowser: true,
     requiresPage: true,
@@ -528,24 +528,24 @@ const TOOLS = [
   {
     name: 'see_page',
     emoji: '👁️',
-    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does — in ONE single shot. By default, this tool captures the FULL page (fullPage: true), annotates all interactive elements with numbered red boxes (annotate: true), auto-hovers over menus to reveal dropdowns (autoHover: true), and watches for DOM mutations (watchMutations: true). You get back a screenshot image PLUS a numbered visual map of every clickable element. Just call see_page ONCE — then use the returned annotationId numbers with click({ annotationId: N }) or type({ annotationId: N, text: "..." }) to interact instantly.\n\n🤖 AI Usage Guide: This tool is FULLY AUTOMATIC — just call it with no arguments and it behaves like a human looking at the whole page. Call see_page a SECOND time ONLY if the page actually changes (navigation, modal/popup, new dynamic content). Do NOT re-capture the same unchanged page repeatedly.',
-    descriptionHindi: 'AI विज़न ("आँखें"): इंसान की तरह एक ही बार में पूरा पेज देखें। डिफ़ॉल्ट रूप से यह पूरा पेज (fullPage), लाल बॉक्स annotation (annotate), menu hover (autoHover), और DOM mutation tracking — सब अपने आप करता है। बस see_page कॉल करें, फिर लौटाए गए annotationId नंबरों से click({ annotationId: N }) या type({ annotationId: N, text: "..." }) करें। दूसरी बार सिर्फ़ तभी लें जब पेज बदल जाए।',
+    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does. Captures a screenshot and returns the actual image to the AI agent so it can visually understand the layout, AND returns a "visual map" of all visible interactive elements (buttons, links, inputs) with their on-screen position (x/y/width/height), text label, and a click-ready selector. Use this to look at a page before deciding where to click/type.\n\n🤖 AI Usage Guide: PREFER a single FULL-PAGE view (set fullPage: true) so the whole page and all its interactive elements are mapped in one shot, then plan and perform ALL needed actions for that page (read, click, type, extract) from this single view. Call see_page a SECOND time ONLY IF the task genuinely cannot be completed from the first view, OR after the page actually changes — navigation, a modal/popup opens, or new dynamic content loads. Do NOT re-capture the SAME unchanged page repeatedly.',
+    descriptionHindi: 'AI विज़न ("आँखें"): पेज को इंसान की तरह देखना। स्क्रीनशॉट image सीधे AI को भेजता है ताकि वह layout देख सके + सभी दिखने वाले clickable elements का visual map (position + text + selector) देता है। नियम: पहले पूरे पेज का full-page view लें (fullPage: true) ताकि पूरा पेज और उसके सारे elements एक ही बार में map हो जाएँ, फिर उसी एक view से उस पेज के सारे ज़रूरी काम (पढ़ना, क्लिक, टाइप, data निकालना) एक साथ पूरे करें। दूसरी बार see_page सिर्फ़ तभी लें जब पहले view से काम पूरा न हो पाए, या पेज सच में बदल जाए (navigation, modal/popup खुले, या नया dynamic content load हो)। बिना बदलाव के उसी पेज का दोबारा स्क्रीनशॉट न लें।',
     category: 'vision',
     requiresBrowser: true,
     requiresPage: true,
     inputSchema: {
       type: 'object',
       properties: {
-        annotate: { type: 'boolean', default: true, description: 'Super Vision: Draw red bounding boxes with numbers over all interactive elements for instant click/type targeting (DEFAULT: ON)' },
-        fullPage: { type: 'boolean', default: true, description: 'See the entire scrollable page (true) or just the current viewport (false) — DEFAULT: true (human-like full view)' },
+        annotate: { type: 'boolean', default: false, description: 'Super Vision: Draw red bounding boxes with numbers over all interactive elements for instant click/type targeting' },
+        fullPage: { type: 'boolean', default: false, description: 'See the entire scrollable page (true) or just the current viewport (false)' },
         format: { type: 'string', enum: ['png', 'jpeg'], default: 'jpeg', description: 'Image format (jpeg = smaller, faster for vision)' },
         quality: { type: 'number', default: 70, description: 'JPEG quality 0-100 (lower = smaller image to the AI)' },
         includeElements: { type: 'boolean', default: true, description: 'Include the visual map of interactive elements' },
         includeDomText: { type: 'boolean', default: false, description: 'Include the full text content of the page (DOM reading)' },
-        maxElements: { type: 'number', default: 80, description: 'Max number of interactive elements to map (default 80 for comprehensive view)' },
+        maxElements: { type: 'number', default: 60, description: 'Max number of interactive elements to map' },
         path: { type: 'string', description: 'Optional file path to also save the captured image' },
-        autoHover: { type: 'boolean', default: true, description: 'Hover over menus before taking screenshot to reveal hidden dropdowns (DEFAULT: ON, human-like)' },
-        watchMutations: { type: 'boolean', default: true, description: 'Check for DOM mutations (popups/alerts) since last view (DEFAULT: ON)' }
+        autoHover: { type: 'boolean', default: false, description: 'Hover over menus before taking screenshot to reveal dropdowns' },
+        watchMutations: { type: 'boolean', default: false, description: 'Check for DOM mutations (popups/alerts) since last view' }
       }
     }
   }
@@ -556,11 +556,11 @@ const CATEGORIES = {
   browser: { name: 'Browser', emoji: '🌐', description: 'Browser lifecycle management' },
   navigation: { name: 'Navigation', emoji: '🧭', description: 'Page navigation' },
   interaction: { name: 'Interaction', emoji: '👆', description: 'User interactions' },
-  extraction: { name: 'Extraction', emoji: '📄', description: 'Content extraction' },
+  extraction: { name: 'Extraction', emoji: '📄', description: 'Content extraction and reading' },
   network: { name: 'Network', emoji: '📡', description: 'Network operations' },
   analysis: { name: 'Analysis', emoji: '🧠', description: 'Page analysis' },
 
-  vision: { name: 'Vision', emoji: '👁️', description: 'AI visual perception (sees pages like human eyes)' },
+  vision: { name: 'Vision', emoji: '👁️', description: 'AI visual perception (reads page layout visually)' },
   utility: { name: 'Utility', emoji: '🛠️', description: 'Utility tools' }
 };
 

@@ -63,33 +63,9 @@ async function getNativeUserAgent(executablePath?: string): Promise<string> {
   }
 }
 
-function findAdBlockerBin(): string {
-  // ─── FIX: adblocker.bin को कई संभावित स्थानों में खोजें ───
-  // बिल्ड के बाद __dirname = dist/shared/ होता है, लेकिन .bin फाइल वहाँ नहीं हो सकती
-  const candidates = [
-    path.join(__dirname, 'adblocker.bin'),                              // dist/shared/
-    path.join(__dirname, '..', 'adblocker.bin'),                        // dist/
-    path.join(__dirname, '..', '..', 'lib', 'cjs', 'adblocker.bin'),   // lib/cjs/
-    path.join(__dirname, '..', '..', 'lib', 'esm', 'adblocker.bin'),   // lib/esm/
-    path.join(__dirname, '..', '..', 'lib', 'adblocker.bin'),          // lib/
-    path.join(process.cwd(), 'lib', 'cjs', 'adblocker.bin'),            // cwd/lib/cjs/
-    path.join(process.cwd(), 'lib', 'esm', 'adblocker.bin'),            // cwd/lib/esm/
-    path.join(process.cwd(), 'adblocker.bin'),                          // cwd/
-  ];
-  for (const candidate of candidates) {
-    try {
-      if (fs.existsSync(candidate)) {
-        return candidate;
-      }
-    } catch { /* ignore */ }
-  }
-  // डिफ़ॉल्ट: __dirname (यदि नहीं मिला तो adblocker अपने आप download करेगा)
-  return path.join(__dirname, 'adblocker.bin');
-}
-
 function getAdBlocker(): Promise<PlaywrightBlocker | null> {
   if (!adBlockerPromise) {
-    const cachePath = findAdBlockerBin();
+    const cachePath = path.join(__dirname, 'adblocker.bin');
     adBlockerPromise = PlaywrightBlocker.fromPrebuiltAdsAndTracking(fetch, {
       path: cachePath,
       read: fs.promises.readFile,
@@ -98,7 +74,7 @@ function getAdBlocker(): Promise<PlaywrightBlocker | null> {
       adBlockerInstance = blocker;
       return blocker;
     }).catch((err: Error) => {
-      console.error('[adblocker] Failed to initialize adblocker (searched:', cachePath, '):', err.message);
+      console.error('[adblocker] Failed to initialize adblocker:', err.message);
       return null;
     });
   }

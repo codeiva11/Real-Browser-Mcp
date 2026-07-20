@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, getAiHealingFromEnv, getEnableBlockerFromEnv, getTurnstileFromEnv, resolveWaitUntil } from './state';
+import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, resolveWaitUntil } from './state';
 import type { BrowserInitParams, NavigateParams, WaitParams, WaitUntilState } from '../../types';
 
 export const browserHandlers = {
@@ -9,25 +9,17 @@ export const browserHandlers = {
 
     const { connect } = require('../../../lib/cjs/index.js') as { connect: Function };
 
+    const envHeadless = getHeadlessFromEnv();
+    const headless = params.headless !== undefined ? params.headless : envHeadless;
+
     const {
       proxy = {} as Record<string, unknown>,
       contextOptions = {} as Record<string, unknown>,
+      turnstile = false,
+      enableBlocker = true,
       recordVideo = false,
+      aiHealing = true,  // stored in state for use by click/type handlers
     } = params;
-
-    // Config priority for each option: explicit param > environment variable > built-in default.
-    // Env vars (HEADLESS, AI_HEALING, ENABLE_BLOCKER, TURNSTILE) let users configure the server
-    // from the MCP client "env" block without passing params on every browser_init call.
-    const headless = params.headless !== undefined ? params.headless : getHeadlessFromEnv();
-
-    const envAiHealing = getAiHealingFromEnv();
-    const aiHealing = params.aiHealing !== undefined ? params.aiHealing : (envAiHealing !== undefined ? envAiHealing : true);
-
-    const envEnableBlocker = getEnableBlockerFromEnv();
-    const enableBlocker = params.enableBlocker !== undefined ? params.enableBlocker : (envEnableBlocker !== undefined ? envEnableBlocker : true);
-
-    const envTurnstile = getTurnstileFromEnv();
-    const turnstile = params.turnstile !== undefined ? params.turnstile : (envTurnstile !== undefined ? envTurnstile : false);
 
     notifyProgress('browser_init', 'progress', `Mode: ${headless ? 'Headless' : 'GUI (Visible)'}`, { headless });
 

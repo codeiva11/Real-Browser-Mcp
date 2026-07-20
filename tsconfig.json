@@ -2,9 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "CommonJS",
-    "moduleResolution": "bundler",
     "outDir": "./dist",
-    "rootDir": ".",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
@@ -17,6 +15,5 @@
     "sourceMap": true,
     "noEmitOnError": false
   },
-  "include": ["src/**/*", "lib/**/*", "test/**/*", "scripts/**/*"],
-  "exclude": ["dist/**/*", "node_modules/**/*"]
+  "include": ["src/**/*", "lib/**/*", "test/**/*", "scripts/**/*"]
 }

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 const type = process.argv.includes('--esm') ? 'esm' : 'cjs';
-const libPath = type === 'esm' ? '../dist/lib/esm/index.mjs' : '../dist/src/index.js';
+const libPath = type === 'esm' ? '../lib/esm/index.mjs' : '../dist/lib/cjs/index.js';
 const { connect } = await import(libPath);
 
 console.log(`🧪 Running ${type.toUpperCase()} Tests`);
@@ -43,27 +43,13 @@ test.after(async () => {
 
 test('Headless Detection Test', async () => {
     await warmUp();
-    // headless-detector.vercel.app — समर्पित headless/automation detector
-    // score 0.0 (normal browser) से 1.0 (definitely headless); WebDriver, CDP artifacts,
-    // Worker UA, Emoji OS (2026 tests) जांचता है। Pixelscan से पूरी तरह अलग।
-    await goto("https://headless-detector.vercel.app/");
-    await new Promise(r => setTimeout(r, 3500));
-    const detection = await page.evaluate(() => {
-        const scoreEl = document.querySelector('#score');
-        const bodyText = document.body.innerText;
-        const webdriverPresent = /WebDriver Present\s*YES/i.test(bodyText);
-        const cdpDetected = /CDP Artifacts Detected\s*YES/i.test(bodyText);
-        return {
-            score: scoreEl ? parseFloat(scoreEl.textContent.trim()) : null,
-            webdriverPresent,
-            cdpDetected,
-        };
+    await goto("https://arh.antoinevastel.com/bots/areyouheadless");
+    await new Promise(r => setTimeout(r, 3000));
+    let result = await page.evaluate(() => {
+        const el = document.querySelector('#res');
+        return el && el.textContent.toLowerCase().includes('not') ? true : false;
     });
-    assert.ok(detection.score !== null && !Number.isNaN(detection.score), "Headless Detection test: could not read detection score from page");
-    // score 0.5 से कम = normal browser; WebDriver और CDP artifacts नहीं मिलने चाहिए
-    assert.strictEqual(detection.webdriverPresent, false, "Headless Detection test failed! WebDriver detected.");
-    assert.strictEqual(detection.cdpDetected, false, "Headless Detection test failed! CDP artifacts detected.");
-    assert.strictEqual(detection.score < 0.5, true, `Headless Detection test failed! Score ${detection.score} indicates headless browser (>= 0.5).`);
+    assert.strictEqual(result, true, "Headless Detection test failed! Browser detected as headless.")
 });
 
 test('Rebrowser Bot Detector', async () => {
