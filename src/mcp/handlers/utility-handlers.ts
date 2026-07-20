@@ -150,10 +150,14 @@ export const utilityHandlers = {
       iframe,
       iframeSelector,
       waitForIframe = true,
-      timeout = 30000
+      timeout = 30000,
+      async: wantsAsync = false
     } = params;
 
-    notifyProgress('execute_js', 'started', `Executing JavaScript...${iframe !== undefined ? ` (iframe ${iframe})` : ''}`);
+    // Clamp timeout to a sane range so a bad/missing value can never hang forever.
+    const evalTimeout = Math.max(1000, Math.min(Number(timeout) || 30000, 300000));
+
+    notifyProgress('execute_js', 'started', `Executing JavaScript...${iframe !== undefined ? ` (iframe ${iframe})` : ''}${wantsAsync ? ' (async)' : ''}`);
 
     // Get the correct context (page or iframe)
     let context = page;
@@ -187,13 +191,24 @@ export const utilityHandlers = {
       const hasTopLevelReturn = /(^|[\s;{])return[\s;]/.test(trimmed);
 
       let runnable: any = code;
-      if (!looksLikeFunctionArg && (hasTopLevelReturn || params.async)) {
+      if (!looksLikeFunctionArg && (hasTopLevelReturn || wantsAsync)) {
         // Wrap so `return` is valid. Async is supported because evaluate awaits
-        // the returned promise.
+        // the returned promise. We also normalize a non-promise return from an
+        // async wrapper into a resolved value transparently.
         runnable = `(async () => { ${code} })()`;
       }
 
-      const result = await context.evaluate(runnable);
+      // Race the evaluate against the timeout so async code that never resolves
+      // cannot block the MCP server indefinitely. A rejection/timeout is caught
+      // below and returned as a clean { success: false } with a useful message.
+      let timeoutId: any;
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`execute_js timed out after ${evalTimeout}ms`)), evalTimeout);
+      });
+      const result = await Promise.race([
+        Promise.resolve(context.evaluate(runnable)),
+        timeoutPromise
+      ]).finally(() => clearTimeout(timeoutId));
 
       notifyProgress('execute_js', 'completed', 'JavaScript executed', {
         hasResult: result !== undefined,

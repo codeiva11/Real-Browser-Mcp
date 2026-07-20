@@ -376,4 +376,42 @@ export interface SeePageParams {
   path?: string;
   autoHover?: boolean;
   watchMutations?: boolean;
+  // Continuous human-like workflow: run a list of steps back-to-back in a
+  // single flow WITHOUT re-capturing the page between steps. (Merged from the
+  // former browse_task tool so agents only learn one vision tool.)
+  steps?: BrowseStep[];
+  captureBefore?: boolean;
+  captureAfter?: boolean;
+  stopOnError?: boolean;
+}
+
+/**
+ * A single action in a continuous `see_page` workflow. Mirrors the primitives
+ * exposed by click / type / press_key / random_scroll / wait / extract_data /
+ * see so the agent can plan an entire task from one page view.
+ */
+export interface BrowseStep {
+  action: 'click' | 'type' | 'press_key' | 'scroll' | 'wait' | 'extract' | 'see';
+  selector?: string;
+  annotationId?: number;
+  text?: string;
+  key?: string;
+  modifiers?: string[];
+  count?: number;
+  direction?: 'up' | 'down' | 'random' | 'smart';
+  amount?: number;
+  smooth?: boolean;
+  value?: string;
+  waitType?: 'selector' | 'navigation' | 'timeout' | 'networkidle';
+  timeout?: number;
+  format?: 'html' | 'text' | 'markdown' | 'rawHttp' | 'elements';
+  xpath?: string;
+  fullPage?: boolean;
+  includePageText?: boolean;
+  scanIframes?: boolean;
+  annotate?: boolean;
+  humanLike?: boolean;
+  retries?: number;
+  pressEnter?: boolean;
+  clear?: boolean;
 }

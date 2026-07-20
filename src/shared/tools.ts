@@ -528,7 +528,7 @@ const TOOLS = [
   {
     name: 'see_page',
     emoji: '👁️',
-    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does. Returns a screenshot image AND a RICH SINGLE-SHOT MAP of the entire page in one call: full page text, all visible interactive elements (buttons, links, inputs) with position/selector, AND an iframe inventory — so you can plan and execute a whole multi-step task from ONE view without re-capturing the page after every action.\n\n🤖 AI Usage Guide (HUMAN-LIKE WORKFLOW):\n1. Call see_page ONCE with fullPage:true, includePageText:true, scanIframes:true, annotate:true.\n2. From that single view, PLAN and RUN all actions for this page in a CONTINUOUS sequence (click, type, press_key, random_scroll, extract_data…) WITHOUT calling see_page again for the same unchanged page.\n3. ONLY call see_page AGAIN after the page genuinely changes (navigation to a new URL, a modal/popup opens, or new dynamic content loads). Never re-capture the same unchanged page.\n4. For multi-page tasks (login → dashboard → settings), let each navigation trigger a fresh single see_page, then continue the continuous action sequence. This mimics how a human watches a page once, acts, then looks again only when the page actually changes.',
+    description: 'AI VISION ("eyes"): Visually SEE the current page exactly like a human does. Returns a screenshot image AND a RICH SINGLE-SHOT MAP of the entire page in one call: full page text, all visible interactive elements (buttons, links, inputs) with position/selector, AND an iframe inventory — so you can plan and execute a whole multi-step task from ONE view without re-capturing the page after every action.\n\n🤖 AI Usage Guide (HUMAN-LIKE WORKFLOW):\n1. Call see_page ONCE with fullPage:true, includePageText:true, scanIframes:true, annotate:true.\n2. From that single view, PLAN and RUN all actions for this page in a CONTINUOUS sequence WITHOUT re-capturing the page between steps. You can pass a `steps` array (click / type / press_key / scroll / wait / extract / see) and they run back-to-back in ONE flow — this is the unified task runner (the old separate browse_task tool is merged here to avoid confusion). A BEFORE and AFTER screenshot are captured automatically.\n3. ONLY call see_page AGAIN after the page genuinely changes (navigation to a new URL, a modal/popup opens, or new dynamic content loads). Never re-capture the same unchanged page.\n4. For multi-page tasks (login → dashboard → settings), let each navigation trigger a fresh single see_page, then continue the continuous action sequence. This mimics how a human watches a page once, acts, then looks again only when the page actually changes.',
     descriptionHindi: 'AI विज़न ("आँखें"): पेज को इंसान की तरह देखना — एक ही call में screenshot + पूरा page text + सभी clickable elements का map + iframe inventory। नियम: पहले एक बार fullPage:true से देखो, फिर उसी एक view से सारे actions (click/type/extract) लगातार करो बिना बीच-बीच में दोबारा screenshot लिए। दोबारा see_page सिर्फ तभी जब पेज वाकई बदले (navigation/modal/new content)। Multi-page tasks में हर नए पेज पर एक बार देखो, फिर लगातार काम करो — ठीक वैसे जैसे इंसान करता है।',
     category: 'vision',
     requiresBrowser: true,
@@ -547,49 +547,46 @@ const TOOLS = [
         maxElements: { type: 'number', default: 60, description: 'Max number of interactive elements to map' },
         path: { type: 'string', description: 'Optional file path to also save the captured image' },
         autoHover: { type: 'boolean', default: false, description: 'Hover over menus before taking screenshot to reveal dropdowns' },
-        watchMutations: { type: 'boolean', default: false, description: 'Check for DOM mutations (popups/alerts) since last view' }
-      }
-    }
-  },
-
-  // 22. Browse Task (Human-like continuous workflow helper)
-  {
-    name: 'browse_task',
-    emoji: '🧭',
-    description: 'HUMAN-LIKE TASK RUNNER: Execute a sequence of browsing actions on the current page in ONE continuous flow, exactly like a person who looks once then acts. Pass a list of steps (click / type / press_key / scroll / wait / extract / see) and they run back-to-back WITHOUT pausing for a screenshot between steps. Use see_page FIRST (once, fullPage) to map the page, then call browse_task with the planned steps. The tool captures a BEFORE screenshot, runs all steps in order, then an AFTER screenshot — so you only "look" twice, not after every micro-step. Ideal for multi-step forms, wizards, and checkouts. Steps use the same selectors/annotationIds as click/type.\n\n🤖 AI Usage Guide: Plan the whole task from a single see_page view, then hand the step list to browse_task. Only re-run see_page + browse_task when the page genuinely navigates/changes.',
-    descriptionHindi: 'इंसान जैसा task runner: एक ही लगातार flow में browsing actions चलाए (बीच में हर step के बाद screenshot नहीं)। पहले see_page (एक बार, fullPage) से पेज map करो, फिर steps की list browse_task को दो — वह BEFORE screenshot लेगा, सारे steps लगातार चलाएगा, फिर AFTER screenshot। Multi-step forms/wizards के लिए बेहतरीन।',
-    category: 'vision',
-    requiresBrowser: true,
-    requiresPage: true,
-    inputSchema: {
-      type: 'object',
-      properties: {
+        watchMutations: { type: 'boolean', default: false, description: 'Check for DOM mutations (popups/alerts) since last view' },
         steps: {
           type: 'array',
-          description: 'Ordered list of actions to run continuously. Each item: { action: "click"|"type"|"press_key"|"scroll"|"wait"|"extract"|"see", selector?, annotationId?, text?, key?, direction?, amount?, value?, format?, timeout? }',
+          description: 'HUMAN-LIKE TASK RUNNER: optional list of actions to run in ONE continuous flow right after capturing the page — WITHOUT re-capturing between steps. Actions: click / type / press_key / scroll / wait / extract / see. Ideal for multi-step forms, wizards, and checkouts. Plan the whole task from this single page view, then hand the step list here. (Merged from the former browse_task tool.)',
           items: {
             type: 'object',
             properties: {
               action: { type: 'string', enum: ['click', 'type', 'press_key', 'scroll', 'wait', 'extract', 'see'] },
-              selector: { type: 'string', description: 'CSS selector (or annotationId instead)' },
+              selector: { type: 'string', description: 'CSS selector (or use annotationId instead)' },
               annotationId: { type: 'number', description: 'Numeric id from a prior see_page(annotate:true)' },
               text: { type: 'string', description: 'For type: text to enter' },
               key: { type: 'string', description: 'For press_key: key to press' },
+              modifiers: { type: 'array', items: { type: 'string' }, description: 'For press_key: modifier keys' },
+              count: { type: 'number', description: 'For press_key: number of presses' },
               direction: { type: 'string', enum: ['up', 'down', 'random', 'smart'], description: 'For scroll' },
               amount: { type: 'number', description: 'For scroll: pixels' },
+              smooth: { type: 'boolean', default: true, description: 'For scroll: smooth scrolling' },
               value: { type: 'string', description: 'For wait: selector/value' },
+              waitType: { type: 'string', enum: ['selector', 'navigation', 'timeout', 'networkidle'], description: 'For wait' },
+              timeout: { type: 'number', description: 'Per-step timeout (ms)' },
               format: { type: 'string', enum: ['html', 'text', 'markdown', 'rawHttp', 'elements'], description: 'For extract' },
-              timeout: { type: 'number', description: 'Per-step timeout (ms)' }
+              xpath: { type: 'string', description: 'For extract: xpath selector' },
+              fullPage: { type: 'boolean', description: 'For see step: capture full scrollable page' },
+              includePageText: { type: 'boolean', default: true, description: 'For see step: include page text' },
+              scanIframes: { type: 'boolean', default: true, description: 'For see step: include iframe inventory' },
+              humanLike: { type: 'boolean', default: true, description: 'For click: human-like cursor movement' },
+              retries: { type: 'number', default: 2, description: 'For click: auto-retry count' },
+              pressEnter: { type: 'boolean', description: 'For type: press Enter after typing' },
+              clear: { type: 'boolean', default: true, description: 'For type: clear field before typing' }
             }
           }
         },
-        captureBefore: { type: 'boolean', default: true, description: 'Take a screenshot before running steps' },
-        captureAfter: { type: 'boolean', default: true, description: 'Take a screenshot after running steps' },
-        stopOnError: { type: 'boolean', default: true, description: 'Stop the sequence if a step fails (true) or continue (false)' }
-      },
-      required: ['steps']
+        captureBefore: { type: 'boolean', default: true, description: 'Take a BEFORE screenshot when running steps' },
+        captureAfter: { type: 'boolean', default: true, description: 'Take an AFTER screenshot when running steps' },
+        stopOnError: { type: 'boolean', default: true, description: 'Stop the step sequence on first failure (true) or continue (false)' }
+      }
     }
-  }
+  },
+
+  // 22. (removed) browse_task was merged into see_page (continuous `steps` workflow)
 ];
 
 // Tool categories

@@ -95,7 +95,7 @@ docker run -i --rm ghcr.io/codeiva4u/real-browser-mcp-server:latest
 * **Reliable Browser Engine**: Powered by **Patchright Chromium**, a hardened Playwright fork that reduces false-positives in automation environments (does not expose automation indicators or Webdriver/BiDi flags).
 * **Integrated Ad & Tracker Blocker**: Utilizes `@ghostery/adblocker-playwright` with asynchronous pre-compiled filter caching to `adblocker.bin`, blocking ads and speed-bumps completely offline.
 * **Natural Interactions**: Integrates **ghost-cursor-patchright** (Bézier curves) to simulate natural mouse movements, velocity, and hover-before-click behaviors. Features **Physics-based Smooth Scrolling** (`page.realScroll`) utilizing real mouse-wheel events and Cubic Ease-Out deceleration to mimic manual trackpad/mouse flicks for reliable interaction with dynamic UIs.
-* **Human-like Browsing**: The new `browse_task` tool lets the AI agent plan an entire multi-step task from **one** `see_page` view and execute all actions in a single continuous flow — no screenshot pause after every micro-step, just like a human.
+* **Human-like Browsing**: `see_page` lets the AI agent plan an entire multi-step task from **one** view and execute all actions in a single continuous flow via its unified `steps` workflow — no screenshot pause after every micro-step, just like a human. (The previously separate `browse_task` tool is now merged into `see_page` to avoid agent confusion.)
 * **Rich Single-Shot Vision**: `see_page` now returns a screenshot **plus** full page text, all interactive elements with selectors, and an iframe inventory in one call — eliminating the need to re-capture the same page repeatedly.
 * **Turnstile Assist**: Detects and assists with Cloudflare Turnstile challenges on pages you are authorized to access.
 * **Anti-Race Condition Guards**: Robust state-guards ensure popup blockers, shims, and adblockers attach exactly once per page, preventing context destruction.
@@ -289,13 +289,12 @@ The server exposes **22 tools** categorized into functional units:
 ### 👁️ AI Vision & Human-like Workflow
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `see_page` | **Rich single-shot vision**: screenshot + page text + all interactive elements + iframe inventory in ONE call. The AI agent plans the whole task from this view and runs all actions continuously without re-capturing. | `fullPage`, `annotate`, `includePageText`, `scanIframes`, `maxElements`, `format`, `quality` |
-| `browse_task` | **Human-like continuous runner**: executes a sequence of actions (click/type/scroll/press_key/wait/extract/see) back-to-back in ONE flow with no screenshot pause between steps. Returns a before + after screenshot and a per-step report. | `steps[]`, `captureBefore`, `captureAfter`, `stopOnError` |
+| `see_page` | **Unified vision + human-like task runner**: screenshot + page text + all interactive elements + iframe inventory in ONE call. Optionally pass a `steps[]` array (click/type/scroll/press_key/wait/extract/see) to execute the whole multi-step task back-to-back in a single continuous flow — no screenshot pause between steps, with automatic before + after screenshots and a per-step report. The AI agent plans the whole task from this one view. | `fullPage`, `annotate`, `includePageText`, `scanIframes`, `maxElements`, `format`, `quality`, `steps[]`, `captureBefore`, `captureAfter`, `stopOnError` |
 
 > **Human-like Workflow Pattern:**
 > ```
 > OLD (repetitive): see_page → click → see_page → type → see_page → click ...
-> NEW (human-like): see_page (once, fullPage) → browse_task [click, type, scroll, extract] → see_page (only on page change)
+> NEW (human-like): see_page (once, fullPage) → steps:[click, type, scroll, extract] → see_page (only on page change)
 > ```
 
 If the current model cannot consume images, `see_page` still returns a full text + JSON summary, and `solve_captcha` can return text-only fallback guidance when called with `preferTextFallback: true`.
@@ -401,7 +400,7 @@ Run these scripts from the project root directory:
 - **MCP-first**: every tool is defined in `src/shared/tools.ts` and dispatched through a single `executeTool()` router.
 - **Handler modules**: `src/mcp/handlers/` contains focused files — `network-recorder.ts`, `network-extractors.ts`, `vision-captcha.ts`, `vision-see-page.ts`, `vision-browse-task.ts` — with thin wrappers (`network.ts`, `vision.ts`) for the tool-facing API.
 - **Browser state**: a single global `state` object in `src/mcp/handlers/state.ts` holds the current browser/page instance and network recorder data. `requireBrowser()` / `getState()` provide typed accessors for handlers.
-- **Human-like workflow**: `browse_task` orchestrates the existing `click`/`type`/`scroll`/`press_key`/`wait`/`extract` handlers in a continuous sequence — no extra LLM or API key required. The AI agent (LLM client) plans the steps; `browse_task` executes them without pausing.
+- **Human-like workflow**: the unified `see_page` `steps[]` workflow orchestrates the existing `click`/`type`/`scroll`/`press_key`/`wait`/`extract` handlers in a continuous sequence — no extra LLM or API key required. The AI agent (LLM client) plans the steps; `see_page` executes them without pausing.
 - **No project pollution**: runtime caches (User-Agent detection, saved sessions) are written to the OS temp directory (`os.tmpdir()/real-browser-mcp`), **never** inside the project or working directory. The server does **not** create a `.cache` folder in your project tree.
 - **`execute_js` caveat**: the `execute_js` tool runs arbitrary JavaScript inside the controlled browser page context (a sandboxed browser tab). Only invoke it with trusted input.
 
@@ -409,7 +408,7 @@ Run these scripts from the project root directory:
 
 - **Single-session model**: the MCP server manages one browser instance at a time. Concurrent multi-session isolation is not supported.
 - **reCAPTCHA / hCaptcha**: detected honestly but not solved automatically. Use a third-party service for these.
-- **Vision tools require image-capable models**: `see_page`, `browse_task`, and `solve_captcha` return images. Non-vision models get a full text + JSON summary fallback.
+- **Vision tools require image-capable models**: `see_page` and `solve_captcha` return images. Non-vision models get a full text + JSON summary fallback.
 - **TypeScript strict mode**: the project compiles with `strict: true` across all source files. `tsc --noEmit` passes cleanly.
 
 ---

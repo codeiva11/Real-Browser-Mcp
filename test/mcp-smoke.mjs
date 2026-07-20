@@ -17,14 +17,14 @@ const require = createRequire(import.meta.url);
 test('Tool Registry — all tools registered, no duplicates', async () => {
   const { TOOLS } = require('../dist/src/shared/tools.js');
   assert.ok(Array.isArray(TOOLS), 'TOOLS should be an array');
-  assert.ok(TOOLS.length >= 22, `Expected >=22 tools, got ${TOOLS.length}`);
+  assert.ok(TOOLS.length >= 21, `Expected >=21 tools, got ${TOOLS.length}`);
 
   const names = TOOLS.map(t => t.name);
   const unique = new Set(names);
   assert.strictEqual(unique.size, names.length, `Duplicate tool names: ${names.filter((n, i) => names.indexOf(n) !== i).join(', ')}`);
 
   // Required tools must be present
-  const required = ['browser_init', 'navigate', 'click', 'type', 'see_page', 'browse_task',
+  const required = ['browser_init', 'navigate', 'click', 'type', 'see_page',
     'get_content', 'extract_data', 'network_recorder', 'media_extractor',
     'deep_analysis', 'execute_js', 'solve_captcha', 'redirect_tracer',
     'replay_request', 'api_analyzer', 'storage_inspector', 'progress_tracker',
