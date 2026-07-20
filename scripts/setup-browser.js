@@ -15,12 +15,20 @@ if (process.env.CI || process.env.SKIP_BROWSER_SETUP) {
 
 console.log('\n📥 Setting up hardened browser (Patchright Chromium)...\n');
 
-const ok = run('npx patchright install chromium');
+let ok = false;
+try {
+  ok = run('npx patchright install chromium');
+} catch (e) {
+  ok = false;
+}
 
 if (!ok) {
+  // Never fail the install — the server can still be used after an explicit
+  // `npx patchright install chromium` (e.g. in CI/Docker, or if npx is absent).
   console.warn(
     '\n⚠️  Could not auto-download Patchright Chromium during install.\n' +
-    '   The server will still install, but you must run the following before using it:\n' +
+    '   The package still installed successfully, but you must run the following\n' +
+    '   before using the server:\n' +
     '       npx patchright install chromium\n'
   );
 } else {
