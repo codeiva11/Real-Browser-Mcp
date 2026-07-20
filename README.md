@@ -153,6 +153,24 @@ Add the server entry to your global MCP settings file (typically found at `%APPD
   }
 }
 ```
+### 3. Kilo Codee (VS Code)
+Add the server entry to your global MCP settings file (typically found at kilo.jsonc
+
+```json
+{
+  "mcp": {
+    "real-browser-mcp-server": {
+      "type": "local",
+      "command": ["node", "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"],
+      "environment": {
+        "HEADLESS": "false",
+        "AI_HEALING": "true"
+      },
+      "enabled": true
+    }
+  }
+}
+```
 
 ### 4. Windsurf IDE
 Configure the server in your `~/.codeium/windsurf/mcp_config.json`:
