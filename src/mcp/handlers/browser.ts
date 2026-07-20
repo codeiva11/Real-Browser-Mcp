@@ -1,13 +1,19 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, resolveWaitUntil } from './state';
+import { createConnect } from '../../shared/lib-core';
 import type { BrowserInitParams, NavigateParams, WaitParams, WaitUntilState } from '../../types';
 
 export const browserHandlers = {
   async browser_init(params: BrowserInitParams = {}) {
     notifyProgress('browser_init', 'started', 'Initializing browser...');
 
-    const { connect } = require('../../../lib/cjs/index.js') as { connect: Function };
+    // Import the page controller (turnstile auto-solver + popup blocker) and
+    // build the connect() factory directly from the shared lib-core module.
+    // NOTE: We deliberately avoid the legacy `lib/cjs` mirror so there is a
+    // single source of truth in `src/` (the mirror caused version drift).
+    const { pageController } = require('../../shared/page-controller') as { pageController: any };
+    const connect = createConnect(pageController as any) as (opts?: any) => Promise<any>;
 
     const envHeadless = getHeadlessFromEnv();
     const headless = params.headless !== undefined ? params.headless : envHeadless;

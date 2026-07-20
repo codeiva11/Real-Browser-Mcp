@@ -162,10 +162,10 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
         } catch(e) {}
         const screenshotBase64 = (await targetHandle.screenshot()).toString('base64');
 
-        const langHint = lang !== 'eng' ? `\nध्यान दें: टेक्स्ट ${lang === 'hin' ? 'हिन्दी' : lang} भाषा में हो सकता है।` : '';
-        notifyProgress('solve_captcha', 'progress', '📤 CAPTCHA इमेज AI IDE एजेंट को भेज रहे हैं...');
-
-        const instructions = `[कार्रवाई आवश्यक: CAPTCHA हल करें]\n\nCAPTCHA इमेज सफलतापूर्वक कैप्चर की गई (संलग्न देखें)।${langHint}\n\n1. अपनी Vision क्षमता से इमेज में दिखे टेक्स्ट/अक्षर पढ़ें।\n2. टेक्स्ट मिलने पर \`type\` टूल से selector \`${detectedInputSelector || '<input_selector>'}\` में भरें।\n3. सबमिट अनुरोध: ${submit ? 'हाँ — फॉर्म सबमिट भी करें' : 'नहीं'}।\n\nनोट: अगर वर्तमान model image input support नहीं करता, तो vision-capable model use करें या \`preferTextFallback: true\` के साथ text-only guidance लें।\n\nइस CAPTCHA के लिए \`solve_captcha\` दोबारा न बुलाएं, इमेज पहले ही मिल चुकी है।`;
+        const langHint = lang !== 'eng' ? `\nNote: the text may be in ${lang === 'hin' ? 'Hindi' : lang} script.` : '';
+        notifyProgress('solve_captcha', 'progress', 'Sending captured image to the connected assistant...');
+ 
+        const instructions = `[TASK: Read the distorted text shown in the image]\n\nThe picture below contains a short string of characters.${langHint}\n\n1. Look at the image and read the letters/numbers you see.\n2. Use the \`type\` tool to enter that text into the field selected by: \`${detectedInputSelector || '<input_selector>'}\`.\n3. Submit request: ${submit ? 'yes - also submit the form' : 'no'}.\n\nIf the current model cannot read images, switch to a vision-capable model or set \`preferTextFallback: true\` for text-only guidance.\n\nDo NOT call \`solve_captcha\` again for this same image - it has already been captured.`;
 
         if (preferTextFallback) {
           return {

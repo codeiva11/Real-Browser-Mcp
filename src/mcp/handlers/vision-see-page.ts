@@ -3,6 +3,21 @@ import * as fs from 'fs';
 import { state, requireBrowser, notifyProgress } from './state';
 import type { SeePageParams } from '../../types';
 
+/**
+ * Resolve a user-supplied output path to a location INSIDE the current
+ * working directory. Writing outside cwd (path traversal) is rejected.
+ */
+function safeResolve(savePath: string): string | null {
+  try {
+    const resolved = path.resolve(savePath);
+    const cwd = path.resolve(process.cwd());
+    if (resolved !== cwd && !resolved.startsWith(cwd + path.sep)) return null;
+    return resolved;
+  } catch {
+    return null;
+  }
+}
+
 export async function seePage(params: SeePageParams = {}) {
   const { page } = requireBrowser();
   const {
@@ -171,8 +186,8 @@ export async function seePage(params: SeePageParams = {}) {
     for (const el of elements) state.activeAnnotations[el.id] = { selector: el.selector, text: el.text, type: el.kind };
   }
 
-  const shotOpts: any = { type: format, fullPage };
-  if (format === 'jpeg' && typeof quality === 'number') shotOpts.quality = quality;
+   const shotOpts: any = { type: format, fullPage };
+   if (typeof quality === 'number') shotOpts.quality = quality;
 
   let buffer;
   try {
@@ -195,10 +210,15 @@ export async function seePage(params: SeePageParams = {}) {
 
   let savedTo = null;
   if (savePath) {
-    const dir = path.dirname(savePath);
-    if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(savePath, buffer);
-    savedTo = savePath;
+    const safePath = safeResolve(savePath);
+    if (!safePath) {
+      notifyProgress('see_page', 'error', 'Invalid save path (outside working directory).');
+    } else {
+      const dir = path.dirname(safePath);
+      if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(safePath, buffer);
+      savedTo = safePath;
+    }
   }
 
   notifyProgress('see_page', 'completed',

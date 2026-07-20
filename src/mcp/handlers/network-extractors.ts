@@ -395,9 +395,9 @@ async function discoverAPIs(page: any) {
     scriptSources: [], inlineApiPatterns: [], postBodies: [], dynamicApis: []
   };
 
-  // Capture already-intercepted APIs from network_recorder (no setTimeout needed)
+   // Capture already-intercepted APIs from network_recorder (no setTimeout needed)
   try {
-    const capturedApis = await page.evaluate(() => (window as any).__interceptedApis || []).catch(() => []);
+    const capturedApis = await page.evaluate(() => (window as any).__interceptedApis || []);
     apiResults.dynamicApis = capturedApis;
   } catch (e) { apiResults.dynamicApis = []; }
 

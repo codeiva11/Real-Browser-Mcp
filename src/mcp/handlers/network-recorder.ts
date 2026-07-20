@@ -98,7 +98,7 @@ export async function startRecording(page: any, captureXhrBody = false) {
 
         return ws;
       } as any;
-      window.WebSocket.prototype = OrigWS.prototype;
+      (window.WebSocket as any).prototype = OrigWS.prototype;
       (window.WebSocket as any).CONNECTING = OrigWS.CONNECTING;
       (window.WebSocket as any).OPEN = OrigWS.OPEN;
       (window.WebSocket as any).CLOSING = OrigWS.CLOSING;

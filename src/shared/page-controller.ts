@@ -1,6 +1,6 @@
-import { checkTurnstile } from './turnstile.mjs';
+import { checkTurnstile } from './turnstile-shim';
 
-export async function pageController({ browser, page, proxy, turnstile }) {
+async function pageController({ browser, page, proxy, turnstile }: { browser: any; page: any; proxy: any; turnstile: boolean }) {
     if (page._pageControllerApplied) return page;
     page._pageControllerApplied = true;
 
@@ -24,7 +24,7 @@ export async function pageController({ browser, page, proxy, turnstile }) {
     const context = page.context();
     if (!context._popupBlockerApplied) {
         context._popupBlockerApplied = true;
-        context.on('page', async (newPage) => {
+        context.on('page', async (newPage: any) => {
             try {
                 const opener = await newPage.opener();
                 if (opener) {
@@ -49,5 +49,4 @@ export async function pageController({ browser, page, proxy, turnstile }) {
     return page;
 }
 
-
-
+export { pageController };

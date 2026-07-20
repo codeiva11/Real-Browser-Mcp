@@ -3,6 +3,26 @@ import * as fs from 'fs';
 
 import { requireBrowser, notifyProgress } from './state';
 
+/**
+ * Resolve a user-supplied output path to a location INSIDE the current
+ * working directory. Writing outside cwd (path traversal, e.g.
+ * ../../etc/passwd) is rejected to avoid arbitrary file overwrite.
+ */
+function safeResolve(savePath: string): string | null {
+  try {
+    const resolved = path.resolve(savePath);
+    const cwd = path.resolve(process.cwd());
+    const rel = path.relative(cwd, resolved);
+    if (rel.startsWith('..') || path.isAbsolute(rel) && !resolved.startsWith(cwd)) return null;
+    if (resolved !== cwd && !resolved.startsWith(cwd + path.sep)) return null;
+    return resolved;
+  } catch {
+    return null;
+  }
+}
+
+export { safeResolve };
+
 
 export const extractHandlers = {
   async get_content(params: any = {}) {
@@ -50,7 +70,9 @@ export const extractHandlers = {
       }
       notifyProgress('get_content', 'completed', `Found ${elements.length} element(s)`);
       if (saveAs) {
-        fs.writeFileSync(path.resolve(saveAs), JSON.stringify(elements, null, 2));
+        const _safePath = safeResolve(saveAs);
+        if (!_safePath) return { success: false, error: 'Invalid saveAs path (outside working directory).' };
+        fs.writeFileSync(_safePath, JSON.stringify(elements, null, 2));
       }
       return { success: true, format: 'elements', found: elements.length, elements, savedTo: saveAs ? path.resolve(saveAs) : null };
     }
@@ -83,7 +105,9 @@ export const extractHandlers = {
         
         let outHtml = rawHtml;
         if (saveAs) {
-          fs.writeFileSync(path.resolve(saveAs), outHtml);
+          const _safePath = safeResolve(saveAs);
+          if (!_safePath) return { success: false, error: 'Invalid saveAs path (outside working directory).' };
+          fs.writeFileSync(_safePath, outHtml);
         }
         return {
           success: true, rawHtml, renderedHtml, diff,
@@ -177,7 +201,8 @@ export const extractHandlers = {
     content = prefix + content;
 
     if (saveAs) {
-      const outputPath = path.resolve(saveAs);
+      const outputPath = safeResolve(saveAs);
+      if (!outputPath) return { success: false, error: 'Invalid saveAs path (outside working directory).' };
       fs.writeFileSync(outputPath, content);
       notifyProgress('get_content', 'completed', `Saved ${content.length} chars to ${saveAs}`, { format, length: content.length, savedTo: outputPath });
       return { success: true, url: page.url(), format, length: content.length, savedTo: outputPath };

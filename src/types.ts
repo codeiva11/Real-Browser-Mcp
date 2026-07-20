@@ -243,7 +243,7 @@ export interface ExecuteJsParams {
 }
 
 export interface ExtractDataParams {
-  type?: 'auto' | 'regex' | 'json' | 'meta' | 'structured' | 'deobfuscate';
+  type?: 'auto' | 'regex' | 'json' | 'meta' | 'structured' | 'deobfuscate' | 'apiDiscovery' | 'decrypt' | 'links';
   pattern?: string;
   selector?: string;
   jsonPath?: string;
