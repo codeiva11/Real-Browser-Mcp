@@ -7,7 +7,6 @@ import { extractHandlers } from './extract';
 import { utilityHandlers } from './utility-handlers';
 import { mediaHandlers } from './media-handlers';
 import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser } from './state';
-import { activityLogger } from '../../shared/activity-logger';
 
 // Public tool handlers only — internal helpers (_fillFormFields etc.) are NOT exposed
 export const handlers: any = {
@@ -22,28 +21,10 @@ export const handlers: any = {
 
 export async function executeTool(name: string, args: any = {}) {
   if (handlers[name]) {
-    const startTime = Date.now();
     try {
       const result = await handlers[name](args);
-      const success = !(result && typeof result === 'object' && result.success === false);
-      activityLogger.record({
-        timestamp: new Date(startTime).toISOString(),
-        tool: name,
-        success,
-        durationMs: Date.now() - startTime,
-        args: activityLogger.sanitizeArgs(args),
-        error: success ? undefined : (result && (result as any).error) || undefined,
-      });
       return result;
     } catch (error: any) {
-      activityLogger.record({
-        timestamp: new Date(startTime).toISOString(),
-        tool: name,
-        success: false,
-        durationMs: Date.now() - startTime,
-        args: activityLogger.sanitizeArgs(args),
-        error: error?.message || String(error),
-      });
       return { success: false, error: error.message };
     }
   }
@@ -51,12 +32,6 @@ export async function executeTool(name: string, args: any = {}) {
 }
 
 export async function cleanup() {
-  try {
-    activityLogger.destroy();
-  } catch (e) {
-    // ignore flush errors during shutdown
-  }
-
   if (state.browserInstance) {
     // Reuse the same close logic as browser_close handler
     try {
@@ -73,4 +48,4 @@ export async function cleanup() {
   }
 }
 
-export { getState, requireBrowser, setProgressCallback, notifyProgress, getHeadlessFromEnv, activityLogger };
+export { getState, requireBrowser, setProgressCallback, notifyProgress, getHeadlessFromEnv };

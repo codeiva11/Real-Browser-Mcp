@@ -9,7 +9,6 @@
  */
 
 const { TOOLS, TOOL_DISPLAY, CATEGORIES } = require('./shared/tools') as { TOOLS: any[]; TOOL_DISPLAY: any[]; CATEGORIES: Record<string, any> };
-const { activityLogger, ActivityLogger } = require('./shared/activity-logger') as { activityLogger: any; ActivityLogger: any };
 
 const { colors } = require('./shared/colors') as { colors: Record<string, string> };
 
@@ -99,8 +98,6 @@ module.exports = {
   TOOLS,
   TOOL_DISPLAY,
   CATEGORIES,
-  activityLogger,
-  ActivityLogger,
   startMCP: () => require('./mcp/index'),
 };
 
