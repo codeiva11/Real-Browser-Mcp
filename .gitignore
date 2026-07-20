@@ -13,6 +13,7 @@ coverage
 *.tgz
 
 # Cache files (regenerated at runtime)
+.cache/
 **/cache/filter-cache.json
 
 # Build artifacts
