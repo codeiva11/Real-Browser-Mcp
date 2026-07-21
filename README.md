@@ -161,7 +161,7 @@ Add the server entry to your `kilo.jsonc`:
 ```json
 {
   "mcp": {
-    "real-browser-mcp-server": {
+    "real_browser_mcp_server": {
       "type": "local",
       "command": ["npx", "-y", "real-browser-mcp-server@latest", "mcp"],
       "environment": {
