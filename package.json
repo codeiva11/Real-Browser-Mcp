@@ -1,7 +1,7 @@
 {
   "name": "real-browser-mcp-server",
   "version": "2.2.2",
-  "description": "MCP Server for Real Browser - Patchright Ad Blocker.",
+  "description": "MCP Server for Real Browser - Patchright Blocker.",
   "main": "dist/lib/cjs/index.js",
   "module": "lib/esm/index.mjs",
   "type": "commonjs",
