@@ -43,11 +43,7 @@
     "mcp-server",
     "model-context-protocol",
     "patchright",
-    "playwright",
-    "browser-automation",
-    "web-automation",
-    "web-testing",
-    "automation"
+    "playwright"
   ],
   "author": "codeiva4u",
   "license": "ISC",
