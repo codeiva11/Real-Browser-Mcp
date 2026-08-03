@@ -1,7 +1,7 @@
 /**
  * MCP Smoke Test — Fast, network-independent.
  * Verifies:
- *   1. Tool registry (all 22 tools registered, no duplicates)
+ *   1. Tool registry (all 21 tools registered, no duplicates)
  *   2. JSON-RPC initialize handshake over STDIO
  *   3. tools/list response matches registry
  */

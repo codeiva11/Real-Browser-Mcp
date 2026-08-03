@@ -86,109 +86,123 @@ export async function seePage(params: SeePageParams = {}) {
 
   if (includeElements || annotate) {
     const data = await page.evaluate(({ maxEls, isFullPage, doAnnotate }: any) => {
-      const out: any[] = [];
-      const seen = new Set();
-      const sel = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [onclick], [tabindex]';
-      const nodes = document.querySelectorAll(sel);
+      try {
+        const out: any[] = [];
+        const seen = new Set();
+        const sel = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [onclick], [tabindex]';
+        const nodes = document.querySelectorAll(sel);
 
-      const cssPath = (el: any) => {
-        if (el.id) return `#${CSS.escape(el.id)}`;
-        if (el.name) return `${el.tagName.toLowerCase()}[name="${el.name}"]`;
-        const parts = [];
-        let node = el;
-        while (node && node.nodeType === 1 && parts.length < 4) {
-          let part = node.tagName.toLowerCase();
-          if (node.classList.length) {
-            const cls = Array.from(node.classList).slice(0, 2).map((c: any) => '.' + CSS.escape(c)).join('');
-            part += cls;
+        const cssPath = (el: any) => {
+          if (!el) return '';
+          if (el.id && typeof CSS !== 'undefined' && CSS.escape) return `#${CSS.escape(el.id)}`;
+          if (el.name) return `${el.tagName.toLowerCase()}[name="${el.name}"]`;
+          const parts = [];
+          let node = el;
+          while (node && node.nodeType === 1 && parts.length < 4) {
+            let part = node.tagName.toLowerCase();
+            if (node.classList && node.classList.length && typeof CSS !== 'undefined' && CSS.escape) {
+              const cls = Array.from(node.classList).slice(0, 2).map((c: any) => '.' + CSS.escape(c)).join('');
+              part += cls;
+            }
+            const parent = node.parentElement;
+            if (parent) {
+              const sibs = Array.from(parent.children).filter((c: any) => c.tagName === node.tagName);
+              if (sibs.length > 1) part += `:nth-of-type(${sibs.indexOf(node) + 1})`;
+            }
+            parts.unshift(part);
+            node = node.parentElement;
           }
-          const parent = node.parentElement;
-          if (parent) {
-            const sibs = Array.from(parent.children).filter((c: any) => c.tagName === node.tagName);
-            if (sibs.length > 1) part += `:nth-of-type(${sibs.indexOf(node) + 1})`;
+          return parts.join(' > ');
+        };
+
+        let elementIdCounter = 1;
+        const boxesToInject = [];
+
+        for (const el of nodes) {
+          if (out.length >= maxEls) break;
+          const rect = el.getBoundingClientRect();
+          if (rect.width < 2 || rect.height < 2) continue;
+          const style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+          if (!isFullPage) {
+            if (rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth) continue;
           }
-          parts.unshift(part);
-          node = node.parentElement;
+
+          const tag = el.tagName ? el.tagName.toLowerCase() : '';
+          let label = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('alt') || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+          let kind = tag;
+          if (tag === 'a') kind = 'link';
+          else if (tag === 'button' || el.getAttribute('role') === 'button') kind = 'button';
+          else if (tag === 'input') kind = `input:${el.type || 'text'}`;
+          else if (tag === 'select') kind = 'select';
+          else if (tag === 'textarea') kind = 'textarea';
+
+          const selector = cssPath(el);
+          if (seen.has(selector + '|' + label)) continue;
+          seen.add(selector + '|' + label);
+
+          const annotationId = elementIdCounter++;
+          if (doAnnotate) boxesToInject.push({ id: annotationId, rect, tag: kind });
+
+          out.push({
+            id: annotationId, kind, text: label, selector,
+            href: tag === 'a' ? (el as any).href : undefined,
+            box: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) }
+          });
         }
-        return parts.join(' > ');
-      };
 
-      let elementIdCounter = 1;
-      const boxesToInject = [];
-
-      for (const el of nodes) {
-        if (out.length >= maxEls) break;
-        const rect = el.getBoundingClientRect();
-        if (rect.width < 2 || rect.height < 2) continue;
-        const style = window.getComputedStyle(el);
-        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
-        if (!isFullPage) {
-          if (rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth) continue;
+        if (doAnnotate && boxesToInject.length > 0) {
+          let container = document.getElementById('real-browser-annotations');
+          if (container) container.remove();
+          container = document.createElement('div');
+          container.id = 'real-browser-annotations';
+          container.style.position = 'absolute';
+          container.style.top = '0'; container.style.left = '0';
+          container.style.width = '100%'; container.style.height = '100%';
+          container.style.pointerEvents = 'none'; container.style.zIndex = '2147483647';
+          for (const box of boxesToInject) {
+            const absoluteY = box.rect.y + window.scrollY;
+            const absoluteX = box.rect.x + window.scrollX;
+            const div = document.createElement('div');
+            div.style.position = 'absolute'; div.style.border = '2px solid red';
+            div.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
+            div.style.left = absoluteX + 'px'; div.style.top = absoluteY + 'px';
+            div.style.width = box.rect.width + 'px'; div.style.height = box.rect.height + 'px';
+            div.style.boxSizing = 'border-box';
+            const label = document.createElement('div');
+            label.innerText = String(box.id);
+            label.style.position = 'absolute'; label.style.top = '-2px'; label.style.left = '-2px';
+            label.style.backgroundColor = 'red'; label.style.color = 'white';
+            label.style.fontSize = '12px'; label.style.fontWeight = 'bold';
+            label.style.padding = '1px 4px'; label.style.fontFamily = 'monospace';
+            label.style.borderBottomRightRadius = '4px';
+            div.appendChild(label);
+            container.appendChild(div);
+          }
+          
+          // Fallback to documentElement if body doesn't exist
+          const mountNode = document.body || document.documentElement;
+          if (mountNode) mountNode.appendChild(container);
         }
 
-        const tag = el.tagName.toLowerCase();
-        let label = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('alt') || '').trim().replace(/\s+/g, ' ').slice(0, 80);
-        let kind = tag;
-        if (tag === 'a') kind = 'link';
-        else if (tag === 'button' || el.getAttribute('role') === 'button') kind = 'button';
-        else if (tag === 'input') kind = `input:${el.type || 'text'}`;
-        else if (tag === 'select') kind = 'select';
-        else if (tag === 'textarea') kind = 'textarea';
-
-        const selector = cssPath(el);
-        if (seen.has(selector + '|' + label)) continue;
-        seen.add(selector + '|' + label);
-
-        const annotationId = elementIdCounter++;
-        if (doAnnotate) boxesToInject.push({ id: annotationId, rect, tag: kind });
-
-        out.push({
-          id: annotationId, kind, text: label, selector,
-          href: tag === 'a' ? (el as any).href : undefined,
-          box: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) }
-        });
+        return {
+          elements: out,
+          info: {
+            title: document.title, url: location.href,
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+            scrollY: Math.round(window.scrollY), scrollHeight: document.body ? document.body.scrollHeight : (document.documentElement ? document.documentElement.scrollHeight : 0)
+          }
+        };
+      } catch (err: any) {
+        return { error: err.message, elements: [], info: {} };
       }
+    }, { maxEls: maxElements, isFullPage: fullPage, doAnnotate: annotate }).catch((e: any) => { 
+      return { error: e.message, elements: [], info: {} }; 
+    });
 
-      if (doAnnotate && boxesToInject.length > 0) {
-        let container = document.getElementById('real-browser-annotations');
-        if (container) container.remove();
-        container = document.createElement('div');
-        container.id = 'real-browser-annotations';
-        container.style.position = 'absolute';
-        container.style.top = '0'; container.style.left = '0';
-        container.style.width = '100%'; container.style.height = '100%';
-        container.style.pointerEvents = 'none'; container.style.zIndex = '2147483647';
-        for (const box of boxesToInject) {
-          const absoluteY = box.rect.y + window.scrollY;
-          const absoluteX = box.rect.x + window.scrollX;
-          const div = document.createElement('div');
-          div.style.position = 'absolute'; div.style.border = '2px solid red';
-          div.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
-          div.style.left = absoluteX + 'px'; div.style.top = absoluteY + 'px';
-          div.style.width = box.rect.width + 'px'; div.style.height = box.rect.height + 'px';
-          div.style.boxSizing = 'border-box';
-          const label = document.createElement('div');
-          label.innerText = String(box.id);
-          label.style.position = 'absolute'; label.style.top = '-2px'; label.style.left = '-2px';
-          label.style.backgroundColor = 'red'; label.style.color = 'white';
-          label.style.fontSize = '12px'; label.style.fontWeight = 'bold';
-          label.style.padding = '1px 4px'; label.style.fontFamily = 'monospace';
-          label.style.borderBottomRightRadius = '4px';
-          div.appendChild(label);
-          container.appendChild(div);
-        }
-        document.body.appendChild(container);
-      }
-
-      return {
-        elements: out,
-        info: {
-          title: document.title, url: location.href,
-          viewport: { width: window.innerWidth, height: window.innerHeight },
-          scrollY: Math.round(window.scrollY), scrollHeight: document.body ? document.body.scrollHeight : 0
-        }
-      };
-    }, { maxEls: maxElements, isFullPage: fullPage, doAnnotate: annotate }).catch((e: any) => { console.error(e); return { elements: [], info: {} } });
+    if (data.error) {
+      notifyProgress('see_page', 'warn', `Non-fatal issue during element parsing: ${data.error}`);
+    }
 
     elements = data.elements || [];
     pageInfo = data.info || {};

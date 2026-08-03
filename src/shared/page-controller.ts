@@ -13,12 +13,20 @@ async function pageController({ browser, page, proxy, turnstile }: { browser: an
     async function turnstileSolver() {
         while (solveStatus) {
             await checkTurnstile({ page }).catch(() => { });
-            await new Promise(r => setTimeout(r, 1000));
+            // Unref the idle timer so this background loop never keeps the
+            // Node process alive on its own. It still runs while the event
+            // loop is active (i.e. while the server/browser is running).
+            await new Promise(r => {
+                const t = setTimeout(r, 1000);
+                if (typeof t.unref === 'function') t.unref();
+            });
         }
     }
 
     if (solveStatus) {
-        turnstileSolver();
+        // Fire-and-forget background solver. It stops itself when the page
+        // closes (page.on('close') sets solveStatus=false).
+        turnstileSolver().catch(() => { });
     }
 
     const context = page.context();

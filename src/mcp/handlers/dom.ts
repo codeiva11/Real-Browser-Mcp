@@ -424,6 +424,7 @@ export const domHandlers = {
 
     // Wait for selector if enabled
     if (waitForSelector) {
+      let selectorRecovered = false;
       try {
         await context.waitForSelector(selector!, { timeout: 10000 });
       } catch (e) {
@@ -449,10 +450,19 @@ export const domHandlers = {
           if (healed) {
             notifyProgress('type', 'progress', `🔧 AI Healed: ${selector} → ${healed}`);
             selector = healed;
+            try {
+              await context.waitForSelector(selector!, { timeout: 5000 });
+              // Healed selector is valid; continue with typing below.
+              selectorRecovered = true;
+            } catch {
+              // Healed selector also not found; return the normal error below.
+            }
           }
         }
-        notifyProgress('type', 'error', `Selector not found: ${selector}`);
-        return { success: false, error: `Selector not found: ${selector}. 💡 AI HINT: The element might be hidden, inside an iframe, or the selector is wrong. Run see_page(annotate: true) to verify and get an annotationId.` };
+        if (!selectorRecovered) {
+          notifyProgress('type', 'error', `Selector not found: ${selector}`);
+          return { success: false, error: `Selector not found: ${selector}. 💡 AI HINT: The element might be hidden, inside an iframe, or the selector is wrong. Run see_page(annotate: true) to verify and get an annotationId.` };
+        }
       }
     }
 

@@ -4,32 +4,6 @@
 // Redirect console.log AND intercept process.stdout.write to STDERR.
 console.log = function (...args) { console.error(...args); };
 
-const _originalStdoutWrite = process.stdout.write.bind(process.stdout);
-
-function isJsonRpcMessage(str: string): boolean {
-  const s = str.trim();
-  if (!s) return false;
-  // JSON-RPC messages are always JSON objects or arrays
-  if (s.startsWith('{') || s.startsWith('[')) {
-    try {
-      JSON.parse(s);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
-
-process.stdout.write = function (chunk: any, ...rest: any[]) {
-  const str = typeof chunk === 'string' ? chunk : chunk?.toString('utf8');
-  // Allow only valid JSON-RPC messages through stdout; redirect everything else to stderr
-  if (str && !isJsonRpcMessage(str)) {
-    return (_originalStdoutWrite as any).call(process.stderr, chunk, ...rest);
-  }
-  return (_originalStdoutWrite as any)(chunk, ...rest);
-} as any;
-
 /**
  * Real Browser MCP Server - Entry Point
  * 
@@ -153,15 +127,14 @@ function setupShutdownHandlers(server: any) {
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGHUP', () => gracefulShutdown('SIGHUP'));
 
-  // Handle uncaught errors
-  process.on('uncaughtException', async (error) => {
-    console.error(`${colors.bright}${colors.red}❌ Uncaught Exception:${colors.reset}`, error.message);
-    await gracefulShutdown('error');
+  // Log unexpected errors without turning one tool/background-task failure
+  // into an MCP server shutdown. Explicit signals still use gracefulShutdown.
+  process.on('uncaughtException', (error) => {
+    console.error(`${colors.bright}${colors.red}❌ Uncaught Exception:${colors.reset}`, error?.message || error);
   });
 
-  process.on('unhandledRejection', async (reason) => {
-    console.error(`${colors.bright}${colors.red}❌ Unhandled Rejection:${colors.reset}`, reason);
-    await gracefulShutdown('error');
+  process.on('unhandledRejection', (reason: any) => {
+    console.error(`${colors.bright}${colors.red}❌ Unhandled Rejection:${colors.reset}`, reason?.message || reason);
   });
 }
 

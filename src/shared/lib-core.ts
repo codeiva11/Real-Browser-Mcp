@@ -47,6 +47,47 @@ async function getNativeUserAgent(executablePath?: string): Promise<string> {
     }
   }
 
+  // Generate dynamic fallback based on OS to avoid hardcoded strings
+  const getFallbackUa = () => {
+    const isMac = os.platform() === 'darwin';
+    const isWin = os.platform() === 'win32';
+    const osString = isMac ? 'Macintosh; Intel Mac OS X 10_15_7' : (isWin ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64');
+    
+    // Dynamically extract the exact Chromium version bundled with patchright
+    let chromiumVersion = ''; 
+    try {
+      const browsersJsonPath = path.resolve(require.resolve('patchright-core'), '..', '..', '..', 'browsers.json');
+      if (fs.existsSync(browsersJsonPath)) {
+        const browsersJson = JSON.parse(fs.readFileSync(browsersJsonPath, 'utf8'));
+        const chromiumObj = browsersJson.browsers.find((b: any) => b.name === 'chromium' || b.name === 'chrome');
+        if (chromiumObj && chromiumObj.browserVersion) {
+          chromiumVersion = chromiumObj.browserVersion;
+        }
+      }
+      
+      if (!chromiumVersion) {
+         // Alternative resolution just in case
+         const altPath = path.join(process.cwd(), 'node_modules', 'patchright-core', 'browsers.json');
+         if (fs.existsSync(altPath)) {
+            const browsersJson = JSON.parse(fs.readFileSync(altPath, 'utf8'));
+            const chromiumObj = browsersJson.browsers.find((b: any) => b.name === 'chromium' || b.name === 'chrome');
+            if (chromiumObj && chromiumObj.browserVersion) {
+              chromiumVersion = chromiumObj.browserVersion;
+            }
+         }
+      }
+    } catch (e) {
+      // Ignore
+    }
+    
+    // As a final fallback if we absolutely can't read the patchright-core JSON file
+    if (!chromiumVersion) {
+      chromiumVersion = '148.0.7778.96'; 
+    }
+    
+    return `Mozilla/5.0 (${osString}) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/${chromiumVersion} Safari/537.36`;
+  };
+
   // Launch temp browser only when cache misses
   try {
     const tempBrowser = await chromium.launch({
@@ -62,13 +103,22 @@ async function getNativeUserAgent(executablePath?: string): Promise<string> {
     if (!executablePath) saveCachedUa(ua);
     return ua;
   } catch (e) {
-    return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36';
+    const fallback = getFallbackUa();
+    console.warn(`[getNativeUserAgent] Failed to fetch native UA, using dynamic fallback: ${fallback}`);
+    return fallback;
   }
+}
+
+function resolveAdBlockerCachePath(): string {
+  // Built output lives in dist/src/shared; bundled filter cache is lib/cjs/adblocker.bin.
+  const bundledPath = path.resolve(__dirname, '..', '..', '..', 'lib', 'cjs', 'adblocker.bin');
+  if (fs.existsSync(bundledPath)) return bundledPath;
+  return path.join(__dirname, 'adblocker.bin');
 }
 
 function getAdBlocker(): Promise<PlaywrightBlocker | null> {
   if (!adBlockerPromise) {
-    const cachePath = path.join(__dirname, 'adblocker.bin');
+    const cachePath = resolveAdBlockerCachePath();
     adBlockerPromise = PlaywrightBlocker.fromPrebuiltAdsAndTracking(fetch, {
       path: cachePath,
       read: fs.promises.readFile,
@@ -90,18 +140,20 @@ export function getDefaultHeadless(): boolean {
 
 export { getHeadlessFromEnv };
 
-export function setupRealPage(browser: Browser, page: Page & Record<string, any>): Page & Record<string, any> {
+export function setupRealPage(browser: Browser, page: Page & Record<string, any>, enableBlocker = true): Page & Record<string, any> {
   if ((page as any)._setupApplied) return page;
   (page as any)._setupApplied = true;
 
-  if (adBlockerInstance) {
-    adBlockerInstance.enableBlockingInPage(page as any).catch(() => {});
-  } else {
-    getAdBlocker().then((blocker: PlaywrightBlocker | null) => {
-      if (blocker) {
-        blocker.enableBlockingInPage(page as any).catch(() => {});
-      }
-    });
+  if (enableBlocker) {
+    if (adBlockerInstance) {
+      adBlockerInstance.enableBlockingInPage(page as any).catch(() => {});
+    } else {
+      getAdBlocker().then((blocker: PlaywrightBlocker | null) => {
+        if (blocker) {
+          blocker.enableBlockingInPage(page as any).catch(() => {});
+        }
+      });
+    }
   }
 
   page.realScroll = async (deltaY: number, duration = 600) => {
@@ -181,6 +233,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
     proxy = {} as Record<string, unknown>,
     contextOptions = {} as Record<string, unknown>,
     turnstile = false,
+    enableBlocker = true,
     executablePath = undefined as string | undefined,
   } = {}) {
     let playwrightProxy: Record<string, unknown> | undefined = undefined;
@@ -257,7 +310,9 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       ...(executablePath ? { executablePath } : {}),
     });
 
-    await getAdBlocker();
+    if (enableBlocker) {
+      await getAdBlocker();
+    }
 
     const context = await browser.newContext({
       viewport: null,
@@ -268,7 +323,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
 
     await applyUserAgentOverride(page, modifiedUa, userAgentMetadata as any);
 
-    setupRealPage(browser, page);
+    setupRealPage(browser, page, enableBlocker);
 
     page = await pageController({
       browser,
@@ -279,7 +334,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
 
     context.on('page', async (newPage: Page) => {
       await applyUserAgentOverride(newPage, modifiedUa, userAgentMetadata as any);
-      setupRealPage(browser, newPage);
+      setupRealPage(browser, newPage, enableBlocker);
       await pageController({
         browser,
         page: newPage,
@@ -294,7 +349,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       blocker: adBlockerInstance,
       setupPage: async (p: Page) => {
         await applyUserAgentOverride(p, modifiedUa, userAgentMetadata as any);
-        setupRealPage(browser, p);
+        setupRealPage(browser, p, enableBlocker);
       }
     };
   };

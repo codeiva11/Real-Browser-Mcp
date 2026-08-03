@@ -99,8 +99,7 @@ const TOOLS = [
         value: { type: 'string', description: 'Selector or timeout value' },
         timeout: { type: 'number', default: 30000 },
         aiOptimize: { type: 'boolean', default: true, description: 'AI optimizes wait time based on page load patterns' }
-      },
-      required: ['value']
+      }
     }
   },
 
@@ -141,7 +140,10 @@ const TOOLS = [
         waitForPlay: { type: 'boolean', default: false, description: 'Wait until video actually starts playing' },
         playerTimeout: { type: 'number', default: 15000, description: 'Max wait time for video to start playing (ms)' }
       },
-      required: ['selector']
+      anyOf: [
+        { required: ['selector'] },
+        { required: ['annotationId'] }
+      ]
     }
   },
 
@@ -170,7 +172,11 @@ const TOOLS = [
         pressEnter: { type: 'boolean', default: false, description: 'Press Enter after typing' },
         waitForSelector: { type: 'boolean', default: true, description: 'Wait for selector before typing' }
       },
-      required: ['selector', 'text']
+      required: ['text'],
+      anyOf: [
+        { required: ['selector'] },
+        { required: ['annotationId'] }
+      ]
     }
   },
 
@@ -274,7 +280,8 @@ const TOOLS = [
         includeHeaders: { type: 'boolean', default: false },
         followJS: { type: 'boolean', default: true, description: 'Track JS navigations' },
         followMeta: { type: 'boolean', default: true, description: 'Track meta refresh redirects' },
-        decodeURLs: { type: 'boolean', default: true, description: 'Auto-decode encoded URLs in chain' }
+        decodeURLs: { type: 'boolean', default: true, description: 'Auto-decode encoded URLs in chain' },
+        timeout: { type: 'number', default: 30000, description: 'Navigation timeout in milliseconds' }
       },
       required: ['url']
     }
@@ -575,7 +582,8 @@ const TOOLS = [
               humanLike: { type: 'boolean', default: true, description: 'For click: human-like cursor movement' },
               retries: { type: 'number', default: 2, description: 'For click: auto-retry count' },
               pressEnter: { type: 'boolean', description: 'For type: press Enter after typing' },
-              clear: { type: 'boolean', default: true, description: 'For type: clear field before typing' }
+              clear: { type: 'boolean', default: true, description: 'For type: clear field before typing' },
+              annotate: { type: 'boolean', description: 'For see step: annotate interactive elements' }
             }
           }
         },

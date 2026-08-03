@@ -287,11 +287,13 @@ export const utilityHandlers = {
 
       if (action === 'sdk') {
         const url = parsed?.url || data || 'https://api.example.com';
-        const code = lang === 'python' 
+        const code = lang === 'python'
           ? `import requests\n\ndef fetch_data(url="${url}"):\n    return requests.get(url).json()`
           : `export async function fetchData(url: string = "${url}") {\n  const res = await fetch(url);\n  return res.json();\n}`;
         return { success: true, sdk_boilerplate: code };
       }
+
+      return { success: false, error: `Unknown action: ${action}. Supported: schema, diff, sdk` };
     } catch (e: any) {
       return { success: false, error: e.message };
     }

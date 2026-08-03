@@ -242,9 +242,9 @@ Values are case-insensitive. Priority for each option is: **explicit `browser_in
 
 ---
 
-## 🌐 Complete MCP Tool Reference (22 Tools)
+## 🌐 Complete MCP Tool Reference (21 Tools)
 
-The server exposes **22 tools** categorized into functional units:
+The server exposes **21 tools** categorized into functional units:
 
 ### 🌐 Browser & Session
 | Tool Name | Description | Key Parameters |
@@ -389,7 +389,7 @@ Run these scripts from the project root directory:
 | `npm test` | Execute the full test suite (CJS & ESM). |
 | `npm run cjs_test` | Run CommonJS test scripts. |
 | `npm run esm_test` | Run ECMAScript Module test scripts. |
-| `npm run mcp_test` | Fast, network-independent MCP smoke test — verifies tool registry (all 22 tools), JSON-RPC initialize handshake, and tools/list response. No browser launch needed. |
+| `npm run mcp_test` | Fast, network-independent MCP smoke test — verifies tool registry (all 21 tools), JSON-RPC initialize handshake, and tools/list response. No browser launch needed. |
 
 ---
 

@@ -16,7 +16,7 @@ async function pageController({ browser, page, proxy, turnstile }: { browser: an
             // Unref the idle timer so this background loop never keeps the
             // Node process alive on its own. It still runs while the event
             // loop is active (i.e. while the server/browser is running).
-            await new Promise<void>(r => {
+            await new Promise(r => {
                 const t = setTimeout(r, 1000);
                 if (typeof t.unref === 'function') t.unref();
             });
