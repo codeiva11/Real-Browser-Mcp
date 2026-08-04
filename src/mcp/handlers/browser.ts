@@ -8,6 +8,38 @@ export const browserHandlers = {
   async browser_init(params: BrowserInitParams = {}) {
     notifyProgress('browser_init', 'started', 'Initializing browser...');
 
+    // Self-healing: if a previous browser session exists but is dead/stale
+    // (page crashed or was closed externally), tear it down before starting a
+    // fresh one. Without this, the old instance kept every following tool call
+    // hanging until the MCP client gave up with "-32001 Request timed out".
+    try {
+      const stalePage = state.pageInstance as any;
+      const staleBrowser = state.browserInstance as any;
+      const pageClosed = stalePage ? (typeof stalePage.isClosed === 'function' && stalePage.isClosed()) : true;
+      const browserConnected = staleBrowser ? (typeof staleBrowser.isConnected === 'function' && staleBrowser.isConnected()) : false;
+      if ((state.browserInstance || state.pageInstance) && (pageClosed || !browserConnected)) {
+        notifyProgress('browser_init', 'progress', 'Stale browser session detected, cleaning up...');
+        try {
+          if (typeof staleBrowser?.close === 'function') {
+            await Promise.race([
+              staleBrowser.close(),
+              new Promise(r => setTimeout(r, 8000)),
+            ]);
+          }
+        } catch (e) {
+          try {
+            if (typeof staleBrowser?.process === 'function') staleBrowser.process()?.kill('SIGKILL');
+          } catch { /* ignore */ }
+        }
+        state.browserInstance = null;
+        state.pageInstance = null;
+        state.blockerInstance = null;
+        state.setupPageFn = null;
+      }
+    } catch (e) {
+      notifyProgress('browser_init', 'progress', `Stale cleanup check failed (${(e as Error)?.message || e}), continuing...`);
+    }
+
     const { connect } = require('../../../lib/cjs/index.js') as { connect: Function };
 
     const envHeadless = getHeadlessFromEnv();
