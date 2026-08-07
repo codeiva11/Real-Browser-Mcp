@@ -14,8 +14,7 @@ async function pageController({ browser, page, proxy, turnstile }: { browser: an
         while (solveStatus) {
             await checkTurnstile({ page }).catch(() => { });
             // Unref the idle timer so this background loop never keeps the
-            // Node process alive on its own. It still runs while the event
-            // loop is active (i.e. while the server/browser is running).
+            // Node process alive on its own.
             await new Promise(r => {
                 const t = setTimeout(r, 1000);
                 if (typeof t.unref === 'function') t.unref();
@@ -35,21 +34,30 @@ async function pageController({ browser, page, proxy, turnstile }: { browser: an
         context.on('page', async (newPage: any) => {
             try {
                 const opener = await newPage.opener();
-                if (opener) {
-                    const url = newPage.url();
-                    const isAdPopup = url === 'about:blank' ||
-                        url.includes('ad') ||
-                        url.includes('pop') ||
-                        url.includes('click') ||
-                        url.includes('redirect') ||
-                        url.includes('track');
-                    if (isAdPopup) {
-                        await newPage.close().catch(() => { });
-                        console.error('[popup-blocker] Blocked popup ad:', url.substring(0, 50));
-                    }
+                if (!opener) return;
+
+                // FIX: Wait for the page to navigate away from about:blank before
+                // judging its URL. Firing immediately catches every legitimate popup
+                // (OAuth, payment windows, new tabs) while they are still blank.
+                let url = newPage.url();
+                if (url === 'about:blank' || url === '') {
+                    await newPage.waitForURL((u: { href: string }) => u.href !== 'about:blank', { timeout: 2000 }).catch(() => {});
+                    url = newPage.url();
+                }
+
+                // Only close if URL is still blank (truly empty popup) OR matches
+                // well-known ad patterns — never block OAuth/payment/legit domains.
+                const isAdPopup =
+                    (url === 'about:blank' || url === '') ||
+                    /\/(ad|ads|adserv|adclick|popup|popunder|clicktrack|track|tracker|banner)\b/i.test(url) ||
+                    /[?&](utm_|click_id|ref_id|aff_|affiliate)/i.test(url);
+
+                if (isAdPopup) {
+                    await newPage.close().catch(() => { });
+                    console.error('[popup-blocker] Blocked popup:', url.substring(0, 80));
                 }
             } catch (_e) {
-                // Ignore errors
+                // Ignore errors (page may have already closed)
             }
         });
     }

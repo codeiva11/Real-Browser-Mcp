@@ -62,6 +62,11 @@ function resolveAdBlockerCachePath(): string {
   return path.join(__dirname, 'adblocker.bin');
 }
 
+/**
+ * Initialize the adblocker singleton.
+ * FIX: On failure, reset adBlockerPromise to null so the next call can retry
+ * instead of being permanently stuck with a resolved-null promise.
+ */
 function getAdBlocker(): Promise<PlaywrightBlocker | null> {
   if (!adBlockerPromise) {
     const cachePath = resolveAdBlockerCachePath();
@@ -74,10 +79,29 @@ function getAdBlocker(): Promise<PlaywrightBlocker | null> {
       return blocker;
     }).catch((err: Error) => {
       console.error('[adblocker] Failed to initialize adblocker:', err.message);
+      // Reset so the next connect() call can retry
+      adBlockerPromise = null;
       return null;
     });
   }
   return adBlockerPromise;
+}
+
+/**
+ * Enable ad blocking on a page. Awaitable — caller knows blocking is active
+ * before proceeding to navigate.
+ */
+async function enableBlockingInPage(page: Page): Promise<void> {
+  try {
+    if (adBlockerInstance) {
+      await adBlockerInstance.enableBlockingInPage(page as any);
+    } else {
+      const blocker = await getAdBlocker();
+      if (blocker) await blocker.enableBlockingInPage(page as any);
+    }
+  } catch (e) {
+    // Page may have been closed — ignore silently
+  }
 }
 
 export function getDefaultHeadless(): boolean {
@@ -86,21 +110,9 @@ export function getDefaultHeadless(): boolean {
 
 export { getHeadlessFromEnv };
 
-export function setupRealPage(browser: Browser, page: Page & Record<string, any>, enableBlocker = true): Page & Record<string, any> {
+export function setupRealPage(page: Page & Record<string, any>): Page & Record<string, any> {
   if ((page as any)._setupApplied) return page;
   (page as any)._setupApplied = true;
-
-  if (enableBlocker) {
-    if (adBlockerInstance) {
-      adBlockerInstance.enableBlockingInPage(page as any).catch(() => {});
-    } else {
-      getAdBlocker().then((blocker: PlaywrightBlocker | null) => {
-        if (blocker) {
-          blocker.enableBlockingInPage(page as any).catch(() => {});
-        }
-      });
-    }
-  }
 
   page.realScroll = async (deltaY: number, duration = 600) => {
     try {
@@ -203,7 +215,6 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
     }
 
     // Build UA fresh every time from patchright's actual Chromium version.
-    // No disk cache — avoids stale HeadlessChrome UA strings being reused.
     const ua = buildUserAgent();
 
     const chromeVersionMatch = ua.match(/Chrome\/([\d.]+)/);
@@ -255,7 +266,8 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       '--disable-blink-features=AutomationControlled',
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--window-size=1920,1080',
+      // FIX: removed --window-size — it caused browser to open maximized/fullscreen.
+      // Browser window size is controlled by the OS/user, not forced by the server.
       '--disable-dev-shm-usage',
       ...args
     ];
@@ -275,6 +287,9 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       ...(executablePath ? { executablePath } : {}),
     });
 
+    // FIX: await adblocker init BEFORE creating the page so enableBlockingInPage
+    // is called synchronously on adBlockerInstance (fast path), not via a
+    // fire-and-forget then() that may lose the race with first navigation.
     if (enableBlocker) {
       await getAdBlocker();
     }
@@ -288,7 +303,9 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
 
     await applyUserAgentOverride(page, ua, userAgentMetadata as any);
 
-    setupRealPage(browser, page, enableBlocker);
+    // FIX: await blocking setup so it is fully active before pageController runs
+    setupRealPage(page);
+    if (enableBlocker) await enableBlockingInPage(page);
 
     page = await pageController({
       browser,
@@ -297,9 +314,11 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       turnstile,
     });
 
+    // FIX: new pages from window.open / target=_blank also get full setup + blocking
     context.on('page', async (newPage: Page) => {
       await applyUserAgentOverride(newPage, ua, userAgentMetadata as any);
-      setupRealPage(browser, newPage, enableBlocker);
+      setupRealPage(newPage);
+      if (enableBlocker) await enableBlockingInPage(newPage);
       await pageController({
         browser,
         page: newPage,
@@ -314,7 +333,8 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       blocker: adBlockerInstance,
       setupPage: async (p: Page) => {
         await applyUserAgentOverride(p, ua, userAgentMetadata as any);
-        setupRealPage(browser, p, enableBlocker);
+        setupRealPage(p);
+        if (enableBlocker) await enableBlockingInPage(p);
       }
     };
   };
