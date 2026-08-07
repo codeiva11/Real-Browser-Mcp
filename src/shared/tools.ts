@@ -25,7 +25,7 @@ const TOOLS = [
           type: 'object',
           description: 'Playwright BrowserContext options (viewport, userAgent, geolocation, permissions, httpCredentials, extraHTTPHeaders, etc.)'
         },
-        turnstile: { type: 'boolean', default: false, description: 'Automatically handle embedded JS verification widgets on pages' },
+        autoWidget: { type: 'boolean', default: false, description: 'Automatically handle embedded JS verification widgets on pages' },
         enableBlocker: { type: 'boolean', default: true, description: 'Block ads and trackers' },
         aiHealing: { type: 'boolean', default: true, description: 'Enable selector fallback when a selector does not match' },
         recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of the session' }
@@ -196,7 +196,7 @@ const TOOLS = [
   {
     name: 'solve_captcha',
     emoji: '📋',
-    description: 'Handle page verification widgets and form automation for testing your own pages. Supports JS-based widgets, text or image recognition via OCR, and intelligent form field matching. Note: third-party hosted challenge services (reCAPTCHA, hCaptcha) are not supported.',
+    description: 'Handle page verification widgets and form automation for testing your own pages. Supports JS-based widgets, text or image recognition via OCR, and intelligent form field matching. Note: externally hosted challenge services are not supported.',
     descriptionHindi: 'वेरिफिकेशन widget + फॉर्म भरना (अपने पेज की टेस्टिंग, OCR powered)',
     category: 'interaction',
     requiresBrowser: true,
@@ -206,9 +206,9 @@ const TOOLS = [
       properties: {
         type: {
           type: 'string',
-          enum: ['turnstile', 'text', 'image', 'auto'],
+          enum: ['js_widget', 'text', 'image', 'auto'],
           default: 'auto',
-          description: 'Widget type: turnstile (JS-based embedded widget), text (OCR on text image), image (OCR on image), auto (detect automatically). Third-party hosted services like reCAPTCHA or hCaptcha are not supported.'
+          description: 'Widget type: js_widget (JavaScript-based embedded widget), text (OCR on text image), image (OCR on image), auto (detect automatically). Externally hosted challenge services are not supported.'
         },
         timeout: { type: 'number', default: 30000 },
         captchaSelector: { type: 'string', description: 'CSS selector for the challenge image element (required for text/image type)' },
@@ -278,25 +278,25 @@ const TOOLS = [
   {
     name: 'extract_data',
     emoji: '🔎',
-    description: 'Extract structured data from the current page in multiple modes: regex, json, meta, structured, auto, decode (decode encoded strings), apiDiscovery, cipher (decode encoded data), or links (all links including hidden and iframe links).',
-    descriptionHindi: 'डेटा एक्सट्रैक्टर — modes: regex, json, meta, structured, auto, decode, apiDiscovery, cipher, links',
+    description: 'Extract structured data from the current page in multiple modes: regex, json, meta, structured, auto, parse (process encoded strings), apiDiscovery, transform (process encoded data), or links (all links including nested iframes).',
+    descriptionHindi: 'डेटा एक्सट्रैक्टर — modes: regex, json, meta, structured, auto, parse, apiDiscovery, transform, links',
     category: 'extraction',
     requiresBrowser: true,
     requiresPage: true,
     inputSchema: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['regex', 'json', 'meta', 'structured', 'auto', 'deobfuscate', 'apiDiscovery', 'decrypt', 'links'], default: 'auto' },
+        type: { type: 'string', enum: ['regex', 'json', 'meta', 'structured', 'auto', 'parse', 'apiDiscovery', 'transform', 'links'], default: 'auto' },
         pattern: { type: 'string', description: 'For regex mode: the regular expression pattern' },
         selector: { type: 'string', description: 'For structured/links mode: CSS selector to scope the extraction' },
         jsonPath: { type: 'string', description: 'For json mode: JSONPath expression' },
         source: { type: 'string', enum: ['html', 'text', 'scripts', 'ld+json', 'api', 'all'], default: 'all' },
-        autoDecode: { type: 'boolean', default: true, description: 'Automatically decode Base64 or percent-encoded values in results' },
+        autoDecode: { type: 'boolean', default: true, description: 'Automatically process Base64 or percent-encoded values in results' },
         flags: { type: 'string', default: 'gi', description: 'Regex flags' },
-        encryptedData: { type: 'string', description: 'For cipher mode: the encoded string to decode' },
-        autoFindKey: { type: 'boolean', default: true, description: 'For cipher mode: locate encoding key from page scripts automatically' },
-        aesKey: { type: 'string', description: 'For cipher mode: symmetric cipher key' },
-        aesIV: { type: 'string', description: 'For cipher mode: initialization vector' },
+        inputData: { type: 'string', description: 'For transform mode: the encoded string to process' },
+        autoFindKey: { type: 'boolean', default: true, description: 'For transform mode: locate the processing key from page scripts automatically' },
+        secretKey: { type: 'string', description: 'For transform mode: data processing key' },
+        keyOffset: { type: 'string', description: 'For transform mode: offset value (optional)' },
         includeHidden: { type: 'boolean', default: true, description: 'For links mode: include hidden/non-visible links' },
         searchIframes: { type: 'boolean', default: true, description: 'For links mode: search inside embedded frames' }
       }
@@ -359,7 +359,7 @@ const TOOLS = [
         types: { type: 'array', items: { type: 'string' }, default: ['all'], description: 'Analysis types to run (all, dom, scripts, accessibility, performance, seo, headers, tech)' },
         detailed: { type: 'boolean', default: true },
         aiInsights: { type: 'boolean', default: true, description: 'Include loading strategy recommendations' },
-        detectAntiBot: { type: 'boolean', default: true, description: 'Identify page access-control and verification services' }
+        detectAccessControls: { type: 'boolean', default: true, description: 'Identify page access-control and verification services' }
       }
     }
   },
@@ -396,7 +396,7 @@ const TOOLS = [
   {
     name: 'media_extractor',
     emoji: '🎬',
-    description: 'Extract and control media from the current page. Supports 6 actions: extract (find video/audio/HLS/DASH/download URLs including nested iframes), list_iframes, switch_iframe, player_control (play/pause/seek/sources via player API), decode_url (url/base64/aes encoding), batch_extract.',
+    description: 'Extract and control media from the current page. Supports 6 actions: extract (find video/audio/HLS/DASH/download URLs including nested iframes), list_iframes, switch_iframe, player_control (play/pause/seek/sources via player API), decode_url (url/base64/symmetric encoding), batch_extract.',
     descriptionHindi: 'मीडिया एक्सट्रैक्टर — 6 actions: extract/list_iframes/switch_iframe/player_control/decode_url/batch_extract',
     category: 'extraction',
     requiresBrowser: true,
@@ -416,10 +416,10 @@ const TOOLS = [
         selector: { type: 'string', description: 'iframe CSS selector' },
         index: { type: 'number', description: 'iframe index number' },
         playerAction: { type: 'string', enum: ['info', 'play', 'pause', 'seek', 'sources'], default: 'info' },
-        encodedData: { type: 'string', description: 'Encoded URL or data string to decode (for decode_url action)' },
-        decoderType: { type: 'string', enum: ['auto', 'url', 'base64', 'aes'], default: 'auto' },
-        aesKey: { type: 'string', description: 'Cipher key (for aes decoder)' },
-        aesIV: { type: 'string', description: 'Initialization vector (for aes decoder, optional)' },
+        encodedData: { type: 'string', description: 'Encoded URL or data string to process (for decode_url action)' },
+        decoderType: { type: 'string', enum: ['auto', 'url', 'base64', 'symmetric'], default: 'auto' },
+        decoderKey: { type: 'string', description: 'Processing key (for symmetric decoder)' },
+        decoderIV: { type: 'string', description: 'Offset value (for symmetric decoder, optional)' },
         urls: { type: 'array', items: { type: 'string' }, description: 'List of URLs for batch_extract action' },
         aiOptimize: { type: 'boolean', default: true, description: 'Select extraction strategy automatically' }
       }

@@ -216,7 +216,16 @@ export async function extractData(params: any = {}) {
     return links.filter((link: any) => { if (seen.has(link.href)) return false; seen.add(link.href); return true; });
   };
 
-  switch (type) {
+  // Normalize aliased type names (schema exposes neutral names, handler keeps original logic)
+  const typeAliases: Record<string, string> = { parse: 'deobfuscate', transform: 'decrypt' };
+  const normalizedType = typeAliases[type] || type;
+
+  // Normalize aliased param names (schema exposes neutral names)
+  if (params.inputData && !params.encryptedData) params.encryptedData = params.inputData;
+  if (params.secretKey && !params.aesKey) params.aesKey = params.secretKey;
+  if (params.keyOffset && !params.aesIV) params.aesIV = params.keyOffset;
+
+  switch (normalizedType) {
     case 'links': {
       const links = await extractLinks();
       results.extracted = { count: links.length, links };

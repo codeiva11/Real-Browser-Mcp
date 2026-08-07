@@ -296,6 +296,8 @@ export interface MediaExtractorParams {
   decoderType?: string;
   aesKey?: string;
   aesIV?: string;
+  decoderKey?: string;
+  decoderIV?: string;
   urls?: string[];
   aiOptimize?: boolean;
   seekTime?: number;

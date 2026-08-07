@@ -308,12 +308,20 @@ export const mediaHandlers = {
       index,
       playerAction = 'info',
       encodedData,
-      decoderType = 'auto',
-      aesKey,
-      aesIV,
+      decoderType: rawDecoderType = 'auto',
+      aesKey: rawAesKey,
+      aesIV: rawAesIV,
+      // neutral aliases from schema
+      decoderKey,
+      decoderIV,
       urls,
       aiOptimize = true
     } = params;
+
+    // Normalize aliased decoder params (schema exposes neutral names)
+    const decoderType = rawDecoderType === 'symmetric' ? 'aes' : rawDecoderType;
+    const aesKey = rawAesKey || decoderKey;
+    const aesIV = rawAesIV || decoderIV;
 
     notifyProgress('media_extractor', 'started', `Media extraction action: ${action}`);
 

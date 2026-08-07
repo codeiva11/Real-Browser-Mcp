@@ -15,7 +15,7 @@ declare module "real-browser-mcp-server" {
 		page: PageWithCursor;
 		/** Blocker instance for advanced usage (null if enableBlocker is false) */
 		blocker: AdBlocker | null;
-		/** Setup function to inject stealth into new pages */
+		/** Setup function to configure new pages with session options */
 		setupPage: (page: Page) => Promise<void>;
 	};
 
