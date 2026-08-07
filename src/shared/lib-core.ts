@@ -10,103 +10,49 @@ import type { Browser, Page } from 'patchright';
 let adBlockerInstance: PlaywrightBlocker | null = null;
 let adBlockerPromise: Promise<PlaywrightBlocker | null> | null = null;
 
-// Cache the detected user-agent string so we don't launch a temp browser on every connect().
-// Stored in the OS temp directory (never inside the project / cwd) so the project tree
-// stays clean and we don't pollute the user's working directory.
-let cachedNativeUa: string | null = null;
-const UA_CACHE_DIR = path.join(os.tmpdir(), 'real-browser-mcp');
-const UA_CACHE_FILE = path.join(UA_CACHE_DIR, 'ua-cache.txt');
-
-function loadCachedUa(): string | null {
+/**
+ * Resolve the current patchright-core Chromium version from browsers.json.
+ * require.resolve('patchright-core') returns .../patchright-core/index.js
+ * dirname() gives us the patchright-core/ directory directly (1 level up).
+ */
+function getPatchrightChromiumVersion(): string {
   try {
-    if (fs.existsSync(UA_CACHE_FILE)) {
-      const ua = fs.readFileSync(UA_CACHE_FILE, 'utf8').trim();
-      if (ua && ua.includes('Chrome/')) return ua;
+    const coreDir = path.dirname(require.resolve('patchright-core'));
+    const browsersJsonPath = path.join(coreDir, 'browsers.json');
+    if (fs.existsSync(browsersJsonPath)) {
+      const browsersJson = JSON.parse(fs.readFileSync(browsersJsonPath, 'utf8'));
+      const chromiumObj = browsersJson.browsers.find((b: any) => b.name === 'chromium' || b.name === 'chrome');
+      if (chromiumObj && chromiumObj.browserVersion) return chromiumObj.browserVersion;
     }
   } catch { /* ignore */ }
-  return null;
-}
-
-function saveCachedUa(ua: string): void {
+  // Fallback: search in node_modules relative to cwd
   try {
-    if (!fs.existsSync(UA_CACHE_DIR)) fs.mkdirSync(UA_CACHE_DIR, { recursive: true });
-    fs.writeFileSync(UA_CACHE_FILE, ua, 'utf8');
+    const altPath = path.join(process.cwd(), 'node_modules', 'patchright-core', 'browsers.json');
+    if (fs.existsSync(altPath)) {
+      const browsersJson = JSON.parse(fs.readFileSync(altPath, 'utf8'));
+      const chromiumObj = browsersJson.browsers.find((b: any) => b.name === 'chromium' || b.name === 'chrome');
+      if (chromiumObj && chromiumObj.browserVersion) return chromiumObj.browserVersion;
+    }
   } catch { /* ignore */ }
+  return '';
 }
 
-async function getNativeUserAgent(executablePath?: string): Promise<string> {
-  // Return in-memory cache first
-  if (cachedNativeUa) return cachedNativeUa;
+/**
+ * Build the UA string using patchright's actual Chromium version.
+ * Always uses 'Chrome/' (never 'HeadlessChrome/') so WAFs don't flag it.
+ */
+function buildUserAgent(): string {
+  const isMac = os.platform() === 'darwin';
+  const isWin = os.platform() === 'win32';
+  const osString = isMac
+    ? 'Macintosh; Intel Mac OS X 10_15_7'
+    : isWin
+    ? 'Windows NT 10.0; Win64; x64'
+    : 'X11; Linux x86_64';
 
-  // Return disk cache if available and no custom executablePath
-  if (!executablePath) {
-    const diskCached = loadCachedUa();
-    if (diskCached) {
-      cachedNativeUa = diskCached;
-      return cachedNativeUa;
-    }
-  }
+  const chromiumVersion = getPatchrightChromiumVersion() || '149.0.7827.55';
 
-  // Generate dynamic fallback based on OS to avoid hardcoded strings
-  const getFallbackUa = () => {
-    const isMac = os.platform() === 'darwin';
-    const isWin = os.platform() === 'win32';
-    const osString = isMac ? 'Macintosh; Intel Mac OS X 10_15_7' : (isWin ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64');
-    
-    // Dynamically extract the exact Chromium version bundled with patchright
-    let chromiumVersion = ''; 
-    try {
-      const browsersJsonPath = path.resolve(require.resolve('patchright-core'), '..', '..', '..', 'browsers.json');
-      if (fs.existsSync(browsersJsonPath)) {
-        const browsersJson = JSON.parse(fs.readFileSync(browsersJsonPath, 'utf8'));
-        const chromiumObj = browsersJson.browsers.find((b: any) => b.name === 'chromium' || b.name === 'chrome');
-        if (chromiumObj && chromiumObj.browserVersion) {
-          chromiumVersion = chromiumObj.browserVersion;
-        }
-      }
-      
-      if (!chromiumVersion) {
-         // Alternative resolution just in case
-         const altPath = path.join(process.cwd(), 'node_modules', 'patchright-core', 'browsers.json');
-         if (fs.existsSync(altPath)) {
-            const browsersJson = JSON.parse(fs.readFileSync(altPath, 'utf8'));
-            const chromiumObj = browsersJson.browsers.find((b: any) => b.name === 'chromium' || b.name === 'chrome');
-            if (chromiumObj && chromiumObj.browserVersion) {
-              chromiumVersion = chromiumObj.browserVersion;
-            }
-         }
-      }
-    } catch (e) {
-      // Ignore
-    }
-    
-    // As a final fallback if we absolutely can't read the patchright-core JSON file
-    if (!chromiumVersion) {
-      chromiumVersion = '148.0.7778.96'; 
-    }
-    
-    return `Mozilla/5.0 (${osString}) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/${chromiumVersion} Safari/537.36`;
-  };
-
-  // Launch temp browser only when cache misses
-  try {
-    const tempBrowser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      ...(executablePath ? { executablePath } : {}),
-    });
-    const tempContext = await tempBrowser.newContext();
-    const tempPage = await tempContext.newPage();
-    const ua = await tempPage.evaluate(() => navigator.userAgent);
-    await tempBrowser.close();
-    cachedNativeUa = ua;
-    if (!executablePath) saveCachedUa(ua);
-    return ua;
-  } catch (e) {
-    const fallback = getFallbackUa();
-    console.warn(`[getNativeUserAgent] Failed to fetch native UA, using dynamic fallback: ${fallback}`);
-    return fallback;
-  }
+  return `Mozilla/5.0 (${osString}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromiumVersion} Safari/537.36`;
 }
 
 function resolveAdBlockerCachePath(): string {
@@ -213,7 +159,6 @@ export function setupRealPage(browser: Browser, page: Page & Record<string, any>
   return page;
 }
 
-
 export async function applyUserAgentOverride(page: Page, userAgent: string, userAgentMetadata: any): Promise<void> {
   try {
     const client = await page.context().newCDPSession(page);
@@ -224,6 +169,16 @@ export async function applyUserAgentOverride(page: Page, userAgent: string, user
   } catch (e) {
     // Ignore errors
   }
+}
+
+/**
+ * Calculate the correct "GREASE" brand string for a given Chrome major version.
+ * Chrome rotates through 3 grease strings based on majorVersion % 3,
+ * mirroring Chromium's actual GetGreasedUserAgentBrandList() algorithm.
+ */
+function getGreaseBrand(majorVersion: number): string {
+  const greaseBrands = ['Not/A)Brand', 'Not A;Brand', 'Not?A_Brand'];
+  return greaseBrands[majorVersion % 3];
 }
 
 export function createConnect(pageController: (opts: { browser: Browser; page: Page; proxy: Record<string, unknown>; turnstile: boolean }) => Promise<Page>) {
@@ -247,32 +202,40 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       }
     }
 
-    // Use cached UA — avoids launching an extra browser every time
-    const nativeUa = await getNativeUserAgent(executablePath);
+    // Build UA fresh every time from patchright's actual Chromium version.
+    // No disk cache — avoids stale HeadlessChrome UA strings being reused.
+    const ua = buildUserAgent();
 
-    let modifiedUa = nativeUa.replace(/HeadlessChrome\//g, 'Chrome/');
-    const chromeVersionMatch = modifiedUa.match(/Chrome\/([\d.]+)/);
-    const chromeVersion = chromeVersionMatch ? chromeVersionMatch[1] : '148.0.0.0';
-    const majorVersion = chromeVersion.split('.')[0];
+    const chromeVersionMatch = ua.match(/Chrome\/([\d.]+)/);
+    const chromeVersion = chromeVersionMatch ? chromeVersionMatch[1] : '149.0.7827.55';
+    const majorVersion = parseInt(chromeVersion.split('.')[0], 10);
+    const majorVersionStr = String(majorVersion);
+
+    const greaseBrand = getGreaseBrand(majorVersion);
 
     const brands: Array<{ brand: string; version: string }> = [
-      { brand: 'Google Chrome', version: majorVersion },
-      { brand: 'Chromium', version: majorVersion },
-      { brand: 'Not/A)Brand', version: '99' }
+      { brand: 'Google Chrome', version: majorVersionStr },
+      { brand: 'Chromium', version: majorVersionStr },
+      { brand: greaseBrand, version: '24' }
     ];
 
     let platformName = 'Windows';
-    if (nativeUa.includes('Macintosh') || nativeUa.includes('Mac OS X')) {
+    if (ua.includes('Macintosh') || ua.includes('Mac OS X')) {
       platformName = 'macOS';
-    } else if (nativeUa.includes('Linux')) {
+    } else if (ua.includes('Linux')) {
       platformName = 'Linux';
     }
 
     const fullVersionList: Array<{ brand: string; version: string }> = [
       { brand: 'Google Chrome', version: chromeVersion },
       { brand: 'Chromium', version: chromeVersion },
-      { brand: 'Not/A)Brand', version: '99.0.0.0' }
+      { brand: greaseBrand, version: '24.0.0.0' }
     ];
+
+    // Platform version: Windows 11 → "15.0.0", macOS Sonoma → "14.0.0", Linux → "6.6.0"
+    let platformVersion = '15.0.0';
+    if (platformName === 'macOS') platformVersion = '14.0.0';
+    else if (platformName === 'Linux') platformVersion = '6.6.0';
 
     const userAgentMetadata: Record<string, unknown> = {
       brands,
@@ -280,7 +243,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       fullVersion: chromeVersion,
       mobile: false,
       platform: platformName,
-      platformVersion: platformName === 'macOS' ? '14.0.0' : platformName === 'Linux' ? '6.0.0' : '10.0.0',
+      platformVersion,
       architecture: 'x86',
       model: '',
       bitness: '64',
@@ -288,10 +251,12 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
     };
 
     const chromiumArgs = [
-      `--user-agent=${modifiedUa}`,
+      `--user-agent=${ua}`,
       '--disable-blink-features=AutomationControlled',
       '--no-sandbox',
       '--disable-setuid-sandbox',
+      '--window-size=1920,1080',
+      '--disable-dev-shm-usage',
       ...args
     ];
 
@@ -321,7 +286,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
 
     let page: Page = await context.newPage();
 
-    await applyUserAgentOverride(page, modifiedUa, userAgentMetadata as any);
+    await applyUserAgentOverride(page, ua, userAgentMetadata as any);
 
     setupRealPage(browser, page, enableBlocker);
 
@@ -333,7 +298,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
     });
 
     context.on('page', async (newPage: Page) => {
-      await applyUserAgentOverride(newPage, modifiedUa, userAgentMetadata as any);
+      await applyUserAgentOverride(newPage, ua, userAgentMetadata as any);
       setupRealPage(browser, newPage, enableBlocker);
       await pageController({
         browser,
@@ -348,7 +313,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       page,
       blocker: adBlockerInstance,
       setupPage: async (p: Page) => {
-        await applyUserAgentOverride(p, modifiedUa, userAgentMetadata as any);
+        await applyUserAgentOverride(p, ua, userAgentMetadata as any);
         setupRealPage(browser, p, enableBlocker);
       }
     };
