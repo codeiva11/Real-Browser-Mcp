@@ -28,7 +28,7 @@ function displayStartupBanner() {
   console.error('');
   console.error(`${colors.bright}${colors.cyan}╔════════════════════════════════════════════════════════════╗${colors.reset}`);
   console.error(`${colors.bright}${colors.cyan}║${colors.reset}  ${colors.bright}${colors.magenta}🦁 Real Browser MCP Server${colors.reset}                                 ${colors.cyan}║${colors.reset}`);
-  console.error(`${colors.bright}${colors.cyan}║${colors.reset}  ${colors.dim}Playwright + Patchright + Stealth + Turnstile${colors.reset}            ${colors.cyan}║${colors.reset}`);
+  console.error(`${colors.bright}${colors.cyan}║${colors.reset}  ${colors.dim}Playwright + Patchright + Browser Automation${colors.reset}              ${colors.cyan}║${colors.reset}`);
   console.error(`${colors.bright}${colors.cyan}╚════════════════════════════════════════════════════════════╝${colors.reset}`);
   console.error('');
 

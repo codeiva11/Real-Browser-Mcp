@@ -45,7 +45,7 @@ function createServer() {
     return {
       tools: TOOLS.map((tool: any) => ({
         name: tool.name,
-        description: `${tool.emoji} ${tool.description}`,
+        description: tool.description,
         inputSchema: tool.inputSchema,
       })),
     };
