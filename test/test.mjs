@@ -5,10 +5,10 @@ const type = process.argv.includes('--esm') ? 'esm' : 'cjs';
 const libPath = type === 'esm' ? '../lib/esm/index.mjs' : '../dist/lib/cjs/index.js';
 const { connect } = await import(libPath);
 
-// Environment-dependent checks (reCAPTCHA score, third-party uptime) fail the
-// suite only when REAL_BROWSER_STRICT_BOT_TESTS=1; otherwise they log a warning
-// so CI runs stay deterministic.
-const STRICT = process.env.REAL_BROWSER_STRICT_BOT_TESTS === '1';
+// Anti-bot checks are strict by default so the features are genuinely verified:
+// a failing check fails the suite instead of being silently skipped. Set
+// REAL_BROWSER_STRICT_BOT_TESTS=0 to relax for CI/network-restricted runs.
+const STRICT = process.env.REAL_BROWSER_STRICT_BOT_TESTS !== '0';
 const softAssert = (cond, msg) => {
   if (STRICT) assert.ok(cond, msg);
   else if (!cond) console.warn(`⚠️  SKIPPED (soft): ${msg}`);
@@ -141,7 +141,7 @@ test('Recaptcha V3 Score', { timeout: 120000 }, async () => {
         return document.querySelector('big').textContent.replace(/[^0-9.]/g, '')
     })
     // 0.3+ means browser is not obviously a bot. Higher scores depend on IP
-    // reputation, so this check is soft by default (strict via env var).
+    // reputation. Strict by default: a score below 0.9 fails the suite.
     softAssert(Number(score) >= 0.9, `(please first check if you can access https://antcpt.com/score_detector/.) Recaptcha V3 Score should be >=0.9 (not obviously a bot). Score Result: ${score}`)
 })
 
