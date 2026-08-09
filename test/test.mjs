@@ -128,7 +128,7 @@ test('Recaptcha V3 Score', async () => {
 
     // 4. Now click the button
     await page.realClick("button")
-    await new Promise(r => setTimeout(r, 5800));
+    await new Promise(r => setTimeout(r, 6000));
 
     const score = await page.evaluate(() => {
         return document.querySelector('big').textContent.replace(/[^0-9.]/g, '')
