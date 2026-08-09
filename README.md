@@ -31,6 +31,23 @@ Add the following to your MCP Configuration file (e.g. `cline_mcp_settings.json`
 }
 ```
 
+
+```
+{
+  "mcpServers": {
+    "real_browser_mcp_server": {
+      "command": "node",
+      "args": [
+        "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
+      ],
+      "env": {
+        "AI_HEALING": "true",
+        "HEADLESS": "true"
+      }
+    }
+  }
+}
+```
 ### 🌍 Global Installation
 
 Install it globally on your system. The hardened browser (Patchright Chromium) is **downloaded automatically** during install — no extra steps needed:
