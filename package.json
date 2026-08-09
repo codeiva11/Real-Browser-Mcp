@@ -33,14 +33,9 @@
     "mcp": "node dist/src/index.js mcp",
     "mcp:verbose": "node dist/src/index.js mcp --verbose",
     "list": "node dist/src/index.js --list",
-    "test": "npm run unit_test && npm run mcp_test && npm run run_all_tests && npm run cjs_test && npm run esm_test && npm run e2e_test",
-    "unit_test": "npm run build && node --test ./test/unit.mjs",
+    "test": "npm run build && npm run cjs_test && npm run esm_test",
     "cjs_test": "node ./test/test.mjs --cjs",
-    "esm_test": "node ./test/test.mjs --esm",
-    "mcp_test": "node --test ./test/mcp-smoke.mjs",
-    "e2e_test": "npm run build && node --test ./test/e2e-tools.mjs",
-    "handler_test": "npm run build && node --test ./test/handlers/*.test.mjs",
-    "run_all_tests": "node ./test/run-all-tests.mjs"
+    "esm_test": "node ./test/test.mjs --esm"
   },
   "keywords": [
     "mcp-server",

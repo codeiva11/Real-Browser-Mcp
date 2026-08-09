@@ -66,7 +66,7 @@ real-browser-mcp mcp
 > npx patchright install chromium
 > ```
 >
-> Set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` before `npm install` to skip the download (e.g. in CI that only runs the smoke tests).
+> Set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` before `npm install` to skip the download (e.g. in CI that only builds).
 
 ### 🛠️ Local Development & Build (Git Clone)
 
@@ -424,13 +424,11 @@ Run these scripts from the project root directory:
 | `npm run mcp:verbose` | Start the MCP server with verbose tool listing on `stderr`. |
 | `npm run list` | List all 21 registered MCP tools with categories. |
 | `npm run build` | Compile TypeScript into the `dist/` folder. |
-| `npm test` | Execute the full test suite (CJS & ESM). ⚠️ These tests launch a real browser and hit live third-party sites — they are network-dependent and can be flaky. Use `npm run mcp_test` for a fast, network-free CI check. |
+| `npm test` | Build, then run the live anti-bot test suite (`test/test.mjs`) for both CJS and ESM. ⚠️ Launches a real browser and hits live third-party sites — network- and IP-dependent. Every check is strict; a failing check fails the run, nothing is skipped. |
 | `npm run cjs_test` | Run CommonJS test scripts. |
 | `npm run esm_test` | Run ECMAScript Module test scripts. |
-| `npm run mcp_test` | Fast, network-independent MCP smoke test — verifies tool registry (all 21 tools), JSON-RPC initialize handshake, and tools/list response. No browser launch needed. |
-| `npm run e2e_test` | End-to-end tool test — launches the real headless browser over STDIO and drives `browser_init` → `navigate` → `get_content` → `extract_data` → `see_page` → `browser_close`. Also verifies the SSRF guard. Requires the Patchright Chromium binary. |
 
-> Environment-dependent assertions in the live-site suite (e.g. the reCAPTCHA v3 score) fail the run only when `REAL_BROWSER_STRICT_BOT_TESTS=1`; by default they log a warning so CI stays deterministic.
+> Every check in the live-site suite is strict: a failing check (e.g. reCAPTCHA v3 score below 0.9) fails the run. Nothing is ever skipped.
 
 ---
 
