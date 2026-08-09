@@ -28,7 +28,6 @@
   },
   "scripts": {
     "prepublishOnly": "npm run build",
-    "postinstall": "node scripts/setup-browser.js",
     "build": "tsc && node dist/scripts/generate-esm.js && node -e \"console.log('\\n✅ Build Successful! The dist/ folder is ready.\\n')\"",
     "start": "node dist/src/index.js",
     "dev": "npm run build && node dist/src/index.js",
