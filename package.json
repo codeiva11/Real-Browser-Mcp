@@ -1,6 +1,6 @@
 {
   "name": "real-browser-mcp-server",
-  "version": "2.2.12",
+  "version": "2.2.13",
   "description": "MCP Server for Real Browser - Patchright Blocker.",
   "main": "dist/lib/cjs/index.js",
   "module": "lib/esm/index.mjs",
