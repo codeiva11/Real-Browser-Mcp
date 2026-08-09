@@ -18,7 +18,7 @@ coverage
 .cache/
 
 # Build artifacts
-dist-esm
+# (lib/esm is intentionally committed — it ships in the npm package)
 
 # Test artifacts
 dhurandhar_*.md
@@ -31,7 +31,8 @@ downloads/
 *.png
 *.jpeg
 *.jpg
-session.json
-cookies.json
 .agents/
+
+# Local tooling state (Freebuff desktop database)
+.freebuff/
 

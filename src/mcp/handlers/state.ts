@@ -7,6 +7,7 @@ import type {
   ProgressCallback,
   DecodeResult,
   AESDecryptResult,
+  NetworkRecord,
 } from '../../types';
 
 // Re-export for backward compatibility with existing imports
@@ -38,6 +39,23 @@ export function detachNetworkRecorderListeners(): void {
 
   state.networkRecorderBoundPage = null;
   state.networkRecorderListeners = null;
+}
+
+/**
+ * Maximum network records kept in memory. Prevents unbounded growth during
+ * long sessions (each request+response is stored twice: request + response).
+ */
+export const MAX_NETWORK_RECORDS = 5000;
+
+/**
+ * Push a record onto the in-memory buffer, trimming from the front when the
+ * cap is exceeded (ring-buffer semantics) so memory usage stays bounded.
+ */
+export function pushNetworkRecord(record: NetworkRecord): void {
+  state.networkRecords.push(record);
+  if (state.networkRecords.length > MAX_NETWORK_RECORDS) {
+    state.networkRecords.splice(0, state.networkRecords.length - MAX_NETWORK_RECORDS);
+  }
 }
 
 

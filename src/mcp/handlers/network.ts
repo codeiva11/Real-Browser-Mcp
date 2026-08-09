@@ -7,12 +7,15 @@ import {
   exportHAR, getFilteredRecords
 } from './network-recorder';
 import { extractData } from './network-extractors';
+import { assertSafeUrl } from '../../shared/url-utils';
 import type { RedirectTracerParams, NetworkRecorderParams } from '../../types';
 
 export const networkHandlers = {
   async redirect_tracer(params: RedirectTracerParams) {
     const { page } = requireBrowser();
     const { url, maxRedirects = 20, includeHeaders = false, followJS = true, followMeta = true, decodeURLs = true, timeout = 30000 } = params;
+
+    assertSafeUrl(url, 'redirect_tracer');
 
     notifyProgress('redirect_tracer', 'started', `Tracing redirects for: ${url}`);
 
@@ -117,11 +120,19 @@ export const networkHandlers = {
   async replay_request(params: any) {
     const { page } = requireBrowser();
     const { url, method = 'GET', headers, body } = params;
+    assertSafeUrl(url, 'replay_request');
     notifyProgress('replay_request', 'started', `Replaying ${method} to ${url}`);
     try {
+      // Page-side abort: a stalled request can never hang the tool forever.
       const result = await page.evaluate(async ({ u, m, h, b }: any) => {
-        const res = await fetch(u, { method: m, headers: h, body: b });
-        return { status: res.status, headers: Object.fromEntries(res.headers.entries()), body: await res.text().catch(() => null) };
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 30000);
+        try {
+          const res = await fetch(u, { method: m, headers: h, body: b, signal: controller.signal });
+          return { status: res.status, headers: Object.fromEntries(res.headers.entries()), body: await res.text().catch(() => null) };
+        } finally {
+          clearTimeout(timer);
+        }
       }, { u: url, m: method, h: headers || {}, b: body });
       notifyProgress('replay_request', 'completed', `Replay finished with status ${result.status}`);
       return { success: true, result };

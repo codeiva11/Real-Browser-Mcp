@@ -112,6 +112,10 @@ export const helpersHandlers = {
           if (parent) label = parent.textContent?.split('\n')[0]?.trim() || '';
         }
 
+        // CSS.escape keeps generated selectors valid even when ids/names
+        // contain quotes, brackets, or other selector-significant characters.
+        const esc = (s: string) => (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(s) : s.replace(/(["\\])/g, '\\$1');
+
         inputs.push({
           index,
           tag: el.tagName.toLowerCase(),
@@ -122,7 +126,7 @@ export const helpersHandlers = {
           label: label,
           required: el.required,
           value: el.value || '',
-          selector: el.id ? `#${el.id}` : (el.name ? `[name="${el.name}"]` : `input[type="${el.type}"]:nth-of-type(${index + 1})`)
+          selector: el.id ? `#${esc(el.id)}` : (el.name ? `[name="${esc(el.name)}"]` : `input[type="${esc(el.type)}"]:nth-of-type(${index + 1})`)
         });
       });
 
@@ -311,7 +315,7 @@ export const helpersHandlers = {
       // Check if captcha input is still visible (might indicate wrong captcha)
       const captchaInput = document.querySelector('input[name*="captcha"], input[id*="captcha"]');
       if (captchaInput && captchaInput.offsetParent !== null && !captchaInput.value) {
-        errors.push('Captcha may have failed - input is empty');
+        errors.push('Verification input is still empty - may require a retry');
       }
 
       return {
@@ -342,13 +346,14 @@ export const helpersHandlers = {
             text.includes('view') || text.includes('login') || text.includes('sign in') ||
             text.includes('register') || text.includes('send');
         });
+        const esc = (s: string) => (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(s) : s.replace(/(["\\])/g, '\\$1');
         const best = candidates.find(b => b.offsetParent !== null);
         if (best) {
-          return best.id ? `#${best.id}` : (best.name ? `[name="${best.name}"]` : 'button[type="submit"]');
+          return best.id ? `#${esc(best.id)}` : (best.name ? `[name="${esc(best.name)}"]` : 'button[type="submit"]');
         }
         // Fallback to any submit button
         const fallback = document.querySelector('button[type="submit"], input[type="submit"]');
-        return fallback ? (fallback.id ? `#${fallback.id}` : 'button[type="submit"]') : null;
+        return fallback ? (fallback.id ? `#${esc(fallback.id)}` : 'button[type="submit"]') : null;
       });
 
       if (!submitSelector) {

@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import { requireBrowser, notifyProgress } from './state';
+import { assertSafeUrl } from '../../shared/url-utils';
 
 /**
  * Resolve a user-supplied save path, preventing path traversal outside cwd.
@@ -75,14 +76,16 @@ export const extractHandlers = {
     // === rawHttp mode: fetch raw HTTP response without JS rendering ===
     if (format === 'rawHttp') {
       const url = rawHttpUrl || page.url();
+      // SSRF guard: never fetch private/loopback targets from the server
+      // side unless the operator explicitly opted in.
+      assertSafeUrl(url, 'get_content');
       notifyProgress('get_content', 'in_progress', `Fetching raw HTTP (no JS) from: ${url}`);
       try {
-        const cookies = await page.context().cookies(url);
-        const cookieStr = cookies.map((c: any) => `${c.name}=${c.value}`).join('; ');
+        // rawHttp is a single-shot, session-free fetch — no browser session
+        // state is ever forwarded to arbitrary URLs.
         const response = await fetch(url, {
           headers: {
             'User-Agent': await page.evaluate(() => navigator.userAgent),
-            'Cookie': cookieStr,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Referer': page.url()
           },

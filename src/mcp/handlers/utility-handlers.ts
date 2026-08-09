@@ -15,6 +15,23 @@ export const utilityHandlers = {
   async progress_tracker(params: ProgressTrackerParams = {}) {
     const { action = 'get', taskName = '', progress, aiEstimate = true } = params;
 
+    // TTL + cap: drop stale tasks and bound the map so a long-lived server
+    // never accumulates an unbounded number of task entries.
+    const STALE_MS = 60 * 60 * 1000; // 1 hour
+    const MAX_TASKS = 500;
+    const now = Date.now();
+    for (const [name, task] of Object.entries(state.progressTasks)) {
+      const age = now - (task.endTime || task.startTime);
+      if (age > STALE_MS) delete state.progressTasks[name];
+    }
+    const entries = Object.entries(state.progressTasks);
+    if (entries.length > MAX_TASKS) {
+      entries.sort((a, b) => a[1].startTime - b[1].startTime);
+      for (const [name] of entries.slice(0, entries.length - MAX_TASKS)) {
+        delete state.progressTasks[name];
+      }
+    }
+
     if (action === 'clear') {
       state.progressTasks = {};
       return { success: true, message: 'All tasks cleared', tasks: state.progressTasks };
@@ -58,11 +75,12 @@ export const utilityHandlers = {
 
   async deep_analysis(params: DeepAnalysisParams = {}) {
     const { page } = requireBrowser();
-    const { types = ['all'], detailed = true, aiInsights = true, detectAntiBot = true } = params;
+    const { types = ['all'], detailed = true, aiInsights = true, detectAccessControls, detectAntiBot } = params;
+    const detectControls = detectAccessControls ?? detectAntiBot ?? true;
 
     notifyProgress('deep_analysis', 'started', 'Analyzing page...');
 
-    const analysis = await page.evaluate(({ detectAntiBot, detailed }: any) => {
+    const analysis = await page.evaluate(({ detectControls, detailed }: any) => {
       const result: any = {
         seo: {
           title: document.title,
@@ -91,8 +109,8 @@ export const utilityHandlers = {
         }
       };
 
-      if (detectAntiBot) {
-        result.antiBot = {
+      if (detectControls) {
+        result.accessControls = {
           cloudflare: {
             turnstile: !!document.querySelector('.cf-turnstile, input[name="cf-turnstile-response"]'),
             challenge: document.title.includes('Just a moment') || !!document.querySelector('#challenge-stage'),
@@ -124,7 +142,7 @@ export const utilityHandlers = {
       }
 
       return result;
-    }, { detectAntiBot, detailed });
+    }, { detectControls, detailed });
 
     const insights: string[] = [];
     if (aiInsights) {
@@ -132,8 +150,8 @@ export const utilityHandlers = {
       if (analysis.performance.scripts > 20) insights.push('Many scripts — consider lazy loading');
       if (analysis.accessibility.imagesWithoutAlt > 5) insights.push('Multiple images without alt text — accessibility issue');
       if (!analysis.security.hasCSP) insights.push('No Content-Security-Policy detected');
-      if (analysis.antiBot?.cloudflare?.challenge) insights.push('Cloudflare challenge active — may need turnstile solver');
-      if (analysis.antiBot?.cloudflare?.turnstile) insights.push('Cloudflare Turnstile detected — use solve_captcha if needed');
+      if (analysis.accessControls?.cloudflare?.challenge) insights.push('A verification widget appears active — use solve_captcha if the page blocks input');
+      if (analysis.accessControls?.cloudflare?.turnstile) insights.push('Embedded verification widget detected — use solve_captcha if the page blocks input');
     }
 
     notifyProgress('deep_analysis', 'completed', `Analysis complete: ${analysis.performance.domElements} DOM elements`, { domElements: analysis.performance.domElements });
@@ -153,6 +171,16 @@ export const utilityHandlers = {
       timeout = 30000,
       async: wantsAsync = false
     } = params;
+
+    // Guard against accidental huge payloads (multi-MB strings) that would
+    // block the page and bloat the MCP response. 200k chars is generous.
+    const MAX_CODE_LENGTH = 200000;
+    if (typeof code === 'string' && code.length > MAX_CODE_LENGTH) {
+      return {
+        success: false,
+        error: `execute_js: code exceeds ${MAX_CODE_LENGTH} characters (received ${code.length}). Split the script into smaller pieces.`
+      };
+    }
 
     // Clamp timeout to a sane range so a bad/missing value can never hang forever.
     const evalTimeout = Math.max(1000, Math.min(Number(timeout) || 30000, 300000));
@@ -264,11 +292,57 @@ export const utilityHandlers = {
         let p2 = null;
         try { p2 = typeof data2 === 'string' && (data2.startsWith('{') || data2.startsWith('[')) ? JSON.parse(data2) : null; } catch {}
         if (!parsed || !p2) return { success: false, error: 'Invalid JSON for diff' };
-        
-        // ponytail: minimal diff by serializing sorted keys
-        const sortKeys = (obj: any): any => typeof obj === 'object' && obj ? Object.keys(obj).sort().reduce((acc: any, k) => { acc[k] = sortKeys(obj[k]); return acc; }, Array.isArray(obj) ? [] : {}) : obj;
-        const diff = JSON.stringify(sortKeys(parsed)) === JSON.stringify(sortKeys(p2)) ? 'Exact Match' : 'Different';
-        return { success: true, diff };
+
+        // Field-level recursive diff: reports added / removed / changed paths
+        // instead of a boolean "same or not".
+        const summarize = (v: any): any => {
+          if (v === null) return null;
+          if (typeof v !== 'object') return v;
+          if (Array.isArray(v)) return `[array:${v.length}]`;
+          return `{object:${Object.keys(v).length} keys}`;
+        };
+        const diffPaths = (a: any, b: any, path = ''): any[] => {
+          const changes: any[] = [];
+          const root = path || '(root)';
+          const isObj = (v: any) => typeof v === 'object' && v !== null;
+          if (typeof a !== typeof b || isObj(a) !== isObj(b)) {
+            changes.push({ path: root, type: 'changed', from: summarize(a), to: summarize(b) });
+            return changes;
+          }
+          if (!isObj(a)) {
+            if (JSON.stringify(a) !== JSON.stringify(b)) changes.push({ path: root, type: 'changed', from: a, to: b });
+            return changes;
+          }
+          if (Array.isArray(a) !== Array.isArray(b)) {
+            changes.push({ path: root, type: 'changed', from: summarize(a), to: summarize(b) });
+            return changes;
+          }
+          if (Array.isArray(a)) {
+            const max = Math.max(a.length, b.length);
+            for (let i = 0; i < max; i++) {
+              if (i >= a.length) changes.push({ path: `${path}[${i}]`, type: 'added', to: summarize(b[i]) });
+              else if (i >= b.length) changes.push({ path: `${path}[${i}]`, type: 'removed', from: summarize(a[i]) });
+              else changes.push(...diffPaths(a[i], b[i], `${path}[${i}]`));
+            }
+            return changes;
+          }
+          const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+          for (const k of keys) {
+            const p = path ? `${path}.${k}` : k;
+            if (!(k in a)) changes.push({ path: p, type: 'added', to: summarize(b[k]) });
+            else if (!(k in b)) changes.push({ path: p, type: 'removed', from: summarize(a[k]) });
+            else changes.push(...diffPaths(a[k], b[k], p));
+          }
+          return changes;
+        };
+
+        const changes = diffPaths(parsed, p2);
+        return {
+          success: true,
+          equal: changes.length === 0,
+          changeCount: changes.length,
+          changes: changes.slice(0, 100),
+        };
       }
 
       if (action === 'schema') {

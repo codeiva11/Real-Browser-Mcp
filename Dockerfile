@@ -9,12 +9,9 @@ RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 # Copy package files first for better layer caching
 COPY package*.json ./
 
-# Copy the postinstall helper (referenced by `npm ci`) before installing deps,
-# since it is needed at install time, not just at runtime.
-COPY scripts/setup-browser.js ./scripts/setup-browser.js
-
 # Skip the postinstall browser auto-download (handled explicitly below for multi-arch support)
 ENV CI=true
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # Install dependencies
 RUN npm ci

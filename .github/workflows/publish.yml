@@ -55,6 +55,11 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: 📦 Install Dependencies
+        # postinstall downloads Chromium; CI smoke tests don't launch a browser,
+        # so skip the download here to keep runs fast. The published package's
+        # postinstall still downloads it for end users.
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         run: npm ci || npm install
 
       - name: 🧪 Pre-Publish Verification

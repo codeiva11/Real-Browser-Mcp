@@ -163,9 +163,9 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
         const screenshotBase64 = (await targetHandle.screenshot()).toString('base64');
 
         const langHint = lang !== 'eng' ? `\nध्यान दें: टेक्स्ट ${lang === 'hin' ? 'हिन्दी' : lang} भाषा में हो सकता है।` : '';
-        notifyProgress('solve_captcha', 'progress', '📤 CAPTCHA इमेज AI IDE एजेंट को भेज रहे हैं...');
+        notifyProgress('solve_captcha', 'progress', '📤 इमेज AI IDE एजेंट को भेज रहे हैं...');
 
-        const instructions = `[कार्रवाई आवश्यक: CAPTCHA हल करें]\n\nCAPTCHA इमेज सफलतापूर्वक कैप्चर की गई (संलग्न देखें)।${langHint}\n\n1. अपनी Vision क्षमता से इमेज में दिखे टेक्स्ट/अक्षर पढ़ें।\n2. टेक्स्ट मिलने पर \`type\` टूल से selector \`${detectedInputSelector || '<input_selector>'}\` में भरें।\n3. सबमिट अनुरोध: ${submit ? 'हाँ — फॉर्म सबमिट भी करें' : 'नहीं'}।\n\nनोट: अगर वर्तमान model image input support नहीं करता, तो vision-capable model use करें या \`preferTextFallback: true\` के साथ text-only guidance लें।\n\nइस CAPTCHA के लिए \`solve_captcha\` दोबारा न बुलाएं, इमेज पहले ही मिल चुकी है।`;
+        const instructions = `[कार्रवाई आवश्यक: इमेज पढ़ें]\n\nवेरिफिकेशन इमेज सफलतापूर्वक कैप्चर की गई (संलग्न देखें)।${langHint}\n\n1. अपनी Vision क्षमता से इमेज में दिखे टेक्स्ट/अक्षर पढ़ें।\n2. टेक्स्ट मिलने पर \`type\` टूल से selector \`${detectedInputSelector || '<input_selector>'}\` में भरें।\n3. सबमिट अनुरोध: ${submit ? 'हाँ — फॉर्म सबमिट भी करें' : 'नहीं'}।\n\nनोट: अगर वर्तमान model image input support नहीं करता, तो vision-capable model use करें या \`preferTextFallback: true\` के साथ text-only guidance लें।\n\nइस वेरिफिकेशन के लिए \`solve_captcha\` दोबारा न बुलाएं, इमेज पहले ही मिल चुकी है।`;
 
         if (preferTextFallback) {
           return {
@@ -174,7 +174,7 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
             requiresVision: true,
             fallback: {
               captchaSelector: detectedCaptchaSelector, inputSelector: detectedInputSelector || null, submit,
-              guidance: 'Use a vision-capable model to read the captcha image, or solve it manually and continue with type/click tools.'
+              guidance: 'Use a vision-capable model to read the verification image, or enter the answer manually and continue with type/click tools.'
             },
             formResult
           };
@@ -192,12 +192,12 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
         if (attempt >= effectiveMaxRetries) return { success: false, error: err.message, type: 'vision_capture', formResult };
       }
     }
-    return { success: false, error: 'All captcha solving attempts exhausted', formResult };
+    return { success: false, error: 'All verification attempts were exhausted', formResult };
   }
 
   const effectiveType = type !== 'auto' ? type : (detectedJsType || 'turnstile');
   if (effectiveType === 'recaptcha' || effectiveType === 'hcaptcha') {
-    return { success: false, error: `${effectiveType} solving is not supported. Use a third-party service (e.g. 2Captcha, AntiCaptcha).`, detectedType: effectiveType, formResult };
+    return { success: false, error: 'Third-party hosted verification services are not supported by this server.', detectedType: effectiveType, formResult };
   }
 
   const start = Date.now();
@@ -273,12 +273,12 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
     });
     if (!stillOnChallenge && attempts > 3) {
       notifyProgress('solve_captcha', 'completed', `✅ Cloudflare WAF challenge passed after ${attempts} checks (page redirected)`);
-      return { success: true, type: 'cloudflare_waf', solved: true, method: 'challenge_redirect', attempts, formResult };
+      return { success: true, type: 'cloudflare_waf', solved: true, method: 'page_redirect', attempts, formResult };
     }
     if (attempts % 10 === 0) notifyProgress('solve_captcha', 'progress', `Still solving... (${attempts} checks)`, { attempts });
     await new Promise(r => setTimeout(r, 1000));
   }
 
   notifyProgress('solve_captcha', 'error', 'Captcha solving timeout');
-  return { success: false, error: 'Captcha solving timeout', type: effectiveType, formResult };
+  return { success: false, error: 'Widget completion timed out', type: effectiveType, formResult };
 }

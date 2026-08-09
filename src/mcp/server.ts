@@ -10,7 +10,44 @@ const {
 } = require('@modelcontextprotocol/sdk/types.js');
 
 const { TOOLS } = require('../shared/tools');
-const { executeTool, cleanup } = require('./handlers');
+const { executeTool, cleanup, setProgressCallback } = require('./handlers');
+
+// The progressToken of the in-flight tool call, captured from the request's
+// _meta.progressToken (MCP spec) so notifications carry the client's token.
+let activeProgressToken: unknown = undefined;
+
+/**
+ * Deliver progress notifications to the MCP client as real JSON-RPC
+ * notifications (notifications/progress). The client only opts in when it
+ * negotiated the 'progress' capability; an unfiltered stream of
+ * notifications can spam STDIO, so we gate delivery behind an env flag that
+ * is opt-in: REAL_BROWSER_SEND_PROGRESS=1.
+ */
+function wireProgressNotifications(server: any) {
+  setProgressCallback((notification: any) => {
+    if (process.env.REAL_BROWSER_SEND_PROGRESS !== '1') return;
+    try {
+      const { tool, status, message, timestamp, data } = notification;
+      server.notification({
+        jsonrpc: '2.0',
+        method: 'notifications/progress',
+        params: {
+          progressToken: activeProgressToken,
+          progress: status === 'completed' ? 100 : status === 'error' ? 100 : undefined,
+          value: {
+            tool,
+            status,
+            message,
+            timestamp,
+            ...(data || {}),
+          },
+        },
+      } as any);
+    } catch (e) {
+      // Notification delivery must never break the tool result.
+    }
+  });
+}
 
 // Single source of truth: read version from package.json (avoids version drift)
 let PKG_VERSION = '0.0.0';
@@ -54,6 +91,10 @@ function createServer() {
   // Handle call tool request
   server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
     const { name, arguments: args } = request.params;
+    // Remember the client's progress token for this call so progress
+    // notifications can carry it (MCP spec). Tools run sequentially, so a
+    // module-level slot is correct here.
+    activeProgressToken = request.params?._meta?.progressToken;
 
     // Find tool definition
     const tool = TOOLS.find((t: any) => t.name === name);
@@ -115,6 +156,9 @@ function createServer() {
 async function startServer() {
   const server = createServer();
   const transport = new StdioServerTransport();
+
+  // Connect progress notifications before accepting requests.
+  wireProgressNotifications(server);
 
   // Connect server to transport
   await server.connect(transport);

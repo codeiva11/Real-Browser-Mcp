@@ -44,10 +44,12 @@ real-browser-mcp mcp
 ```
 
 > [!NOTE]
-> The `postinstall` step automatically runs `npx patchright install chromium`, which detects your OS and CPU architecture (Windows / Linux / macOS × x64 / arm64 / arm) and fetches the correct binary. If auto-download is skipped (e.g. offline), run it manually:
+> The `postinstall` step automatically runs `patchright install chromium`, which detects your OS and CPU architecture (Windows / Linux / macOS × x64 / arm64 / arm) and fetches the correct binary. If auto-download is skipped (e.g. offline), run it manually:
 > ```bash
 > npx patchright install chromium
 > ```
+>
+> Set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` before `npm install` to skip the download (e.g. in CI that only runs the smoke tests).
 
 ### 🛠️ Local Development & Build (Git Clone)
 
@@ -237,6 +239,13 @@ You can configure `browser_init` defaults directly from the MCP client `env` blo
 | `AI_HEALING` | `true` / `false` / `1` / `0` / `yes` / `no` / `on` / `off` | `true` | Auto-repair broken CSS selectors in `click`/`type` |
 | `ENABLE_BLOCKER` | `true` / `false` / `1` / `0` / `yes` / `no` / `on` / `off` | `true` | Block ads and trackers |
 | `TURNSTILE` | `true` / `false` / `1` / `0` / `yes` / `no` / `on` / `off` | `false` | Assist with Cloudflare Turnstile challenges |
+| `REAL_BROWSER_ALLOW_PRIVATE_NETWORK` | `true` / `1` / `yes` | off | Allow `navigate`/`replay_request`/`redirect_tracer` to target localhost/private IPs (off by default — SSRF guard) |
+| `CHROME_NO_SANDBOX` | `true` / `1` / `yes` / `false` / `0` | auto (CI/root detection) | Force-disable or force-enable the Chromium OS sandbox |
+| `REAL_BROWSER_TOOL_TIMEOUT_MS` | integer | `120000` | Hard watchdog budget per tool call (avoids client "Request timed out") |
+| `REAL_BROWSER_LOG_LEVEL` | `debug` / `info` / `warn` / `error` | `info` | Structured JSON log verbosity (stdout stays clean for MCP) |
+| `REAL_BROWSER_SEND_PROGRESS` | `true` / `1` | off | Emit `notifications/progress` JSON-RPC messages to the MCP client |
+| `REAL_BROWSER_VIDEO_DIR` | path | `$TMPDIR/real-browser-mcp/videos` | Where `recordVideo` writes `.webm` recordings |
+| `REAL_BROWSER_USER_AGENT` | UA string or comma-separated list | auto (built from Chromium version) | Override/rotate the browser User-Agent. A list (`ua1,ua2`) rotates one entry per `browser_init` call |
 
 Values are case-insensitive. Priority for each option is: **explicit `browser_init` param > environment variable > built-in default**.
 
@@ -250,7 +259,7 @@ The server exposes **21 tools** categorized into functional units:
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
 | `browser_init` | Initialize Patchright browser with ad blocker, AI healing, and Turnstile assist. | `headless`, `proxy`, `turnstile`, `enableBlocker`, `aiHealing`, `recordVideo` |
-| `browser_close` | Close browser with cleanup and optional session saving. | `force`, `saveSession` |
+| `browser_close` | Close browser with cleanup. | `force` |
 
 ### 🧭 Navigation
 | Tool Name | Description | Key Parameters |
@@ -262,7 +271,7 @@ The server exposes **21 tools** categorized into functional units:
 |:---|:---|:---|
 | `click` | Natural click using ghost cursor with iframe, hover, and video player support. | `selector`, `annotationId`, `humanLike`, `hoverFirst`, `iframe`, `autoDetectPlayer` |
 | `type` | Type text with natural speed variation, smart clearing, and iframe support. | `selector`, `annotationId`, `text`, `clear`, `pressEnter`, `iframe` |
-| `solve_captcha` | Assists with CAPTCHA challenges (Turnstile, image OCR). reCAPTCHA/hCaptcha not supported. | `type`, `captchaSelector`, `formData`, `submit` |
+| `solve_captcha` | Form filling and embedded widget completion for pages you are testing (JS widgets, text/image input recognition). Externally hosted services are not supported. | `type`, `captchaSelector`, `formData`, `submit` |
 | `random_scroll` | Natural scrolling with lazy-load detection. | `direction`, `amount`, `smooth`, `aiDetectLazyLoad` |
 | `press_key` | Press keyboard keys with modifier key support (Ctrl/Shift/Alt). | `key`, `modifiers`, `count` |
 | `execute_js` | Run custom JavaScript inside a page or iframe. ⚠️ Use with trusted input only. | `code`, `async`, `iframe`, `timeout` |
@@ -271,19 +280,19 @@ The server exposes **21 tools** categorized into functional units:
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
 | `get_content` | Retrieve page content in `html`, `text`, `markdown`, `rawHttp`, or `elements` mode. | `format`, `selector`, `xpath`, `saveAs` |
-| `extract_data` | Advanced extractor: regex, JSON, meta, structured, auto, deobfuscate, apiDiscovery, decrypt, links. | `type`, `pattern`, `source`, `aesKey` |
-| `media_extractor` | Extract HLS/DASH/MP4, control JWPlayer/VideoJS/Plyr, decode encoded URLs. | `action`, `types`, `quality`, `playerAction` |
+| `extract_data` | Advanced extractor: regex, JSON, meta, structured, auto, API discovery, string conversion, links. | `type`, `pattern`, `source`, `transformKey` |
+| `media_extractor` | Extract HLS/DASH/MP4, control player APIs, convert string formats. | `action`, `types`, `quality`, `playerAction` |
 
 ### 📡 Network & Utilities
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
 | `redirect_tracer` | Trace full redirect chains (HTTP 301/302, JS, meta refresh). | `url`, `maxRedirects`, `decodeURLs` |
 | `network_recorder` | Capture requests, responses, intercepted APIs, GraphQL, WebSockets, media URLs. Export HAR. | `action`, `captureXhrBody` |
-| `deep_analysis` | DOM structure, scripts, bot-detection signals, tech stack, SEO, and recommendations. | `types`, `detailed`, `detectAntiBot` |
+| `deep_analysis` | DOM structure, scripts, page components, tech stack, SEO, and recommendations. | `types`, `detailed`, `detectAccessControls` |
 | `wait` | Smart delay for selectors, navigation events, or fixed timeout. | `type`, `value`, `timeout` |
 | `progress_tracker` | Track automation progress with AI-estimated remaining time. | `action`, `taskName`, `progress` |
 | `storage_inspector` | Inspect IndexedDB databases and Service Workers. | `action` |
-| `replay_request` | Replay a captured API request in browser context (with cookies). | `url`, `method`, `headers`, `body` |
+| `replay_request` | Replay a captured API request in browser context. | `url`, `method`, `headers`, `body` |
 | `api_analyzer` | Generate JSON schemas, diff two JSONs, or create SDK boilerplates (Python/TypeScript). | `action`, `data`, `lang` |
 
 ### 👁️ AI Vision & Human-like Workflow
@@ -384,12 +393,14 @@ Run these scripts from the project root directory:
 | `npm run dev` | Build and start the MCP server. |
 | `npm run mcp` | Start the MCP server. |
 | `npm run mcp:verbose` | Start the MCP server with verbose tool listing on `stderr`. |
-| `npm run list` | List all 22 registered MCP tools with categories. |
+| `npm run list` | List all 21 registered MCP tools with categories. |
 | `npm run build` | Compile TypeScript into the `dist/` folder. |
-| `npm test` | Execute the full test suite (CJS & ESM). |
+| `npm test` | Execute the full test suite (CJS & ESM). ⚠️ These tests launch a real browser and hit live third-party sites — they are network-dependent and can be flaky. Use `npm run mcp_test` for a fast, network-free CI check. |
 | `npm run cjs_test` | Run CommonJS test scripts. |
 | `npm run esm_test` | Run ECMAScript Module test scripts. |
 | `npm run mcp_test` | Fast, network-independent MCP smoke test — verifies tool registry (all 21 tools), JSON-RPC initialize handshake, and tools/list response. No browser launch needed. |
+
+> Environment-dependent assertions in the live-site suite (e.g. the reCAPTCHA v3 score) fail the run only when `REAL_BROWSER_STRICT_BOT_TESTS=1`; by default they log a warning so CI stays deterministic.
 
 ---
 
@@ -398,7 +409,7 @@ Run these scripts from the project root directory:
 ### Design
 
 - **MCP-first**: every tool is defined in `src/shared/tools.ts` and dispatched through a single `executeTool()` router.
-- **Handler modules**: `src/mcp/handlers/` contains focused files — `network-recorder.ts`, `network-extractors.ts`, `vision-captcha.ts`, `vision-see-page.ts`, `vision-browse-task.ts` — with thin wrappers (`network.ts`, `vision.ts`) for the tool-facing API.
+- **Handler modules**: `src/mcp/handlers/` contains focused files — `network-recorder.ts`, `network-extractors.ts`, `vision-captcha.ts`, `vision-see-page.ts`, `media-handlers.ts` — with thin wrappers (`network.ts`, `vision.ts`, `index.ts`) for the tool-facing API.
 - **Browser state**: a single global `state` object in `src/mcp/handlers/state.ts` holds the current browser/page instance and network recorder data. `requireBrowser()` / `getState()` provide typed accessors for handlers.
 - **Human-like workflow**: the unified `see_page` `steps[]` workflow orchestrates the existing `click`/`type`/`scroll`/`press_key`/`wait`/`extract` handlers in a continuous sequence — no extra LLM or API key required. The AI agent (LLM client) plans the steps; `see_page` executes them without pausing.
 - **No project pollution**: runtime caches (User-Agent detection, saved sessions) are written to the OS temp directory (`os.tmpdir()/real-browser-mcp`), **never** inside the project or working directory. The server does **not** create a `.cache` folder in your project tree.
@@ -409,7 +420,7 @@ Run these scripts from the project root directory:
 - **Single-session model**: the MCP server manages one browser instance at a time. Concurrent multi-session isolation is not supported.
 - **reCAPTCHA / hCaptcha**: detected honestly but not solved automatically. Use a third-party service for these.
 - **Vision tools require image-capable models**: `see_page` and `solve_captcha` return images. Non-vision models get a full text + JSON summary fallback.
-- **TypeScript strict mode**: the project compiles with `strict: true` across all source files. `tsc --noEmit` passes cleanly.
+- **TypeScript strict mode**: the project compiles with `strict: true` across all source files, and `noEmitOnError: true` makes a type error fail the build outright (`tsc --noEmit` passes cleanly).
 
 ---
 

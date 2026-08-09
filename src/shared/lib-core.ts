@@ -4,7 +4,7 @@ import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { getHeadlessFromEnv } from './env-utils';
+import { getHeadlessFromEnv, shouldDisableChromiumSandbox } from './env-utils';
 import type { Browser, Page } from 'patchright';
 
 let adBlockerInstance: PlaywrightBlocker | null = null;
@@ -40,7 +40,19 @@ function getPatchrightChromiumVersion(): string {
 /**
  * Build the UA string using patchright's actual Chromium version.
  * Always uses 'Chrome/' (never 'HeadlessChrome/') so WAFs don't flag it.
+ *
+ * Dynamic override: REAL_BROWSER_USER_AGENT (or the per-connect
+ * contextOptions.userAgent) replaces the generated UA. A comma-separated
+ * list ("ua1,ua2") rotates per connect() call so long-running scrapers can
+ * vary their fingerprint across sessions.
  */
+const uaOverridePool: string[] | null = (() => {
+  const raw = process.env.REAL_BROWSER_USER_AGENT;
+  if (!raw || !raw.trim()) return null;
+  return raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+})();
+let uaRotationIndex = 0;
+
 function buildUserAgent(): string {
   const isMac = os.platform() === 'darwin';
   const isWin = os.platform() === 'win32';
@@ -51,14 +63,24 @@ function buildUserAgent(): string {
     : 'X11; Linux x86_64';
 
   const chromiumVersion = getPatchrightChromiumVersion() || '149.0.7827.55';
+  const generated = `Mozilla/5.0 (${osString}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromiumVersion} Safari/537.36`;
 
-  return `Mozilla/5.0 (${osString}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromiumVersion} Safari/537.36`;
+  if (uaOverridePool && uaOverridePool.length > 0) {
+    const ua = uaOverridePool[uaRotationIndex % uaOverridePool.length];
+    uaRotationIndex++;
+    return ua;
+  }
+
+  return generated;
 }
 
 function resolveAdBlockerCachePath(): string {
   // Built output lives in dist/src/shared; bundled filter cache is lib/cjs/adblocker.bin.
   const bundledPath = path.resolve(__dirname, '..', '..', '..', 'lib', 'cjs', 'adblocker.bin');
   if (fs.existsSync(bundledPath)) return bundledPath;
+  // Dev/source tree fallback: project-root lib/cjs relative to cwd.
+  const cwdPath = path.join(process.cwd(), 'lib', 'cjs', 'adblocker.bin');
+  if (fs.existsSync(cwdPath)) return cwdPath;
   return path.join(__dirname, 'adblocker.bin');
 }
 
@@ -70,19 +92,42 @@ function resolveAdBlockerCachePath(): string {
 function getAdBlocker(): Promise<PlaywrightBlocker | null> {
   if (!adBlockerPromise) {
     const cachePath = resolveAdBlockerCachePath();
-    adBlockerPromise = PlaywrightBlocker.fromPrebuiltAdsAndTracking(fetch, {
-      path: cachePath,
-      read: fs.promises.readFile,
-      write: fs.promises.writeFile,
-    }).then((blocker: PlaywrightBlocker) => {
-      adBlockerInstance = blocker;
-      return blocker;
-    }).catch((err: Error) => {
-      console.error('[adblocker] Failed to initialize adblocker:', err.message);
-      // Reset so the next connect() call can retry
-      adBlockerPromise = null;
-      return null;
-    });
+
+    // Cache writes must never take down blocking: a read-only install dir
+    // (global/npx installs) would otherwise reject the whole promise and
+    // silently disable the adblocker. Writes are best-effort; reads fall
+    // back to a network fetch of the prebuilt lists.
+    const safeWrite = async (filePath: string, data: Uint8Array) => {
+      try {
+        await fs.promises.writeFile(filePath, data);
+      } catch (e: any) {
+        console.error('[adblocker] Cache write failed (blocking continues in-memory):', e?.message || e);
+      }
+    };
+
+    adBlockerPromise = (async (): Promise<PlaywrightBlocker | null> => {
+      try {
+        const blocker = await PlaywrightBlocker.fromPrebuiltAdsAndTracking(fetch, {
+          path: cachePath,
+          read: fs.promises.readFile,
+          write: safeWrite,
+        });
+        adBlockerInstance = blocker;
+        return blocker;
+      } catch (err: any) {
+        console.error('[adblocker] Cache read failed, falling back to network fetch:', err?.message || err);
+        try {
+          const blocker = await PlaywrightBlocker.fromPrebuiltAdsAndTracking(fetch);
+          adBlockerInstance = blocker;
+          return blocker;
+        } catch (err2: any) {
+          console.error('[adblocker] Failed to initialize adblocker:', err2?.message || err2);
+          // Reset so the next connect() call can retry
+          adBlockerPromise = null;
+          return null;
+        }
+      }
+    })();
   }
   return adBlockerPromise;
 }
@@ -264,8 +309,10 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
     const chromiumArgs = [
       `--user-agent=${ua}`,
       '--disable-blink-features=AutomationControlled',
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
+      // FIX: only disable the Chromium sandbox when required (CI, containers,
+      // root). On normal desktops the OS-level sandbox stays enabled — it is a
+      // strong security boundary for untrusted page content.
+      ...(shouldDisableChromiumSandbox() ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
       // FIX: removed --window-size — it caused browser to open maximized/fullscreen.
       // Browser window size is controlled by the OS/user, not forced by the server.
       '--disable-dev-shm-usage',

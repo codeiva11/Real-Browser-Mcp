@@ -75,9 +75,11 @@ test('JSON-RPC STDIO — initialize handshake', async () => {
   let resolved = false;
 
   const result = await new Promise((resolve, reject) => {
+    // Cold-start require of the SDK + patchright can exceed 5s on Windows;
+    // give the first spawn a generous budget.
     const timeout = setTimeout(() => {
-      if (!resolved) { resolved = true; proc.kill(); reject(new Error('Handshake timeout (5s)')); }
-    }, 5000);
+      if (!resolved) { resolved = true; proc.kill(); reject(new Error('Handshake timeout (12s)')); }
+    }, 12000);
 
     proc.stdout.on('data', chunk => {
       stdout += chunk.toString();

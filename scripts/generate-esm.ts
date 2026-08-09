@@ -72,4 +72,39 @@ export const connect = createConnect(pageController);
 `;
 fs.writeFileSync(path.join(esmDir, 'index.mjs'), indexEsm);
 
-console.log('✅ ESM files auto-generated from CJS source');
+// Validate output: every .ts file in lib/cjs must have a corresponding .mjs,
+// and every generated file must be non-empty (catches silent conversion
+// failures before they ship).
+let converted = 0;
+let failed = false;
+function validateDir(cjsSubDir: string, esmSubDir: string): void {
+  for (const entry of fs.readdirSync(cjsSubDir, { withFileTypes: true })) {
+    const cjsPath = path.join(cjsSubDir, entry.name);
+    const esmName = entry.name.replace(/\.ts$/, '.mjs');
+    const esmPath = path.join(esmSubDir, esmName);
+    if (entry.isDirectory()) {
+      validateDir(cjsPath, esmPath);
+    } else if (entry.name.endsWith('.ts')) {
+      if (!fs.existsSync(esmPath)) {
+        console.error(`❌ Missing ESM output for ${cjsPath}`);
+        failed = true;
+        continue;
+      }
+      const content = fs.readFileSync(esmPath, 'utf8');
+      if (!content.trim()) {
+        console.error(`❌ Empty ESM output for ${cjsPath}`);
+        failed = true;
+        continue;
+      }
+      converted++;
+    }
+  }
+}
+validateDir(cjsDir, esmDir);
+
+if (failed) {
+  console.error(`❌ ESM generation failed validation (${converted} files ok)`);
+  process.exit(1);
+}
+
+console.log(`✅ ESM files auto-generated from CJS source (${converted} files)`);

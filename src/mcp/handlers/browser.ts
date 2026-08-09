@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, resolveWaitUntil } from './state';
+import { getEnvBool } from '../../shared/env-utils';
+import { assertSafeUrl } from '../../shared/url-utils';
 import type { BrowserInitParams, NavigateParams, WaitParams, WaitUntilState } from '../../types';
 
 export const browserHandlers = {
@@ -48,23 +50,37 @@ export const browserHandlers = {
     const {
       proxy = {} as Record<string, unknown>,
       contextOptions = {} as Record<string, unknown>,
-      turnstile = false,
-      enableBlocker = true,
+      turnstile = getEnvBool('TURNSTILE', false),
+      enableBlocker = getEnvBool('ENABLE_BLOCKER', true),
       recordVideo = false,
-      aiHealing = true,  // stored in state for use by click/type handlers
+      aiHealing = getEnvBool('AI_HEALING', true),  // stored for use by click/type handlers
     } = params;
 
     notifyProgress('browser_init', 'progress', `Mode: ${headless ? 'Headless' : 'GUI (Visible)'}`, { headless });
 
     const mergedContextOptions: Record<string, unknown> = contextOptions;
 
+    // Videos go to the OS temp dir (or REAL_BROWSER_VIDEO_DIR) so they never
+    // depend on the server's CWD. Creating ./videos relative to dist/ broke
+    // on npx/global installs and left orphaned files in the project tree.
+    const videosDir = process.env.REAL_BROWSER_VIDEO_DIR
+      ? path.resolve(process.env.REAL_BROWSER_VIDEO_DIR)
+      : path.join(os.tmpdir(), 'real-browser-mcp', 'videos');
+    try {
+      fs.mkdirSync(videosDir, { recursive: true });
+    } catch { /* ignore — context creation will fail loudly if unwritable */ }
+
     const result = await connect({
       headless,
       proxy,
-      contextOptions: recordVideo ? { ...mergedContextOptions, recordVideo: { dir: './videos' } } : mergedContextOptions,
+      contextOptions: recordVideo ? { ...mergedContextOptions, recordVideo: { dir: videosDir } } : mergedContextOptions,
       turnstile,
       enableBlocker,
     });
+
+    if (recordVideo) {
+      notifyProgress('browser_init', 'progress', `Recording videos to: ${videosDir}`);
+    }
 
     state.browserInstance = result.browser;
     state.pageInstance = result.page;
@@ -139,6 +155,9 @@ export const browserHandlers = {
     const { page } = requireBrowser();
     let { url, waitUntil = 'networkidle' as WaitUntilState, timeout = 30000, retries = 3, smartWait = true } = params;
     waitUntil = resolveWaitUntil(waitUntil) as WaitUntilState;
+
+    const checkedUrl = assertSafeUrl(url, 'navigate');
+    if (checkedUrl.valid) url = checkedUrl.url;
 
     notifyProgress('navigate', 'started', `Navigating to: ${url}`);
 
@@ -215,8 +234,13 @@ export const browserHandlers = {
           } catch (e) {
             // Continue to retry
           }
-        } else {
-          throw error;
+        }
+
+        // Every other failure (net::ERR_*, DNS, timeout, connection refused,
+        // aborted, 5xx…) is retryable: log it and let the retry loop continue.
+        // Only after ALL attempts are exhausted do we throw (below the loop).
+        if (attempt < retries) {
+          notifyProgress('navigate', 'progress', `Attempt ${attempt + 1}/${retries + 1} failed: ${errMsg.substring(0, 120)} — retrying...`);
         }
       }
     }
@@ -253,27 +277,9 @@ export const browserHandlers = {
   },
 
   async browser_close(params: Record<string, unknown> = {}) {
-    const { force = false, saveSession = false } = params as { force?: boolean; saveSession?: boolean };
+    const { force = false } = params as { force?: boolean };
 
     notifyProgress('browser_close', 'started', 'Closing browser...');
-
-    let savedSessionPath: string | null = null;
-
-    if (saveSession && state.pageInstance && state.browserInstance) {
-      try {
-        const cookies = await (state.pageInstance as any).context().cookies();
-        // Store session inside the OS temp directory — never in the project tree,
-        // so the working directory stays clean (no stray .cache folder).
-        const sessionDir = path.join(os.tmpdir(), 'real-browser-mcp');
-        if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
-        savedSessionPath = path.join(sessionDir, 'session.json');
-        fs.writeFileSync(savedSessionPath, JSON.stringify({ cookies, savedAt: new Date().toISOString() }, null, 2));
-        notifyProgress('browser_close', 'progress', `Session saved to ${savedSessionPath}`);
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        notifyProgress('browser_close', 'progress', `Session save failed: ${msg}`);
-      }
-    }
 
     if (state.browserInstance) {
       try {
@@ -295,6 +301,6 @@ export const browserHandlers = {
 
     notifyProgress('browser_close', 'completed', 'Browser closed');
 
-    return { success: true, message: 'Browser closed', savedSession: savedSessionPath };
+    return { success: true, message: 'Browser closed' };
   }
 };

@@ -492,7 +492,8 @@ export const domHandlers = {
 
   async random_scroll(params: ScrollParams = {}) {
     const { page } = requireBrowser();
-    const { direction = 'down', amount = 0, smooth = true, aiDetectLazyLoad = true } = params;
+    // Default matches the registered schema (direction: 'smart').
+    const { direction = 'smart', amount = 0, smooth = true, aiDetectLazyLoad = true } = params;
 
     let scrollAmount = amount || Math.floor(Math.random() * 500) + 200;
 

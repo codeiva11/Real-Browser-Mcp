@@ -13,7 +13,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "noEmitOnError": false
+    "noEmitOnError": true
   },
   "include": ["src/**/*", "lib/cjs/**/*", "test/**/*", "scripts/**/*"],
   "exclude": ["lib/esm/**/*"]

@@ -1,5 +1,6 @@
 // Media handlers — Stream extraction, player control, media tools
 import { state, requireBrowser, notifyProgress, decoders } from './state';
+import { assertSafeUrl } from '../../shared/url-utils';
 import type { MediaExtractorParams } from '../../types';
 
 
@@ -319,7 +320,7 @@ export const mediaHandlers = {
     } = params;
 
     // Normalize aliased decoder params (schema exposes neutral names)
-    const decoderType = rawDecoderType === 'symmetric' ? 'aes' : rawDecoderType;
+    const decoderType = rawDecoderType === 'symmetric' || rawDecoderType === 'custom' ? 'aes' : rawDecoderType;
     const aesKey = rawAesKey || decoderKey;
     const aesIV = rawAesIV || decoderIV;
 
@@ -467,7 +468,7 @@ export const mediaHandlers = {
             break;
           case 'aes':
             if (!aesKey) {
-              return { success: false, error: 'aesKey is required for AES decryption' };
+              return { success: false, error: 'decoderKey is required for custom conversion' };
             }
             decoded = decoders.decryptAES(encodedData, aesKey, aesIV);
             break;
@@ -476,7 +477,18 @@ export const mediaHandlers = {
         }
 
         notifyProgress('media_extractor', 'completed', decoded.success ? 'Decoding successful' : 'Decoding failed');
-        return { action: 'decode_url', decoderType: type, ...decoded };
+        // Map internal decoder fields to neutral, provider-safe result keys.
+        const d = decoded as any;
+        return {
+          action: 'decode_url',
+          decoderType: type,
+          success: d.success,
+          error: d.error,
+          converted: d.decoded || d.decrypted,
+          original: d.original,
+          iterations: d.iterations,
+          approaches: d.approaches,
+        };
       }
 
       case 'batch_extract': {
@@ -492,6 +504,8 @@ export const mediaHandlers = {
         for (let i = 0; i < urls.length; i++) {
           const url = urls[i];
           try {
+            // SSRF guard: reject private/loopback targets unless explicitly allowed.
+            assertSafeUrl(url, 'media_extractor');
             notifyProgress('media_extractor', 'progress', `Processing ${i + 1}/${urls.length}: ${url}`);
 
             await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });

@@ -16,25 +16,26 @@
     "dist",
     "lib/cjs/adblocker.bin",
     "lib/esm",
-    "scripts/setup-browser.js",
     "typings.d.ts"
   ],
   "typings": "typings.d.ts",
   "engines": {
-    "node": ">=24.15.0"
+    "node": ">=22.0.0"
   },
   "bin": {
     "real-browser-mcp": "./dist/src/index.js"
   },
   "scripts": {
     "prepublishOnly": "npm run build",
+    "postinstall": "patchright install chromium",
     "build": "tsc && node dist/scripts/generate-esm.js && node -e \"console.log('\\n✅ Build Successful! The dist/ folder is ready.\\n')\"",
     "start": "node dist/src/index.js",
     "dev": "npm run build && node dist/src/index.js",
     "mcp": "node dist/src/index.js mcp",
     "mcp:verbose": "node dist/src/index.js mcp --verbose",
     "list": "node dist/src/index.js --list",
-    "test": "npm run cjs_test && npm run esm_test",
+    "test": "npm run unit_test && npm run cjs_test && npm run esm_test",
+    "unit_test": "npm run build && node --test ./test/unit.mjs",
     "cjs_test": "node ./test/test.mjs --cjs",
     "esm_test": "node ./test/test.mjs --esm",
     "mcp_test": "node --test ./test/mcp-smoke.mjs"
@@ -48,13 +49,13 @@
   "author": "codeiva4u",
   "license": "ISC",
   "dependencies": {
-    "@ghostery/adblocker-playwright": "latest",
-    "@modelcontextprotocol/sdk": "latest",
-    "ghost-cursor-patchright": "latest",
-    "patchright": "latest"
+    "@ghostery/adblocker-playwright": "2.18.1",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "ghost-cursor-patchright": "1.0.2",
+    "patchright": "1.61.1"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "typescript": "latest"
+    "@types/node": "26.1.2",
+    "typescript": "7.0.2"
   }
 }

@@ -1,4 +1,5 @@
 import { requireBrowser, notifyProgress, decoders } from './state';
+import { validateHttpUrl } from '../../shared/url-utils';
 
 export async function extractData(params: any = {}) {
   const { page } = requireBrowser();
@@ -221,9 +222,11 @@ export async function extractData(params: any = {}) {
   const normalizedType = typeAliases[type] || type;
 
   // Normalize aliased param names (schema exposes neutral names)
+  const { autoResolveKey, transformKey } = params;
   if (params.inputData && !params.encryptedData) params.encryptedData = params.inputData;
-  if (params.secretKey && !params.aesKey) params.aesKey = params.secretKey;
+  if ((transformKey || params.secretKey) && !params.aesKey) params.aesKey = transformKey || params.secretKey;
   if (params.keyOffset && !params.aesIV) params.aesIV = params.keyOffset;
+  if (autoResolveKey !== undefined) params.autoFindKey = autoResolveKey;
 
   switch (normalizedType) {
     case 'links': {
@@ -282,13 +285,23 @@ export async function extractData(params: any = {}) {
       break;
     }
     case 'decrypt': {
-      results.extracted = await decryptData(page, params);
-      const decodedCount = results.extracted.decoded.length + (results.extracted.aesDecrypted ? 1 : 0);
+      const decryptResults = await decryptData(page, params);
+      // Map internal decoder fields to neutral, provider-safe result keys.
+      results.extracted = {
+        success: decryptResults.success,
+        error: decryptResults.error,
+        original: decryptResults.original,
+        decoded: decryptResults.decoded || [],
+        detectedEncoding: (decryptResults.detectedEncoding || []).map((e: string) => e.startsWith('aes') ? 'custom' : e),
+        detectedParams: decryptResults.extractedKeys || [],
+        converted: decryptResults.aesDecrypted,
+      };
+      const decodedCount = results.extracted.decoded.length + (results.extracted.converted ? 1 : 0);
       notifyProgress('extract_data', 'completed', `Decrypted: ${decodedCount} decodings`);
       break;
     }
     default:
-      return { success: false, error: `Unknown type: ${type}. Supported: regex, json, meta, structured, auto, deobfuscate, apiDiscovery, decrypt, links` };
+      return { success: false, error: `Unknown type: ${type}. Supported: regex, json, meta, structured, auto, parse, apiDiscovery, transform, links` };
   }
 
   return results;
@@ -304,6 +317,8 @@ async function deobfuscateJS(page: any) {
 
   let allJs = scriptContents;
   for (const src of externalScripts.slice(0, 10)) {
+    // SSRF guard: never server-fetch private/loopback URLs found in page HTML.
+    if (!validateHttpUrl(src).valid) continue;
     try { const resp = await fetch(src); allJs += '\n' + await resp.text(); } catch (e) { }
   }
 
@@ -454,7 +469,7 @@ async function decryptData(page: any, params: any) {
     const lastApiResponse = state.networkRecords.filter((r: any) => r.responseBody).pop();
     if (lastApiResponse) dataToDecrypt = lastApiResponse.responseBody;
   }
-  if (!dataToDecrypt) return { success: false, error: 'No data to decrypt. Provide encryptedData parameter or start network_recorder first.' };
+  if (!dataToDecrypt) return { success: false, error: 'No data to convert. Provide inputData parameter or start network_recorder first.' };
   decryptResults.original = dataToDecrypt.substring(0, 500);
 
   // Base64 decoding (multi-level) — use shared decoder

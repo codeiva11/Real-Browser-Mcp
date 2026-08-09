@@ -309,6 +309,8 @@ export interface DeepAnalysisParams {
   types?: string[];
   detailed?: boolean;
   aiInsights?: boolean;
+  detectAccessControls?: boolean;
+  /** @deprecated Use detectAccessControls instead. Kept for backward compatibility. */
   detectAntiBot?: boolean;
 }
 
@@ -344,7 +346,7 @@ export interface AESDecryptResult {
 // ─────────────────────────────────────────────
 
 export interface SolveCaptchaParams {
-  type?: 'turnstile' | 'text' | 'image' | 'auto';
+  type?: 'js_widget' | 'text' | 'image' | 'auto';
   timeout?: number;
   captchaSelector?: string;
   inputSelector?: string;

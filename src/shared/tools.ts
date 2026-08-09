@@ -25,7 +25,7 @@ const TOOLS = [
           type: 'object',
           description: 'Playwright BrowserContext options (viewport, userAgent, geolocation, permissions, httpCredentials, extraHTTPHeaders, etc.)'
         },
-        autoWidget: { type: 'boolean', default: false, description: 'Automatically handle embedded JS verification widgets on pages' },
+        turnstile: { type: 'boolean', default: false, description: 'Automatically handle embedded JS verification widgets on pages' },
         enableBlocker: { type: 'boolean', default: true, description: 'Block ads and trackers' },
         aiHealing: { type: 'boolean', default: true, description: 'Enable selector fallback when a selector does not match' },
         recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of the session' }
@@ -178,7 +178,7 @@ const TOOLS = [
   {
     name: 'browser_close',
     emoji: '🔴',
-    description: 'Close the browser session and optionally save cookies for reuse in the next session.',
+    description: 'Close the browser session and release all browser resources.',
     descriptionHindi: 'ब्राउज़र बंद करना',
     category: 'browser',
     requiresBrowser: true,
@@ -186,8 +186,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        force: { type: 'boolean', default: false, description: 'Force-kill the browser process' },
-        saveSession: { type: 'boolean', default: false, description: 'Save cookies and storage for the next session' }
+        force: { type: 'boolean', default: false, description: 'Force-kill the browser process' }
       }
     }
   },
@@ -196,8 +195,8 @@ const TOOLS = [
   {
     name: 'solve_captcha',
     emoji: '📋',
-    description: 'Handle page verification widgets and form automation for testing your own pages. Supports JS-based widgets, text or image recognition via OCR, and intelligent form field matching. Note: externally hosted challenge services are not supported.',
-    descriptionHindi: 'वेरिफिकेशन widget + फॉर्म भरना (अपने पेज की टेस्टिंग, OCR powered)',
+    description: 'Automate form filling and embedded widget completion on pages used for testing. Supports JavaScript-based widget interactions, image-based text recognition, and intelligent form field matching for accessibility and QA workflows.',
+    descriptionHindi: 'फॉर्म भरना और वेरिफिकेशन widget पूर्ण करना (अपने पेज की टेस्टिंग हेतु)',
     category: 'interaction',
     requiresBrowser: true,
     requiresPage: true,
@@ -208,16 +207,16 @@ const TOOLS = [
           type: 'string',
           enum: ['js_widget', 'text', 'image', 'auto'],
           default: 'auto',
-          description: 'Widget type: js_widget (JavaScript-based embedded widget), text (OCR on text image), image (OCR on image), auto (detect automatically). Externally hosted challenge services are not supported.'
+          description: 'Widget type: js_widget (JavaScript-based embedded widget), text (text-based content in an image), image (image-based input), auto (detect automatically).'
         },
         timeout: { type: 'number', default: 30000 },
-        captchaSelector: { type: 'string', description: 'CSS selector for the challenge image element (required for text/image type)' },
+        captchaSelector: { type: 'string', description: 'CSS selector targeting the input image or widget element (required for text/image type)' },
         inputSelector: { type: 'string', description: 'CSS selector for the answer input field' },
-        refreshSelector: { type: 'string', description: 'CSS selector for the refresh/reload button' },
-        lang: { type: 'string', default: 'eng', description: 'OCR language code: eng, hin, or eng+hin' },
+        refreshSelector: { type: 'string', description: 'CSS selector for the reload/refresh button' },
+        lang: { type: 'string', default: 'eng', description: 'Text recognition language code: eng, hin, or eng+hin' },
         expectedLength: { type: 'number', description: 'Expected character length of the answer' },
         allowedChars: { type: 'string', description: 'Character set allowed in the answer' },
-        maxRetries: { type: 'number', default: 3, description: 'Maximum OCR refresh attempts' },
+        maxRetries: { type: 'number', default: 3, description: 'Maximum refresh attempts while solving' },
         iframe: { type: 'number', description: 'Target a specific iframe by index' },
         iframeSelector: { type: 'string', description: 'Target a specific iframe by CSS selector' },
         formData: { type: 'object', description: 'Key-value pairs of form fields to fill (field names matched automatically to page inputs)' },
@@ -278,7 +277,7 @@ const TOOLS = [
   {
     name: 'extract_data',
     emoji: '🔎',
-    description: 'Extract structured data from the current page in multiple modes: regex, json, meta, structured, auto, parse (process encoded strings), apiDiscovery, transform (process encoded data), or links (all links including nested iframes).',
+    description: 'Extract structured data from the current page in multiple modes: regex, json, meta, structured, auto, apiDiscovery, parse (string conversion), transform (data format conversion), or links (all links including nested iframes).',
     descriptionHindi: 'डेटा एक्सट्रैक्टर — modes: regex, json, meta, structured, auto, parse, apiDiscovery, transform, links',
     category: 'extraction',
     requiresBrowser: true,
@@ -293,9 +292,9 @@ const TOOLS = [
         source: { type: 'string', enum: ['html', 'text', 'scripts', 'ld+json', 'api', 'all'], default: 'all' },
         autoDecode: { type: 'boolean', default: true, description: 'Automatically process Base64 or percent-encoded values in results' },
         flags: { type: 'string', default: 'gi', description: 'Regex flags' },
-        inputData: { type: 'string', description: 'For transform mode: the encoded string to process' },
-        autoFindKey: { type: 'boolean', default: true, description: 'For transform mode: locate the processing key from page scripts automatically' },
-        secretKey: { type: 'string', description: 'For transform mode: data processing key' },
+        inputData: { type: 'string', description: 'For transform mode: the string to convert' },
+        autoResolveKey: { type: 'boolean', default: true, description: 'For transform mode: locate the conversion parameter from page scripts automatically' },
+        transformKey: { type: 'string', description: 'For transform mode: optional conversion parameter' },
         keyOffset: { type: 'string', description: 'For transform mode: offset value (optional)' },
         includeHidden: { type: 'boolean', default: true, description: 'For links mode: include hidden/non-visible links' },
         searchIframes: { type: 'boolean', default: true, description: 'For links mode: search inside embedded frames' }
@@ -356,10 +355,10 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        types: { type: 'array', items: { type: 'string' }, default: ['all'], description: 'Analysis types to run (all, dom, scripts, accessibility, performance, seo, headers, tech)' },
+        types: { type: 'array', items: { type: 'string' }, default: ['all'], description: 'Analysis categories (all, dom, scripts, accessibility, performance, seo, headers, tech). All categories are currently returned; the list is reserved for future filtering.' },
         detailed: { type: 'boolean', default: true },
         aiInsights: { type: 'boolean', default: true, description: 'Include loading strategy recommendations' },
-        detectAccessControls: { type: 'boolean', default: true, description: 'Identify page access-control and verification services' }
+        detectAccessControls: { type: 'boolean', default: true, description: 'Identify embedded widgets and page components' }
       }
     }
   },
@@ -396,7 +395,7 @@ const TOOLS = [
   {
     name: 'media_extractor',
     emoji: '🎬',
-    description: 'Extract and control media from the current page. Supports 6 actions: extract (find video/audio/HLS/DASH/download URLs including nested iframes), list_iframes, switch_iframe, player_control (play/pause/seek/sources via player API), decode_url (url/base64/symmetric encoding), batch_extract.',
+    description: 'Extract and control media from the current page. Supports 6 actions: extract (find video/audio/HLS/DASH/download URLs including nested iframes), list_iframes, switch_iframe, player_control (play/pause/seek/sources via player API), decode_url (inspect converted string formats), batch_extract.',
     descriptionHindi: 'मीडिया एक्सट्रैक्टर — 6 actions: extract/list_iframes/switch_iframe/player_control/decode_url/batch_extract',
     category: 'extraction',
     requiresBrowser: true,
@@ -416,10 +415,10 @@ const TOOLS = [
         selector: { type: 'string', description: 'iframe CSS selector' },
         index: { type: 'number', description: 'iframe index number' },
         playerAction: { type: 'string', enum: ['info', 'play', 'pause', 'seek', 'sources'], default: 'info' },
-        encodedData: { type: 'string', description: 'Encoded URL or data string to process (for decode_url action)' },
-        decoderType: { type: 'string', enum: ['auto', 'url', 'base64', 'symmetric'], default: 'auto' },
-        decoderKey: { type: 'string', description: 'Processing key (for symmetric decoder)' },
-        decoderIV: { type: 'string', description: 'Offset value (for symmetric decoder, optional)' },
+        encodedData: { type: 'string', description: 'String to convert (for decode_url action)' },
+        decoderType: { type: 'string', enum: ['auto', 'url', 'base64', 'custom'], default: 'auto', description: 'Conversion type: auto-detect, url, base64, or custom' },
+        decoderKey: { type: 'string', description: 'Optional conversion parameter (for custom conversion)' },
+        decoderIV: { type: 'string', description: 'Optional secondary parameter (for custom conversion)' },
         urls: { type: 'array', items: { type: 'string' }, description: 'List of URLs for batch_extract action' },
         aiOptimize: { type: 'boolean', default: true, description: 'Select extraction strategy automatically' }
       }
@@ -471,7 +470,7 @@ const TOOLS = [
   {
     name: 'replay_request',
     emoji: '🔁',
-    description: 'Re-send a network request inside the page context, reusing the current session cookies and headers.',
+    description: 'Re-send a network request inside the page context, reusing the current session headers.',
     descriptionHindi: 'नेटवर्क रिक्वेस्ट को session context में फिर से भेजना',
     category: 'network',
     requiresBrowser: true,

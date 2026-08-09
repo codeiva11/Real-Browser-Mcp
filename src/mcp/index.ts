@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 // CRITICAL: Protect STDOUT for MCP STDIO transport.
 // MCP uses STDIO — STDOUT must contain ONLY JSON-RPC messages.
-// Redirect console.log AND intercept process.stdout.write to STDERR.
-console.log = function (...args) { console.error(...args); };
+// Node writes console.log/info/debug to STDOUT; redirect all of them to
+// STDERR so no dependency (patchright, SDK internals, user tool code) can
+// corrupt the JSON-RPC stream. console.warn/error already go to STDERR.
+const _stderr = (...args: any[]) => console.error(...args);
+console.log = _stderr;
+console.info = _stderr;
+console.debug = _stderr;
 
 /**
  * Real Browser MCP Server - Entry Point
@@ -18,6 +23,7 @@ console.log = function (...args) { console.error(...args); };
 const { TOOL_DISPLAY } = require('../shared/tools');
 const { startServer, shutdownServer } = require('./server');
 const { cleanup } = require('./handlers');
+const { logger } = require('../shared/logger');
 
 const { colors } = require('../shared/colors');
 
@@ -130,11 +136,12 @@ function setupShutdownHandlers(server: any) {
   // Log unexpected errors without turning one tool/background-task failure
   // into an MCP server shutdown. Explicit signals still use gracefulShutdown.
   process.on('uncaughtException', (error) => {
-    console.error(`${colors.bright}${colors.red}❌ Uncaught Exception:${colors.reset}`, error?.message || error);
+    logger.error('Uncaught exception', { message: error?.message || String(error), stack: error?.stack });
   });
 
   process.on('unhandledRejection', (reason: any) => {
-    console.error(`${colors.bright}${colors.red}❌ Unhandled Rejection:${colors.reset}`, reason?.message || reason);
+    const error = reason instanceof Error ? reason : new Error(String(reason));
+    logger.error('Unhandled promise rejection', { message: error.message, stack: error.stack });
   });
 }
 

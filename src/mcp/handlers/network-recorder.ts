@@ -1,4 +1,4 @@
-import { state, requireBrowser, notifyProgress, detachNetworkRecorderListeners } from './state';
+import { state, requireBrowser, notifyProgress, detachNetworkRecorderListeners, pushNetworkRecord } from './state';
 
 export async function startRecording(page: any, captureXhrBody = false) {
   detachNetworkRecorderListeners();
@@ -15,12 +15,18 @@ export async function startRecording(page: any, captureXhrBody = false) {
       window.__interceptedApis = [];
       window.__wsMessages = [];
 
+      // Ring-buffer helper: keeps page-side arrays bounded in long sessions.
+      const capPush = (arr: any[], item: any, cap = 2000) => {
+        arr.push(item);
+        if (arr.length > cap) arr.splice(0, arr.length - cap);
+      };
+
       const origFetch = window.fetch;
       window.fetch = function (...args: any[]) {
         try {
           const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || String(args[0]));
           const opts = args[1] || {};
-          window.__interceptedApis.push({
+          capPush(window.__interceptedApis, {
             type: 'fetch', url, method: opts.method || 'GET',
             headers: opts.headers ? JSON.parse(JSON.stringify(opts.headers)) : null,
             body: typeof opts.body === 'string' ? opts.body.substring(0, 2000) : null,
@@ -43,7 +49,7 @@ export async function startRecording(page: any, captureXhrBody = false) {
       };
       XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyInit | null) {
         try {
-          window.__interceptedApis.push({
+          capPush(window.__interceptedApis, {
             type: 'xhr', url: (this as any).__iUrl, method: (this as any).__iMethod,
             headers: (this as any).__iHeaders || null,
             body: typeof body === 'string' ? body.substring(0, 2000) : null,
@@ -57,7 +63,7 @@ export async function startRecording(page: any, captureXhrBody = false) {
         const origBeacon = navigator.sendBeacon.bind(navigator);
         navigator.sendBeacon = function (url: string | URL, data?: BodyInit | null) {
           try {
-            window.__interceptedApis.push({
+            capPush(window.__interceptedApis, {
               type: 'beacon', url, method: 'POST',
               body: typeof data === 'string' ? data.substring(0, 2000) : null,
               timestamp: Date.now()
@@ -72,7 +78,7 @@ export async function startRecording(page: any, captureXhrBody = false) {
         const ws = protocols ? new OrigWS(url, protocols) : new OrigWS(url);
         const wsId = window.__wsMessages.length;
         const wsEntry: any = { id: wsId, url, openedAt: Date.now(), messages: [], status: 'connecting' };
-        window.__wsMessages.push(wsEntry);
+        capPush(window.__wsMessages, wsEntry, 500);
 
         ws.addEventListener('open', () => { wsEntry.status = 'open'; });
         ws.addEventListener('close', (e: any) => { wsEntry.status = 'closed'; wsEntry.closedAt = Date.now(); wsEntry.closeCode = e.code; });
@@ -84,7 +90,7 @@ export async function startRecording(page: any, captureXhrBody = false) {
             if (data instanceof Blob) { dataType = 'blob'; data = `[Blob ${data.size} bytes]`; }
             else if (data instanceof ArrayBuffer) { dataType = 'binary'; data = `[ArrayBuffer ${data.byteLength} bytes]`; }
             else if (typeof data === 'string' && data.length > 5000) { data = data.substring(0, 5000) + '...'; }
-            wsEntry.messages.push({ direction: 'received', data, dataType, timestamp: Date.now() });
+            capPush(wsEntry.messages, { direction: 'received', data, dataType, timestamp: Date.now() }, 500);
           } catch (e) { }
         });
 
@@ -96,7 +102,7 @@ export async function startRecording(page: any, captureXhrBody = false) {
             if (data instanceof Blob) { dataType = 'blob'; sendData = `[Blob ${data.size} bytes]`; }
             else if (data instanceof ArrayBuffer) { dataType = 'binary'; sendData = `[ArrayBuffer ${data.byteLength} bytes]`; }
             else if (typeof data === 'string' && data.length > 5000) { sendData = data.substring(0, 5000) + '...'; }
-            wsEntry.messages.push({ direction: 'sent', data: sendData, dataType, timestamp: Date.now() });
+            capPush(wsEntry.messages, { direction: 'sent', data: sendData, dataType, timestamp: Date.now() });
           } catch (e) { }
           return origWsSend(data);
         };
@@ -114,7 +120,7 @@ export async function startRecording(page: any, captureXhrBody = false) {
 
   const requestListener = (req: any) => {
     if (state.isRecordingNetwork) {
-      state.networkRecords.push({
+      pushNetworkRecord({
         type: 'request',
         url: req.url(),
         method: req.method(),
@@ -172,13 +178,13 @@ export async function startRecording(page: any, captureXhrBody = false) {
         } catch (e) { }
       }
 
-      state.networkRecords.push(record);
+      pushNetworkRecord(record);
     }
   };
 
   const navigationListener = (frame: any) => {
     if (state.isRecordingNetwork && frame === page.mainFrame()) {
-      state.networkRecords.push({ type: 'navigation', url: frame.url(), timestamp: Date.now() });
+      pushNetworkRecord({ type: 'navigation', url: frame.url(), timestamp: Date.now() });
     }
   };
 
@@ -314,8 +320,13 @@ export function getFilteredRecords(filter: any) {
   let records = state.networkRecords;
   if (filter.resourceType) records = records.filter((r: any) => r.resourceType === filter.resourceType);
   if (filter.urlPattern) {
-    const regex = new RegExp(filter.urlPattern);
-    records = records.filter((r: any) => regex.test(r.url));
+    let regex: RegExp | null = null;
+    try {
+      regex = new RegExp(filter.urlPattern);
+    } catch {
+      return { success: false, error: `Invalid urlPattern regex: ${filter.urlPattern}` };
+    }
+    records = records.filter((r: any) => regex && regex.test(r.url));
   }
   if (filter.type) records = records.filter((r: any) => r.type === filter.type);
   if (filter.mediaOnly) records = records.filter((r: any) => r.isMedia);
