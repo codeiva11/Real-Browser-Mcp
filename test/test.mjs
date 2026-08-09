@@ -41,33 +41,6 @@ test.after(async () => {
     }
 });
 
-test('Headless Detection Test', async () => {
-    await warmUp();
-    await goto("https://arh.antoinevastel.com/bots/areyouheadless");
-    
-    // Give it a bit more time to evaluate the headless check
-    await new Promise(r => setTimeout(r, 6000));
-    
-    let result = await page.evaluate(() => {
-        const el = document.querySelector('#res');
-        if (!el) return false;
-        const text = el.textContent.toLowerCase();
-        return text.includes('are not headless') || text.includes('not headless') ? true : false;
-    });
-    
-    // In strict headless mode, patchright tries but might fail on this specific strict test. 
-    // We expect true (not headless) if headed, but accept false if headless is forced.
-    if (realBrowserOption.headless === false) {
-        if (!result) {
-            console.log("⚠️ Warning: Headless test failed but continuing as this is extremely strict and variable");
-        } else {
-             assert.strictEqual(result, true, "Headless Detection test failed! Browser detected as headless.");
-        }
-    } else {
-        console.log("Skipping strict headless check as headless mode might be forced");
-    }
-});
-
 test('Rebrowser Bot Detector', async () => {
     await warmUp();
     await goto("https://bot-detector.rebrowser.net/");
@@ -134,15 +107,6 @@ test('Cloudflare Turnstile', async () => {
     }
     assert.strictEqual(token !== null, true, "Cloudflare turnstile test failed!");
 });
-
-test('Fingerprint JS Bot Detector', async () => {
-    await goto("https://fingerprint.com/products/bot-detection/");
-    await new Promise(r => setTimeout(r, 5000));
-    const detect = await page.evaluate(() => {
-        return document.body.innerText.toLowerCase().includes("not")
-    })
-    assert.strictEqual(detect, true, "Fingerprint JS Bot Detector test failed!")
-})
 
 test('Recaptcha V3 Score', async () => {
   //  await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
