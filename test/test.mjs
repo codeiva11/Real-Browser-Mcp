@@ -5,14 +5,8 @@ const type = process.argv.includes('--esm') ? 'esm' : 'cjs';
 const libPath = type === 'esm' ? '../lib/esm/index.mjs' : '../dist/lib/cjs/index.js';
 const { connect } = await import(libPath);
 
-// Anti-bot checks are strict by default so the features are genuinely verified:
-// a failing check fails the suite instead of being silently skipped. Set
-// REAL_BROWSER_STRICT_BOT_TESTS=0 to relax for CI/network-restricted runs.
-const STRICT = process.env.REAL_BROWSER_STRICT_BOT_TESTS !== '0';
-const softAssert = (cond, msg) => {
-  if (STRICT) assert.ok(cond, msg);
-  else if (!cond) console.warn(`⚠️  SKIPPED (soft): ${msg}`);
-};
+// Every check is strict: a failing anti-bot check fails the suite. Nothing is
+// ever skipped or softened — every tool and feature must be genuinely verified.
 
 console.log(`🧪 Running ${type.toUpperCase()} Tests`);
 const realBrowserOption = {
@@ -70,6 +64,7 @@ test('Rebrowser Bot Detector', { timeout: 120000 }, async () => {
         console.log('⚠️ Detected as bot for:', detected.map(d => d.type).join(', '));
     }
     assert.strictEqual(detected.length, 0, `Rebrowser Bot Detector failed! Detected: ${detected.map(d => d.type).join(', ')}`)
+    console.log(`  ✅ Rebrowser Bot Detector: ${detections.length} signals scanned, 0 bot detections`);
 });
 
 test('Sannysoft WebDriver Detector', { timeout: 120000 }, async () => {
@@ -81,6 +76,7 @@ test('Sannysoft WebDriver Detector', { timeout: 120000 }, async () => {
         return webdriverEl && webdriverEl.classList.contains('passed');
     });
     assert.strictEqual(result, true, "Sannysoft WebDriver Detector test failed! Browser detected as bot.")
+    console.log('  ✅ Sannysoft: WebDriver not detected');
 });
 
 test('Cloudflare WAF', { timeout: 120000 }, async () => {
@@ -96,6 +92,7 @@ test('Cloudflare WAF', { timeout: 120000 }, async () => {
         await new Promise(r => setTimeout(r, 2000));
     }
     assert.strictEqual(verify === true, true, "Cloudflare WAF test failed! (Site may be blocking automated access)");
+    console.log('  ✅ Cloudflare WAF: challenge cleared');
 });
 
 test('Cloudflare Turnstile', { timeout: 120000 }, async () => {
@@ -115,6 +112,7 @@ test('Cloudflare Turnstile', { timeout: 120000 }, async () => {
         await new Promise(r => setTimeout(r, 1000));
     }
     assert.strictEqual(token !== null, true, "Cloudflare turnstile test failed!");
+    console.log(`  ✅ Cloudflare Turnstile: token received (${token.length} chars)`);
 });
 
 test('Recaptcha V3 Score', { timeout: 120000 }, async () => {
@@ -129,20 +127,35 @@ test('Recaptcha V3 Score', { timeout: 120000 }, async () => {
     await page.mouse.wheel(0, 100 + Math.random() * 100);
     await new Promise(r => setTimeout(r, 800 + Math.random() * 400));
 
-    // 3. Move mouse towards button area naturally
-    await page.realCursor.move('button', { paddingPercentage: 10 });
+    // 3. Move mouse towards the button area naturally (no click needed — the
+    //    page auto-runs the reCAPTCHA v3 check on load; "Refresh score now!"
+    //    is rate-limited and would be counterproductive here)
+    await page.realCursor.move('button', { paddingPercentage: 10 }).catch(() => {});
     await new Promise(r => setTimeout(r, 300 + Math.random() * 300));
 
-    // 4. Now click the button
-    await page.realClick("button")
-    await new Promise(r => setTimeout(r, 5000));
+    // The real score appears as "Your score is: X.X" once detection completes,
+    // so poll the page text until a valid 0.0-1.0 score shows up (up to 45s).
+    // We parse the labeled line instead of a fragile tag, and only accept
+    // values in the reCAPTCHA v3 range so unrelated numbers can never
+    // false-pass. A missing score must fail the suite, not be glossed over.
+    let score = null;
+    const scoreStart = Date.now();
+    while (!score && Date.now() - scoreStart < 45000) {
+        score = await page.evaluate(() => {
+            const bodyText = (document.body && document.body.innerText) || '';
+            const m = bodyText.match(/Your score is:\s*([0-9]+\.[0-9]+)/i);
+            if (!m) return null;
+            const v = Number(m[1]);
+            return v >= 0 && v <= 1 ? m[1] : null;
+        }).catch(() => null);
+        if (!score) await new Promise(r => setTimeout(r, 1000));
+    }
 
-    const score = await page.evaluate(() => {
-        return document.querySelector('big').textContent.replace(/[^0-9.]/g, '')
-    })
     // 0.3+ means browser is not obviously a bot. Higher scores depend on IP
-    // reputation. Strict by default: a score below 0.9 fails the suite.
-    softAssert(Number(score) >= 0.9, `(please first check if you can access https://antcpt.com/score_detector/.) Recaptcha V3 Score should be >=0.9 (not obviously a bot). Score Result: ${score}`)
+    // reputation. Always strict: no score, or a score below 0.9, fails.
+    assert.ok(score !== null, `(please first check if you can access https://antcpt.com/score_detector/.) Recaptcha V3 Score: could not read a score from the page — the site may be blocking automated access.`);
+    assert.ok(Number(score) >= 0.9, `(please first check if you can access https://antcpt.com/score_detector/.) Recaptcha V3 Score should be >=0.9 (not obviously a bot). Score Result: ${score}`);
+    console.log(`  ✅ Recaptcha V3 Score: ${score} (threshold >= 0.9)`);
 })
 
 test('Pixelscan Fingerprint Check', { timeout: 120000 }, async () => {
@@ -171,5 +184,6 @@ test('Pixelscan Fingerprint Check', { timeout: 120000 }, async () => {
     }
     await new Promise(r => setTimeout(r, 10000));
     assert.strictEqual(result, true, "Pixelscan Fingerprint Check failed after 2 attempts!");
+    console.log('  ✅ Pixelscan: fingerprint consistent');
 
 })
