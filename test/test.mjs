@@ -5,9 +5,6 @@ const type = process.argv.includes('--esm') ? 'esm' : 'cjs';
 const libPath = type === 'esm' ? '../lib/esm/index.mjs' : '../dist/lib/cjs/index.js';
 const { connect } = await import(libPath);
 
-// Every check is strict: a failing anti-bot check fails the suite. Nothing is
-// ever skipped or softened — every tool and feature must be genuinely verified.
-
 console.log(`🧪 Running ${type.toUpperCase()} Tests`);
 const realBrowserOption = {
     turnstile: true,
@@ -44,7 +41,7 @@ test.after(async () => {
     }
 });
 
-test('Rebrowser Bot Detector', { timeout: 120000 }, async () => {
+test('Rebrowser Bot Detector', async () => {
     await warmUp();
     await goto("https://bot-detector.rebrowser.net/");
     await new Promise(r => setTimeout(r, 100));
@@ -64,10 +61,9 @@ test('Rebrowser Bot Detector', { timeout: 120000 }, async () => {
         console.log('⚠️ Detected as bot for:', detected.map(d => d.type).join(', '));
     }
     assert.strictEqual(detected.length, 0, `Rebrowser Bot Detector failed! Detected: ${detected.map(d => d.type).join(', ')}`)
-    console.log(`  ✅ Rebrowser Bot Detector: ${detections.length} signals scanned, 0 bot detections`);
 });
 
-test('Sannysoft WebDriver Detector', { timeout: 120000 }, async () => {
+test('Sannysoft WebDriver Detector', async () => {
     await warmUp();
     await goto("https://bot.sannysoft.com/");
     await new Promise(r => setTimeout(r, 3000));
@@ -76,26 +72,24 @@ test('Sannysoft WebDriver Detector', { timeout: 120000 }, async () => {
         return webdriverEl && webdriverEl.classList.contains('passed');
     });
     assert.strictEqual(result, true, "Sannysoft WebDriver Detector test failed! Browser detected as bot.")
-    console.log('  ✅ Sannysoft: WebDriver not detected');
 });
 
-test('Cloudflare WAF', { timeout: 120000 }, async () => {
+test('Cloudflare WAF', async () => {
     await warmUp();
     await goto("https://nopecha.com/demo/cloudflare");
     let verify = null;
     let startDate = Date.now();
     // WAF test might take up to 30-40 seconds sometimes depending on network
-    while (!verify && (Date.now() - startDate) < 70000) {
+    while (!verify && (Date.now() - startDate) < 60000) {
         verify = await page.evaluate(() => {
             return document.querySelector('.link_row') || document.querySelector('a[href*="nopecha"]') ? true : null;
         }).catch(() => null);
         await new Promise(r => setTimeout(r, 2000));
     }
     assert.strictEqual(verify === true, true, "Cloudflare WAF test failed! (Site may be blocking automated access)");
-    console.log('  ✅ Cloudflare WAF: challenge cleared');
 });
 
-test('Cloudflare Turnstile', { timeout: 120000 }, async () => {
+test('Cloudflare Turnstile', async () => {
     await warmUp();
     await goto("https://2captcha.com/demo/cloudflare-turnstile");
     // Don't wait for selector, it can be inside an iframe or custom element
@@ -112,10 +106,11 @@ test('Cloudflare Turnstile', { timeout: 120000 }, async () => {
         await new Promise(r => setTimeout(r, 1000));
     }
     assert.strictEqual(token !== null, true, "Cloudflare turnstile test failed!");
-    console.log(`  ✅ Cloudflare Turnstile: token received (${token.length} chars)`);
 });
 
-test('Recaptcha V3 Score', { timeout: 120000 }, async () => {
+test('Recaptcha V3 Score', async () => {
+  //  await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
+ //   await page.waitForLoadState('load', { timeout: 5000 }).catch(() => {});
     await page.goto("https://antcpt.com/score_detector/");
 
     // Human-like warm-up interactions before clicking
@@ -127,44 +122,28 @@ test('Recaptcha V3 Score', { timeout: 120000 }, async () => {
     await page.mouse.wheel(0, 100 + Math.random() * 100);
     await new Promise(r => setTimeout(r, 800 + Math.random() * 400));
 
-    // 3. Move mouse towards the button area naturally (no click needed — the
-    //    page auto-runs the reCAPTCHA v3 check on load; "Refresh score now!"
-    //    is rate-limited and would be counterproductive here)
-    await page.realCursor.move('button', { paddingPercentage: 10 }).catch(() => {});
+    // 3. Move mouse towards button area naturally
+    await page.realCursor.move('button', { paddingPercentage: 10 });
     await new Promise(r => setTimeout(r, 300 + Math.random() * 300));
 
-    // The real score appears as "Your score is: X.X" once detection completes,
-    // so poll the page text until a valid 0.0-1.0 score shows up (up to 45s).
-    // We parse the labeled line instead of a fragile tag, and only accept
-    // values in the reCAPTCHA v3 range so unrelated numbers can never
-    // false-pass. A missing score must fail the suite, not be glossed over.
-    let score = null;
-    const scoreStart = Date.now();
-    while (!score && Date.now() - scoreStart < 45000) {
-        score = await page.evaluate(() => {
-            const bodyText = (document.body && document.body.innerText) || '';
-            const m = bodyText.match(/Your score is:\s*([0-9]+\.[0-9]+)/i);
-            if (!m) return null;
-            const v = Number(m[1]);
-            return v >= 0 && v <= 1 ? m[1] : null;
-        }).catch(() => null);
-        if (!score) await new Promise(r => setTimeout(r, 1000));
-    }
+    // 4. Now click the button
+    await page.realClick("button")
+    await new Promise(r => setTimeout(r, 5500));
 
-    // 0.3+ means browser is not obviously a bot. Higher scores depend on IP
-    // reputation. Always strict: no score, or a score below 0.9, fails.
-    assert.ok(score !== null, `(please first check if you can access https://antcpt.com/score_detector/.) Recaptcha V3 Score: could not read a score from the page — the site may be blocking automated access.`);
-    assert.ok(Number(score) >= 0.9, `(please first check if you can access https://antcpt.com/score_detector/.) Recaptcha V3 Score should be >=0.9 (not obviously a bot). Score Result: ${score}`);
-    console.log(`  ✅ Recaptcha V3 Score: ${score} (threshold >= 0.9)`);
+    const score = await page.evaluate(() => {
+        return document.querySelector('big').textContent.replace(/[^0-9.]/g, '')
+    })
+    // 0.3+ means browser is not obviously a bot. Higher scores depend on IP reputation.
+    assert.strictEqual(Number(score) >= 0.9, true, "(please first check if you can access https://antcpt.com/score_detector/.) Recaptcha V3 Score should be >=0.9 (not obviously a bot). Score Result: " + score)
 })
 
-test('Pixelscan Fingerprint Check', { timeout: 120000 }, async () => {
+test('Pixelscan Fingerprint Check', async () => {
     let result = false;
     for (let attempt = 1; attempt <= 2 && !result; attempt++) {
         await warmUp();
         await goto("https://pixelscan.net/fingerprint-check");
         const startTime = Date.now();
-        while (!result && (Date.now() - startTime) < 30000) {
+        while (!result && (Date.now() - startTime) < 10000) {
             result = await page.evaluate(() => {
                 const statusBar = document.querySelector('.status-content');
                 if (!statusBar) return false;
@@ -182,8 +161,7 @@ test('Pixelscan Fingerprint Check', { timeout: 120000 }, async () => {
             if (!result) await new Promise(r => setTimeout(r, 1000));
         }
     }
-    await new Promise(r => setTimeout(r, 10000));
+    await new Promise(r => setTimeout(r, 5000));
     assert.strictEqual(result, true, "Pixelscan Fingerprint Check failed after 2 attempts!");
-    console.log('  ✅ Pixelscan: fingerprint consistent');
 
 })
