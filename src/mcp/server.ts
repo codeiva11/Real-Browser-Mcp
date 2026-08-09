@@ -28,12 +28,16 @@ function wireProgressNotifications(server: any) {
     if (process.env.REAL_BROWSER_SEND_PROGRESS !== '1') return;
     try {
       const { tool, status, message, timestamp, data } = notification;
+      // MCP spec: `progress` must be a number 0-100. We don't have real
+      // completion percentages, so started/progress map to 0 and terminal
+      // states to 100 — the client at least sees a well-formed notification.
+      const progressValue = status === 'completed' || status === 'error' ? 100 : 0;
       server.notification({
         jsonrpc: '2.0',
         method: 'notifications/progress',
         params: {
           progressToken: activeProgressToken,
-          progress: status === 'completed' ? 100 : status === 'error' ? 100 : undefined,
+          progress: progressValue,
           value: {
             tool,
             status,

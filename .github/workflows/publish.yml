@@ -69,9 +69,19 @@ jobs:
           echo "💡 Running basic syntax and file checks..."
           node -c dist/lib/cjs/index.js
           node -c lib/esm/index.mjs
+          echo "💡 Running unit tests..."
+          npm run unit_test
           echo "💡 Running MCP smoke tests..."
           npm run mcp_test
-          echo "✅ Build, syntax, and MCP smoke tests passed."
+          echo "✅ Build, syntax, unit, and MCP smoke tests passed."
+
+      - name: 🌐 E2E Tool Test (real headless browser)
+        run: |
+          echo "💡 Installing Patchright Chromium for E2E test..."
+          npx patchright install chromium
+          echo "💡 Running end-to-end tool tests..."
+          npm run e2e_test
+          echo "✅ E2E tool tests passed."
 
       - name: 📈 Increment Version
         id: versioning

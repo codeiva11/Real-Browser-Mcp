@@ -74,58 +74,23 @@ function buildUserAgent(): string {
   return generated;
 }
 
-function resolveAdBlockerCachePath(): string {
-  // Built output lives in dist/src/shared; bundled filter cache is lib/cjs/adblocker.bin.
-  const bundledPath = path.resolve(__dirname, '..', '..', '..', 'lib', 'cjs', 'adblocker.bin');
-  if (fs.existsSync(bundledPath)) return bundledPath;
-  // Dev/source tree fallback: project-root lib/cjs relative to cwd.
-  const cwdPath = path.join(process.cwd(), 'lib', 'cjs', 'adblocker.bin');
-  if (fs.existsSync(cwdPath)) return cwdPath;
-  return path.join(__dirname, 'adblocker.bin');
-}
-
 /**
- * Initialize the adblocker singleton.
- * FIX: On failure, reset adBlockerPromise to null so the next call can retry
+ * Initialize the adblocker singleton entirely in memory (no disk cache).
+ * On failure, reset adBlockerPromise to null so the next call can retry
  * instead of being permanently stuck with a resolved-null promise.
  */
 function getAdBlocker(): Promise<PlaywrightBlocker | null> {
   if (!adBlockerPromise) {
-    const cachePath = resolveAdBlockerCachePath();
-
-    // Cache writes must never take down blocking: a read-only install dir
-    // (global/npx installs) would otherwise reject the whole promise and
-    // silently disable the adblocker. Writes are best-effort; reads fall
-    // back to a network fetch of the prebuilt lists.
-    const safeWrite = async (filePath: string, data: Uint8Array) => {
-      try {
-        await fs.promises.writeFile(filePath, data);
-      } catch (e: any) {
-        console.error('[adblocker] Cache write failed (blocking continues in-memory):', e?.message || e);
-      }
-    };
-
     adBlockerPromise = (async (): Promise<PlaywrightBlocker | null> => {
       try {
-        const blocker = await PlaywrightBlocker.fromPrebuiltAdsAndTracking(fetch, {
-          path: cachePath,
-          read: fs.promises.readFile,
-          write: safeWrite,
-        });
+        const blocker = await PlaywrightBlocker.fromPrebuiltAdsAndTracking(fetch);
         adBlockerInstance = blocker;
         return blocker;
       } catch (err: any) {
-        console.error('[adblocker] Cache read failed, falling back to network fetch:', err?.message || err);
-        try {
-          const blocker = await PlaywrightBlocker.fromPrebuiltAdsAndTracking(fetch);
-          adBlockerInstance = blocker;
-          return blocker;
-        } catch (err2: any) {
-          console.error('[adblocker] Failed to initialize adblocker:', err2?.message || err2);
-          // Reset so the next connect() call can retry
-          adBlockerPromise = null;
-          return null;
-        }
+        console.error('[adblocker] Failed to initialize adblocker (blocking disabled):', err?.message || err);
+        // Reset so the next connect() call can retry
+        adBlockerPromise = null;
+        return null;
       }
     })();
   }
@@ -147,10 +112,6 @@ async function enableBlockingInPage(page: Page): Promise<void> {
   } catch (e) {
     // Page may have been closed — ignore silently
   }
-}
-
-export function getDefaultHeadless(): boolean {
-  return getHeadlessFromEnv();
 }
 
 export { getHeadlessFromEnv };

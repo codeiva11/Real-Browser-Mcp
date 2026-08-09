@@ -1,5 +1,5 @@
 
-import { requireBrowser, notifyProgress } from './state';
+import { state, requireBrowser, notifyProgress } from './state';
 import {
   startRecording, stopRecording, clearRecording,
   getMediaRecords, getNavigationRecords, getApiCallRecords,
@@ -8,16 +8,25 @@ import {
 } from './network-recorder';
 import { extractData } from './network-extractors';
 import { assertSafeUrl } from '../../shared/url-utils';
-import type { RedirectTracerParams, NetworkRecorderParams } from '../../types';
+import type { RedirectTracerParams, NetworkRecorderParams, ReplayRequestParams } from '../../types';
 
 export const networkHandlers = {
   async redirect_tracer(params: RedirectTracerParams) {
-    const { page } = requireBrowser();
+    const { browser } = requireBrowser();
     const { url, maxRedirects = 20, includeHeaders = false, followJS = true, followMeta = true, decodeURLs = true, timeout = 30000 } = params;
 
-    assertSafeUrl(url, 'redirect_tracer');
+    await assertSafeUrl(url, 'redirect_tracer');
 
     notifyProgress('redirect_tracer', 'started', `Tracing redirects for: ${url}`);
+
+    // Trace on a dedicated scratch page so the user's current page state is
+    // preserved — this tool performs a real navigation. New pages in the same
+    // context automatically get UA override, blocking, and popup protection.
+    const context = browser.contexts()[0];
+    const tracePage = await context.newPage();
+    if (state.setupPageFn) {
+      try { await state.setupPageFn(tracePage); } catch { /* scratch page setup is best-effort */ }
+    }
 
     const redirects: any[] = [];
     const jsNavigations: any[] = [];
@@ -33,7 +42,7 @@ export const networkHandlers = {
     };
 
     const frameNavigatedHandler = (frame: any) => {
-      if (frame === page.mainFrame()) {
+      if (frame === tracePage.mainFrame()) {
         const newUrl = frame.url();
         if (newUrl !== currentUrl && newUrl !== 'about:blank') {
           jsNavigations.push({ url: newUrl, type: 'js_navigation', fromUrl: currentUrl, timestamp: Date.now() });
@@ -43,21 +52,21 @@ export const networkHandlers = {
       }
     };
 
-    page.on('response', responseHandler);
-    page.on('framenavigated', frameNavigatedHandler);
+    tracePage.on('response', responseHandler);
+    tracePage.on('framenavigated', frameNavigatedHandler);
 
     try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout });
+      await tracePage.goto(url, { waitUntil: 'networkidle', timeout });
       if (followMeta) {
-        const metaRefresh = await page.evaluate(() => {
+        const metaRefresh = await tracePage.evaluate(() => {
           const meta = document.querySelector('meta[http-equiv="refresh"]');
           if (meta) { const content = meta.getAttribute('content'); const match = content?.match(/url=(.+)/i); return match ? match[1].trim().replace(/['"]/g, '') : null; }
           return null;
         }).catch(() => null);
-        if (metaRefresh) jsNavigations.push({ url: metaRefresh, type: 'meta_refresh', fromUrl: page.url() });
+        if (metaRefresh) jsNavigations.push({ url: metaRefresh, type: 'meta_refresh', fromUrl: tracePage.url() });
       }
       if (followJS) {
-        const jsLinks = await page.evaluate(() => {
+        const jsLinks = await tracePage.evaluate(() => {
           const links: any[] = [];
           document.querySelectorAll('a[href^="javascript:"], [onclick]').forEach(el => {
             const onclick = el.getAttribute('onclick');
@@ -73,8 +82,10 @@ export const networkHandlers = {
       notifyProgress('redirect_tracer', 'progress', `Navigation error: ${e.message}`);
     }
 
-    page.off('response', responseHandler);
-    page.off('framenavigated', frameNavigatedHandler);
+    tracePage.off('response', responseHandler);
+    tracePage.off('framenavigated', frameNavigatedHandler);
+    const finalUrl = tracePage.url();
+    try { await tracePage.close(); } catch { /* already closed */ }
 
     let allRedirects = [...redirects, ...jsNavigations.filter(nav => nav.url && nav.url.startsWith('http'))];
 
@@ -88,9 +99,9 @@ export const networkHandlers = {
       });
     }
 
-    notifyProgress('redirect_tracer', 'completed', `Found ${redirects.length} HTTP + ${jsNavigations.length} JS redirects`, { httpRedirects: redirects.length, jsNavigations: jsNavigations.length, finalUrl: page.url() });
+    notifyProgress('redirect_tracer', 'completed', `Found ${redirects.length} HTTP + ${jsNavigations.length} JS redirects`, { httpRedirects: redirects.length, jsNavigations: jsNavigations.length, finalUrl });
 
-    return { success: true, originalUrl: url, finalUrl: page.url(), redirectCount: allRedirects.length, httpRedirects: redirects, jsNavigations, allRedirects };
+    return { success: true, originalUrl: url, finalUrl, redirectCount: allRedirects.length, httpRedirects: redirects, jsNavigations, allRedirects };
   },
 
   async network_recorder(params: NetworkRecorderParams = {}) {
@@ -117,10 +128,10 @@ export const networkHandlers = {
     return extractData(params);
   },
 
-  async replay_request(params: any) {
+  async replay_request(params: ReplayRequestParams) {
     const { page } = requireBrowser();
     const { url, method = 'GET', headers, body } = params;
-    assertSafeUrl(url, 'replay_request');
+    await assertSafeUrl(url, 'replay_request');
     notifyProgress('replay_request', 'started', `Replaying ${method} to ${url}`);
     try {
       // Page-side abort: a stalled request can never hang the tool forever.

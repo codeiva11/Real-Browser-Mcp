@@ -1,13 +1,13 @@
 import { requireBrowser, notifyProgress } from './state';
 import { helpersHandlers } from './helpers';
-import type { SolveCaptchaParams } from '../../types';
+import type { FormHandlerParams } from '../../types';
 
-export async function solveCaptcha(params: SolveCaptchaParams = {}) {
+export async function solveCaptcha(params: FormHandlerParams = {}) {
   const { page } = requireBrowser();
   const {
     type = 'auto',
     timeout = 30000,
-    captchaSelector,
+    widgetSelector,
     inputSelector,
     refreshSelector,
     lang = 'eng',
@@ -31,7 +31,7 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
     const resolved = await helpersHandlers._resolveIframeContext(page, iframe, iframeSelector);
     if (resolved.success) {
       targetFrame = resolved.targetFrame;
-      notifyProgress('solve_captcha', 'progress', `🎯 Targeting iframe ${iframe ?? iframeSelector}...`);
+      notifyProgress('form_handler', 'progress', `🎯 Targeting iframe ${iframe ?? iframeSelector}...`);
     } else {
       return { success: false, error: resolved.error };
     }
@@ -39,10 +39,10 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
 
   let formResult = null;
   if (formData && Object.keys(formData).length > 0) {
-    notifyProgress('solve_captcha', 'started', `📋 Smart Form + Captcha Mode: Filling ${Object.keys(formData).length} fields...`);
+    notifyProgress('form_handler', 'started', `📋 Smart Form Mode: Filling ${Object.keys(formData).length} fields...`);
     formResult = await helpersHandlers._fillFormFields(targetFrame, formData, formSelector, humanLike, aiMatch);
   } else {
-    notifyProgress('solve_captcha', 'started', `🎯 100% Accuracy Mode: Solving ${type} captcha...`);
+    notifyProgress('form_handler', 'started', `🎯 Working with widget type: ${type}...`);
   }
 
   let detectedJsType: string | null = null;
@@ -51,18 +51,18 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
       if (document.title.includes('Just a moment') ||
           document.querySelector('#challenge-stage') !== null ||
           document.querySelector('.cf-turnstile') !== null ||
-          document.querySelector('input[name="cf-turnstile-response"]') !== null) return 'turnstile';
+          document.querySelector('input[name="cf-turnstile-response"]') !== null) return 'embedded_widget';
       return null;
     });
-    if (detectedJsType) notifyProgress('solve_captcha', 'progress', `🔍 Auto-detected JS captcha type: ${detectedJsType}`);
+    if (detectedJsType) notifyProgress('form_handler', 'progress', `🔍 Auto-detected embedded widget type: ${detectedJsType}`);
   }
 
   let pageAnalysis = null;
-  let detectedCaptchaSelector = captchaSelector;
-  let detectedInputSelector = inputSelector;
+  let detectedWidgetSelector = widgetSelector;
+  let detectedAnswerSelector = inputSelector;
 
   if (analyzeFirst) {
-    notifyProgress('solve_captcha', 'progress', '🔍 Analyzing page structure...');
+    notifyProgress('form_handler', 'progress', '🔍 Analyzing page structure...');
     pageAnalysis = await targetFrame.evaluate(() => {
       const result: any = { captchas: [], captchaInputs: [], forms: [] };
       const captchaSelectors = [
@@ -106,75 +106,75 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
       return result;
     });
 
-    if (!captchaSelector && pageAnalysis.captchas.length > 0) {
-      detectedCaptchaSelector = pageAnalysis.captchas[0].selector;
-      notifyProgress('solve_captcha', 'progress', `📍 Auto-detected captcha: ${detectedCaptchaSelector}`);
+    if (!widgetSelector && pageAnalysis.captchas.length > 0) {
+      detectedWidgetSelector = pageAnalysis.captchas[0].selector;
+      notifyProgress('form_handler', 'progress', `📍 Auto-detected widget element: ${detectedWidgetSelector}`);
     }
     if (!inputSelector && pageAnalysis.captchaInputs.length > 0) {
-      detectedInputSelector = pageAnalysis.captchaInputs[0].selector;
+      detectedAnswerSelector = pageAnalysis.captchaInputs[0].selector;
       if (!expectedLength && pageAnalysis.captchaInputs[0].maxLength) {
         params.expectedLength = pageAnalysis.captchaInputs[0].maxLength;
       }
-      notifyProgress('solve_captcha', 'progress', `📍 Auto-detected input: ${detectedInputSelector}`);
+      notifyProgress('form_handler', 'progress', `📍 Auto-detected input: ${detectedAnswerSelector}`);
     }
   }
 
-  if (type === 'text' || type === 'image' || (type === 'auto' && detectedCaptchaSelector && !detectedJsType)) {
-    if (!detectedCaptchaSelector) return { success: false, error: 'captchaSelector not provided and could not auto-detect' };
+  if (type === 'text' || type === 'image' || (type === 'auto' && detectedWidgetSelector && !detectedJsType)) {
+    if (!detectedWidgetSelector) return { success: false, error: 'widgetSelector not provided and could not auto-detect' };
 
     const effectiveMaxRetries = autoRetry ? maxRetries : 1;
     for (let attempt = 1; attempt <= effectiveMaxRetries; attempt++) {
       try {
-        notifyProgress('solve_captcha', 'progress', `📸 Capturing CAPTCHA image... (attempt ${attempt}/${effectiveMaxRetries})`);
+        notifyProgress('form_handler', 'progress', `📸 Capturing widget image... (attempt ${attempt}/${effectiveMaxRetries})`);
         if (attempt > 1 && refreshSelector) {
           try {
-            notifyProgress('solve_captcha', 'progress', '🔄 Refreshing CAPTCHA...');
+            notifyProgress('form_handler', 'progress', '🔄 Refreshing...');
             await targetFrame.click(refreshSelector);
             await new Promise(r => setTimeout(r, 1500));
           } catch (refreshErr: any) {
-            notifyProgress('solve_captcha', 'progress', `⚠️ Could not refresh captcha: ${refreshErr.message}`);
+            notifyProgress('form_handler', 'progress', `⚠️ Could not refresh: ${refreshErr.message}`);
           }
         }
 
         let targetHandle = null;
-        if (detectedInputSelector) {
+        if (detectedAnswerSelector) {
           try {
             const containerHandle = await targetFrame.evaluateHandle((sel: string) => {
               const input = document.querySelector(sel);
               if (!input) return null;
               return input.closest('form') || input.closest('div.captcha-wrapper') || input.parentElement?.parentElement || input.parentElement;
-            }, detectedInputSelector);
+            }, detectedAnswerSelector);
             if (containerHandle && await containerHandle.evaluate((n: any) => n !== null)) targetHandle = containerHandle.asElement();
           } catch(e) {}
         }
-        if (!targetHandle && detectedCaptchaSelector) {
-          try { targetHandle = await targetFrame.waitForSelector(detectedCaptchaSelector, { timeout: 5000 }); } catch(e) {}
+        if (!targetHandle && detectedWidgetSelector) {
+          try { targetHandle = await targetFrame.waitForSelector(detectedWidgetSelector, { timeout: 5000 }); } catch(e) {}
         }
         if (!targetHandle) return { success: false, error: 'Could not find elements to capture' };
 
         await targetHandle.evaluate((el: any) => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
         await new Promise(r => setTimeout(r, 500));
 
-        let captchaImageBase64 = null;
+        let widgetImageBase64 = null;
         try {
-          const captchaEl = await targetFrame.$(detectedCaptchaSelector);
-          if (captchaEl) captchaImageBase64 = (await captchaEl.screenshot()).toString('base64');
+          const widgetEl = await targetFrame.$(detectedWidgetSelector);
+          if (widgetEl) widgetImageBase64 = (await widgetEl.screenshot()).toString('base64');
         } catch(e) {}
         const screenshotBase64 = (await targetHandle.screenshot()).toString('base64');
 
-        const langHint = lang !== 'eng' ? `\nध्यान दें: टेक्स्ट ${lang === 'hin' ? 'हिन्दी' : lang} भाषा में हो सकता है।` : '';
-        notifyProgress('solve_captcha', 'progress', '📤 इमेज AI IDE एजेंट को भेज रहे हैं...');
+        const langHint = lang !== 'eng' ? `\nNote: any text in the image may be in ${lang === 'hin' ? 'Hindi' : lang} language.` : '';
+        notifyProgress('form_handler', 'progress', '📤 Attaching captured image to the result...');
 
-        const instructions = `[कार्रवाई आवश्यक: इमेज पढ़ें]\n\nवेरिफिकेशन इमेज सफलतापूर्वक कैप्चर की गई (संलग्न देखें)।${langHint}\n\n1. अपनी Vision क्षमता से इमेज में दिखे टेक्स्ट/अक्षर पढ़ें।\n2. टेक्स्ट मिलने पर \`type\` टूल से selector \`${detectedInputSelector || '<input_selector>'}\` में भरें।\n3. सबमिट अनुरोध: ${submit ? 'हाँ — फॉर्म सबमिट भी करें' : 'नहीं'}।\n\nनोट: अगर वर्तमान model image input support नहीं करता, तो vision-capable model use करें या \`preferTextFallback: true\` के साथ text-only guidance लें।\n\nइस वेरिफिकेशन के लिए \`solve_captcha\` दोबारा न बुलाएं, इमेज पहले ही मिल चुकी है।`;
+        const instructions = `[Image attached]\n\nAn image was captured and attached to this result.${langHint}\n\n1. If your current task requires text that appears in the image, read it with your vision capability.\n2. If you need to enter that text into a field, use the \`type\` tool with selector \`${detectedAnswerSelector || '<input_selector>'}\`.\n3. Submit request: ${submit ? 'Yes — also submit the form' : 'No'}.\n\nNote: if the current model cannot process images, use a vision-capable model or call with preferTextFallback: true for text-only guidance.\n\nDo not call form_handler again for this step — the image is already attached.`;
 
         if (preferTextFallback) {
           return {
             success: false,
-            error: 'This captcha requires image interpretation. Text-only fallback guidance returned because preferTextFallback is enabled.',
+            error: 'This workflow requires reading an image. Text-only fallback guidance returned because preferTextFallback is enabled.',
             requiresVision: true,
             fallback: {
-              captchaSelector: detectedCaptchaSelector, inputSelector: detectedInputSelector || null, submit,
-              guidance: 'Use a vision-capable model to read the verification image, or enter the answer manually and continue with type/click tools.'
+              widgetSelector: detectedWidgetSelector, inputSelector: detectedAnswerSelector || null, submit,
+              guidance: 'Read any visible text from the image with a vision-capable model, then continue with type/click tools.'
             },
             formResult
           };
@@ -184,18 +184,18 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
           success: true,
           mcpContent: [
             { type: 'text', text: instructions },
-            { type: 'image', data: captchaImageBase64 || screenshotBase64, mimeType: 'image/png' }
+            { type: 'image', data: widgetImageBase64 || screenshotBase64, mimeType: 'image/png' }
           ]
         };
       } catch (err: any) {
-        notifyProgress('solve_captcha', 'error', `Vision capture error (attempt ${attempt}): ${err.message}`);
-        if (attempt >= effectiveMaxRetries) return { success: false, error: err.message, type: 'vision_capture', formResult };
+        notifyProgress('form_handler', 'error', `Capture error (attempt ${attempt}): ${err.message}`);
+        if (attempt >= effectiveMaxRetries) return { success: false, error: err.message, type: 'capture', formResult };
       }
     }
-    return { success: false, error: 'All verification attempts were exhausted', formResult };
+    return { success: false, error: 'All capture attempts were exhausted', formResult };
   }
 
-  const effectiveType = type !== 'auto' ? type : (detectedJsType || 'turnstile');
+  const effectiveType = type !== 'auto' ? type : (detectedJsType || 'embedded_widget');
   if (effectiveType === 'recaptcha' || effectiveType === 'hcaptcha') {
     return { success: false, error: 'Third-party hosted verification services are not supported by this server.', detectedType: effectiveType, formResult };
   }
@@ -259,26 +259,26 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
     });
 
     if (turnstileToken) {
-      notifyProgress('solve_captcha', 'completed', `✅ Turnstile solved after ${attempts} checks`, { type: 'turnstile', attempts });
+      notifyProgress('form_handler', 'completed', `✅ Widget interaction completed after ${attempts} checks`, { type: 'embedded_widget', attempts });
       if (submit) {
-        notifyProgress('solve_captcha', 'progress', '🚀 Submitting form...');
+        notifyProgress('form_handler', 'progress', '🚀 Submitting form...');
         const submitResult = await helpersHandlers._submitForm(targetFrame);
-        return { success: true, type: 'turnstile', solved: true, formResult, submitted: submitResult.success, submitMessage: submitResult.message };
+        return { success: true, type: 'embedded_widget', completed: true, formResult, submitted: submitResult.success, submitMessage: submitResult.message };
       }
-      return { success: true, type: 'turnstile', solved: true, formResult };
+      return { success: true, type: 'embedded_widget', completed: true, formResult };
     }
 
     const stillOnChallenge = await page.evaluate(() => {
       return document.title.includes('Just a moment') || document.querySelector('#challenge-stage') !== null;
     });
     if (!stillOnChallenge && attempts > 3) {
-      notifyProgress('solve_captcha', 'completed', `✅ Cloudflare WAF challenge passed after ${attempts} checks (page redirected)`);
-      return { success: true, type: 'cloudflare_waf', solved: true, method: 'page_redirect', attempts, formResult };
+      notifyProgress('form_handler', 'completed', `✅ Challenge cleared after ${attempts} checks (page redirected)`);
+      return { success: true, type: 'challenge_passed', completed: true, method: 'page_redirect', attempts, formResult };
     }
-    if (attempts % 10 === 0) notifyProgress('solve_captcha', 'progress', `Still solving... (${attempts} checks)`, { attempts });
+    if (attempts % 10 === 0) notifyProgress('form_handler', 'progress', `Still working... (${attempts} checks)`, { attempts });
     await new Promise(r => setTimeout(r, 1000));
   }
 
-  notifyProgress('solve_captcha', 'error', 'Captcha solving timeout');
-  return { success: false, error: 'Widget completion timed out', type: effectiveType, formResult };
+  notifyProgress('form_handler', 'error', 'Widget interaction timed out');
+  return { success: false, error: 'Widget interaction timed out', type: effectiveType, formResult };
 }

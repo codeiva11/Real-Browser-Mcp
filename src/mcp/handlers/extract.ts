@@ -3,6 +3,11 @@ import * as fs from 'fs';
 
 import { requireBrowser, notifyProgress } from './state';
 import { assertSafeUrl } from '../../shared/url-utils';
+import type { GetContentParams } from '../../types';
+
+// Cap for HTML/text payloads returned to the MCP client. Multi-MB page dumps
+// bloat the response and can break clients; we truncate and flag instead.
+const MAX_CONTENT_CHARS = 2_000_000;
 
 /**
  * Resolve a user-supplied save path, preventing path traversal outside cwd.
@@ -20,7 +25,7 @@ function safeResolve(savePath: string): string | null {
 
 
 export const extractHandlers = {
-  async get_content(params: any = {}) {
+  async get_content(params: GetContentParams = {}) {
     const { page } = requireBrowser();
     let { format = 'text', selector, xpath, text, rawHttpUrl, saveAs, includeMeta = false, multiple = false, extractAttributes = false, waitForJS = true, timeout = 10000 } = params;
 
@@ -78,7 +83,7 @@ export const extractHandlers = {
       const url = rawHttpUrl || page.url();
       // SSRF guard: never fetch private/loopback targets from the server
       // side unless the operator explicitly opted in.
-      assertSafeUrl(url, 'get_content');
+      await assertSafeUrl(url, 'get_content');
       notifyProgress('get_content', 'in_progress', `Fetching raw HTTP (no JS) from: ${url}`);
       try {
         // rawHttp is a single-shot, session-free fetch — no browser session
@@ -199,12 +204,20 @@ export const extractHandlers = {
     }
     content = prefix + content;
 
+    // Bound the payload: huge pages are truncated (with a flag) instead of
+    // returned whole, keeping MCP responses predictable in size.
+    let truncated = false;
+    if (typeof content === 'string' && content.length > MAX_CONTENT_CHARS) {
+      truncated = true;
+      content = content.slice(0, MAX_CONTENT_CHARS);
+    }
+
     if (saveAs) {
       const outputPath = safeResolve(saveAs);
       if (!outputPath) return { success: false, error: 'saveAs path is outside the working directory (path traversal blocked).' };
       fs.writeFileSync(outputPath, content);
       notifyProgress('get_content', 'completed', `Saved ${content.length} chars to ${saveAs}`, { format, length: content.length, savedTo: outputPath });
-      return { success: true, url: page.url(), format, length: content.length, savedTo: outputPath };
+      return { success: true, url: page.url(), format, length: content.length, savedTo: outputPath, truncated };
     }
 
     notifyProgress('get_content', 'completed', `Extracted ${content.length} characters`, { format, length: content.length });
@@ -213,7 +226,8 @@ export const extractHandlers = {
       success: true,
       content,
       url: page.url(),
-      format
+      format,
+      truncated
     };
   }
 };

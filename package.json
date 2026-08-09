@@ -14,7 +14,6 @@
   },
   "files": [
     "dist",
-    "lib/cjs/adblocker.bin",
     "lib/esm",
     "typings.d.ts"
   ],
@@ -38,7 +37,8 @@
     "unit_test": "npm run build && node --test ./test/unit.mjs",
     "cjs_test": "node ./test/test.mjs --cjs",
     "esm_test": "node ./test/test.mjs --esm",
-    "mcp_test": "node --test ./test/mcp-smoke.mjs"
+    "mcp_test": "node --test ./test/mcp-smoke.mjs",
+    "e2e_test": "npm run build && node --test ./test/e2e-tools.mjs"
   },
   "keywords": [
     "mcp-server",

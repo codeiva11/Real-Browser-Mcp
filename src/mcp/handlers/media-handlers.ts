@@ -1,6 +1,7 @@
 // Media handlers — Stream extraction, player control, media tools
 import { state, requireBrowser, notifyProgress, decoders } from './state';
 import { assertSafeUrl } from '../../shared/url-utils';
+import { logger } from '../../shared/logger';
 import type { MediaExtractorParams } from '../../types';
 
 
@@ -110,7 +111,10 @@ async function extractStreamsFromContext(context: any, contextName = 'main') {
     });
 
     return result;
-  }).catch(() => ({ video: [], audio: [], hls: [], dash: [], download: [], embedded: [] }));
+  }).catch((e: any) => {
+    logger.debug('media_extractor: stream scan failed', { context: contextName, error: e?.message || String(e) });
+    return { video: [], audio: [], hls: [], dash: [], download: [], embedded: [] };
+  });
 }
 
 /**
@@ -498,40 +502,52 @@ export const mediaHandlers = {
 
         notifyProgress('media_extractor', 'progress', `Batch extracting from ${urls.length} URLs...`);
 
+        // Navigate a dedicated scratch page so the user's current page state
+        // is never destroyed by the batch loop.
+        const context = page.context();
+        const scratchPage = await context.newPage();
+        if (state.setupPageFn) {
+          try { await state.setupPageFn(scratchPage); } catch { /* best-effort */ }
+        }
+
         const results = [];
         const errors = [];
 
-        for (let i = 0; i < urls.length; i++) {
-          const url = urls[i];
-          try {
-            // SSRF guard: reject private/loopback targets unless explicitly allowed.
-            assertSafeUrl(url, 'media_extractor');
-            notifyProgress('media_extractor', 'progress', `Processing ${i + 1}/${urls.length}: ${url}`);
+        try {
+          for (let i = 0; i < urls.length; i++) {
+            const url = urls[i];
+            try {
+              // SSRF guard: reject private/loopback targets unless explicitly allowed.
+              await assertSafeUrl(url, 'media_extractor');
+              notifyProgress('media_extractor', 'progress', `Processing ${i + 1}/${urls.length}: ${url}`);
 
-            await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-            await new Promise(r => setTimeout(r, 2000));
+              await scratchPage.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+              await new Promise(r => setTimeout(r, 2000));
 
-            const streams = await extractStreamsFromContext(page, 'main');
-            const dedupedStreams = deduplicateStreams(streams);
-            const totalCount = Object.values(dedupedStreams as Record<string, any>).reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+              const streams = await extractStreamsFromContext(scratchPage, 'main');
+              const dedupedStreams = deduplicateStreams(streams);
+              const totalCount = Object.values(dedupedStreams as Record<string, any>).reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
 
-            const meta = await page.evaluate(() => ({
-              title: document.title,
-              url: window.location.href
-            }));
+              const meta = await scratchPage.evaluate(() => ({
+                title: document.title,
+                url: window.location.href
+              }));
 
-            results.push({
-              url,
-              success: true,
-              streams: dedupedStreams,
-              totalCount,
-              title: meta.title,
-              finalUrl: meta.url
-            });
-          } catch (error: any) {
-            errors.push({ url, error: error.message });
-            results.push({ url, success: false, error: error.message });
+              results.push({
+                url,
+                success: true,
+                streams: dedupedStreams,
+                totalCount,
+                title: meta.title,
+                finalUrl: meta.url
+              });
+            } catch (error: any) {
+              errors.push({ url, error: error.message });
+              results.push({ url, success: false, error: error.message });
+            }
           }
+        } finally {
+          try { await scratchPage.close(); } catch { /* already closed */ }
         }
 
         const successCount = results.filter(r => r.success).length;

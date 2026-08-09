@@ -1,4 +1,5 @@
 import { state, requireBrowser, notifyProgress, detachNetworkRecorderListeners, pushNetworkRecord } from './state';
+import { logger } from '../../shared/logger';
 
 export async function startRecording(page: any, captureXhrBody = false) {
   detachNetworkRecorderListeners();
@@ -175,7 +176,9 @@ export async function startRecording(page: any, captureXhrBody = false) {
               try { record.responseJson = JSON.parse(responseBody); } catch (e) { }
             }
           }
-        } catch (e) { }
+        } catch (e) {
+          logger.debug('network_recorder: body capture failed', { url, error: (e as Error)?.message || String(e) });
+        }
       }
 
       pushNetworkRecord(record);
@@ -224,11 +227,22 @@ export function getNavigationRecords() {
   return { success: true, count: navRecords.length, navigations: navRecords };
 }
 
+// Cap on API records returned to the client. Each record can carry a 5KB
+// response body, so an unbounded list would bloat the MCP response to MBs.
+const MAX_API_RECORDS = 300;
+// Cap on HAR entries (each can include headers + bodies).
+const MAX_HAR_ENTRIES = 500;
+
+function lastN<T>(arr: T[], n: number): T[] {
+  return arr.length > n ? arr.slice(arr.length - n) : arr;
+}
+
 export function getApiCallRecords() {
   const apiRecords = state.networkRecords.filter((r: any) => r.isApiCall);
+  const capped = lastN(apiRecords, MAX_API_RECORDS);
   return {
-    success: true, count: apiRecords.length,
-    apiCalls: apiRecords.map((r: any) => ({
+    success: true, count: apiRecords.length, truncated: apiRecords.length > MAX_API_RECORDS,
+    apiCalls: capped.map((r: any) => ({
       url: r.url, method: r.method || 'GET', status: r.status,
       contentType: r.contentType, resourceType: r.resourceType,
       requestBody: r.requestBody || null, responseBody: r.responseBody || null,
@@ -279,7 +293,8 @@ export function getGraphQLRecords() {
       response: r.responseJson || r.responseBody, timestamp: r.timestamp
     };
   });
-  return { success: true, count: gqlRecords.length, graphql: gqlRecords };
+  const cappedGql = lastN(gqlRecords, 100);
+  return { success: true, count: gqlRecords.length, truncated: gqlRecords.length > 100, graphql: cappedGql };
 }
 
 export function exportHAR() {
@@ -290,11 +305,13 @@ export function exportHAR() {
     if (!requestMap.has(req.url)) requestMap.set(req.url, req);
   }
 
+  const cappedResponses = lastN(responses, MAX_HAR_ENTRIES);
+
   const har = {
     log: {
       version: '1.2',
       creator: { name: 'Real Browser MCP', version: '1.5' },
-      entries: responses.map((r: any) => {
+      entries: cappedResponses.map((r: any) => {
         const matchingReq = requestMap.get(r.url);
         return {
           startedDateTime: new Date(r.timestamp).toISOString(),
@@ -313,7 +330,7 @@ export function exportHAR() {
       })
     }
   };
-  return { success: true, count: har.log.entries.length, har };
+  return { success: true, count: har.log.entries.length, truncated: responses.length > MAX_HAR_ENTRIES, har };
 }
 
 export function getFilteredRecords(filter: any) {

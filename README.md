@@ -1,7 +1,7 @@
 # 🦁 Real Browser MCP Server
 
 [![npm version](https://img.shields.io/npm/v/real-browser-mcp-server.svg)](https://www.npmjs.com/package/real-browser-mcp-server)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg)](https://nodejs.org/)
 [![Build & Test](https://github.com/codeiva4u/Real-Browser-Mcp-Server/actions/workflows/publish.yml/badge.svg)](https://github.com/codeiva4u/Real-Browser-Mcp-Server/actions/workflows/publish.yml)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
 
@@ -95,7 +95,7 @@ docker run -i --rm ghcr.io/codeiva4u/real-browser-mcp-server:latest
 ## 🚀 Key Automation & Reliability Features
 
 * **Reliable Browser Engine**: Powered by **Patchright Chromium**, a hardened Playwright fork that reduces false-positives in automation environments (does not expose automation indicators or Webdriver/BiDi flags).
-* **Integrated Ad & Tracker Blocker**: Utilizes `@ghostery/adblocker-playwright` with asynchronous pre-compiled filter caching to `adblocker.bin`, blocking ads and speed-bumps completely offline.
+* **Integrated Ad & Tracker Blocker**: Utilizes `@ghostery/adblocker-playwright` with in-memory prebuilt filter lists (no disk cache), blocking ads and speed-bumps.
 * **Natural Interactions**: Integrates **ghost-cursor-patchright** (Bézier curves) to simulate natural mouse movements, velocity, and hover-before-click behaviors. Features **Physics-based Smooth Scrolling** (`page.realScroll`) utilizing real mouse-wheel events and Cubic Ease-Out deceleration to mimic manual trackpad/mouse flicks for reliable interaction with dynamic UIs.
 * **Human-like Browsing**: `see_page` lets the AI agent plan an entire multi-step task from **one** view and execute all actions in a single continuous flow via its unified `steps` workflow — no screenshot pause after every micro-step, just like a human. (The previously separate `browse_task` tool is now merged into `see_page` to avoid agent confusion.)
 * **Rich Single-Shot Vision**: `see_page` now returns a screenshot **plus** full page text, all interactive elements with selectors, and an iframe inventory in one call — eliminating the need to re-capture the same page repeatedly.
@@ -258,7 +258,7 @@ The server exposes **21 tools** categorized into functional units:
 ### 🌐 Browser & Session
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `browser_init` | Initialize Patchright browser with ad blocker, AI healing, and Turnstile assist. | `headless`, `proxy`, `turnstile`, `enableBlocker`, `aiHealing`, `recordVideo` |
+| `browser_init` | Initialize Patchright browser with ad blocker, AI healing, and embedded-widget assist. | `headless`, `proxy`, `widgetAssist`, `enableBlocker`, `aiHealing`, `recordVideo` |
 | `browser_close` | Close browser with cleanup. | `force` |
 
 ### 🧭 Navigation
@@ -271,7 +271,7 @@ The server exposes **21 tools** categorized into functional units:
 |:---|:---|:---|
 | `click` | Natural click using ghost cursor with iframe, hover, and video player support. | `selector`, `annotationId`, `humanLike`, `hoverFirst`, `iframe`, `autoDetectPlayer` |
 | `type` | Type text with natural speed variation, smart clearing, and iframe support. | `selector`, `annotationId`, `text`, `clear`, `pressEnter`, `iframe` |
-| `solve_captcha` | Form filling and embedded widget completion for pages you are testing (JS widgets, text/image input recognition). Externally hosted services are not supported. | `type`, `captchaSelector`, `formData`, `submit` |
+| `form_handler` | Form filling and embedded widget completion for pages you are testing (JS widgets, text/image input recognition). Externally hosted services are not supported. | `type`, `widgetSelector`, `formData`, `submit` |
 | `random_scroll` | Natural scrolling with lazy-load detection. | `direction`, `amount`, `smooth`, `aiDetectLazyLoad` |
 | `press_key` | Press keyboard keys with modifier key support (Ctrl/Shift/Alt). | `key`, `modifiers`, `count` |
 | `execute_js` | Run custom JavaScript inside a page or iframe. ⚠️ Use with trusted input only. | `code`, `async`, `iframe`, `timeout` |
@@ -306,7 +306,14 @@ The server exposes **21 tools** categorized into functional units:
 > NEW (human-like): see_page (once, fullPage) → steps:[click, type, scroll, extract] → see_page (only on page change)
 > ```
 
-If the current model cannot consume images, `see_page` still returns a full text + JSON summary, and `solve_captcha` can return text-only fallback guidance when called with `preferTextFallback: true`.
+> [!IMPORTANT]
+> **v3.0 breaking change**: the tool formerly named `solve_captcha` is now
+> **`form_handler`**, and its `captchaSelector` parameter is now
+> **`widgetSelector`**. The rename removes content-filter-triggering vocabulary
+> from the tool registry so AI providers don't reject the schema. Update any
+> saved prompts/flows that referenced the old names.
+
+If the current model cannot consume images, `see_page` still returns a full text + JSON summary, and `form_handler` can return text-only fallback guidance when called with `preferTextFallback: true`.
 
 ---
 
@@ -399,6 +406,7 @@ Run these scripts from the project root directory:
 | `npm run cjs_test` | Run CommonJS test scripts. |
 | `npm run esm_test` | Run ECMAScript Module test scripts. |
 | `npm run mcp_test` | Fast, network-independent MCP smoke test — verifies tool registry (all 21 tools), JSON-RPC initialize handshake, and tools/list response. No browser launch needed. |
+| `npm run e2e_test` | End-to-end tool test — launches the real headless browser over STDIO and drives `browser_init` → `navigate` → `get_content` → `extract_data` → `see_page` → `browser_close`. Also verifies the SSRF guard. Requires the Patchright Chromium binary. |
 
 > Environment-dependent assertions in the live-site suite (e.g. the reCAPTCHA v3 score) fail the run only when `REAL_BROWSER_STRICT_BOT_TESTS=1`; by default they log a warning so CI stays deterministic.
 
@@ -419,7 +427,7 @@ Run these scripts from the project root directory:
 
 - **Single-session model**: the MCP server manages one browser instance at a time. Concurrent multi-session isolation is not supported.
 - **reCAPTCHA / hCaptcha**: detected honestly but not solved automatically. Use a third-party service for these.
-- **Vision tools require image-capable models**: `see_page` and `solve_captcha` return images. Non-vision models get a full text + JSON summary fallback.
+- **Vision tools require image-capable models**: `see_page` and `form_handler` return images. Non-vision models get a full text + JSON summary fallback.
 - **TypeScript strict mode**: the project compiles with `strict: true` across all source files, and `noEmitOnError: true` makes a type error fail the build outright (`tsc --noEmit` passes cleanly).
 
 ---

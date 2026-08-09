@@ -50,11 +50,18 @@ export const browserHandlers = {
     const {
       proxy = {} as Record<string, unknown>,
       contextOptions = {} as Record<string, unknown>,
-      turnstile = getEnvBool('TURNSTILE', false),
       enableBlocker = getEnvBool('ENABLE_BLOCKER', true),
       recordVideo = false,
       aiHealing = getEnvBool('AI_HEALING', true),  // stored for use by click/type handlers
     } = params;
+    // widgetAssist is the schema name; `turnstile` remains a deprecated alias
+    // for backward compatibility (env TURNSTILE still works).
+    const widgetAssist =
+      (params as any).widgetAssist !== undefined
+        ? (params as any).widgetAssist
+        : (params as any).turnstile !== undefined
+          ? (params as any).turnstile
+          : getEnvBool('TURNSTILE', false);
 
     notifyProgress('browser_init', 'progress', `Mode: ${headless ? 'Headless' : 'GUI (Visible)'}`, { headless });
 
@@ -74,7 +81,7 @@ export const browserHandlers = {
       headless,
       proxy,
       contextOptions: recordVideo ? { ...mergedContextOptions, recordVideo: { dir: videosDir } } : mergedContextOptions,
-      turnstile,
+      turnstile: widgetAssist,
       enableBlocker,
     });
 
@@ -91,6 +98,13 @@ export const browserHandlers = {
     if (state.pageInstance) {
       if (!(state.pageInstance as any)._realBrowserDialogBound) {
         (state.pageInstance as any)._realBrowserDialogBound = true;
+      // Safety-first dialog policy:
+      //   - alert()     → auto-dismissed (informational, non-destructive)
+      //   - prompt()    → cancelled (return null)
+      //   - confirm()   → DISMISSED by default (i.e. "Cancel") so destructive
+      //     confirmations ("Delete everything?") are never auto-confirmed.
+      //   - beforeunload → accepted (lets navigation proceed)
+      // Redirect/external-navigation confirms are always dismissed.
       state.pageInstance.on('dialog', async (dialog: any) => {
         const dialogType = dialog.type();
         const msg = dialog.message().toLowerCase();
@@ -99,11 +113,18 @@ export const browserHandlers = {
           `🔔 Handling dialog: ${dialogType} - ${dialog.message().substring(0, 100)}...`);
 
         try {
-          if (msg.includes('redirect') || msg.includes('external') || msg.includes('leaving')) {
+          const isNavigationConfirm =
+            msg.includes('redirect') || msg.includes('external') || msg.includes('leaving');
+          if (dialogType === 'alert') {
+            await dialog.dismiss();
+          } else if (dialogType === 'beforeunload') {
+            await dialog.accept();
+          } else if (isNavigationConfirm) {
             console.error('🚫 Blocking redirect dialog (Dismiss)');
             await dialog.dismiss();
           } else {
-            await dialog.accept();
+            // confirm/prompt: cancel by default — never auto-confirm
+            await dialog.dismiss();
           }
         } catch (e) {
           // Ignore errors (dialog might be closed by injected script)
@@ -113,12 +134,11 @@ export const browserHandlers = {
       await state.pageInstance.addInitScript(() => {
         (window as any).originalConfirm = window.confirm;
         (window as any).originalAlert = window.alert;
+        (window as any).originalPrompt = window.prompt;
 
-        (window as any).confirm = (msg?: string) => {
-          if (msg && (msg.toLowerCase().includes('redirect') || msg.toLowerCase().includes('external'))) {
-            return false;
-          }
-          return true;
+        (window as any).confirm = (_msg?: string) => {
+          // Never auto-confirm destructive actions; cancel by default.
+          return false;
         };
 
         (window as any).alert = (_msg?: string) => {
@@ -156,7 +176,7 @@ export const browserHandlers = {
     let { url, waitUntil = 'networkidle' as WaitUntilState, timeout = 30000, retries = 3, smartWait = true } = params;
     waitUntil = resolveWaitUntil(waitUntil) as WaitUntilState;
 
-    const checkedUrl = assertSafeUrl(url, 'navigate');
+    const checkedUrl = await assertSafeUrl(url, 'navigate');
     if (checkedUrl.valid) url = checkedUrl.url;
 
     notifyProgress('navigate', 'started', `Navigating to: ${url}`);

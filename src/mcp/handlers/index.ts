@@ -29,11 +29,14 @@ export const handlers: any = {
 // "-32001 Request timed out". Racing each handler against a hard timeout
 // guarantees the server always answers promptly.
 const TOOL_TIMEOUT_MS = parseInt(process.env.REAL_BROWSER_TOOL_TIMEOUT_MS || '120000', 10);
+// Long-lived tools (network_recorder, media batch jobs, async JS) still get a
+// generous hard budget so a crashed browser can never hang the server forever.
+const LONG_TOOL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-function withWatchdog<T>(name: string, promise: Promise<T>): Promise<T> {
+function withWatchdog<T>(name: string, promise: Promise<T>, budgetMs: number = TOOL_TIMEOUT_MS): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const watchdog = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`Tool "${name}" timed out after ${TOOL_TIMEOUT_MS}ms`)), TOOL_TIMEOUT_MS);
+    timer = setTimeout(() => reject(new Error(`Tool "${name}" timed out after ${budgetMs}ms`)), budgetMs);
   });
   // Clear the timer when the race settles so a finished tool call does not
   // keep the event loop alive (or fire a stray rejection) for the full budget.
@@ -42,16 +45,37 @@ function withWatchdog<T>(name: string, promise: Promise<T>): Promise<T> {
   });
 }
 
-// Some tools (network_recorder, progress_tracker) are legitimately long-lived and
-// should be raced only against a much larger budget. They self-resolve on their own.
-// replay_request is internally bounded by a 30s page-side abort, so it gets
-// the standard watchdog like every other tool.
+// Some tools (network_recorder, progress_tracker, media_extractor, execute_js)
+// are legitimately long-lived and get the larger 5-minute budget above.
 const LONG_RUNNING_TOOLS = new Set([
   'network_recorder',
   'progress_tracker',
   'media_extractor',
   'execute_js',
 ]);
+
+// ───────────────────────────────────────────────────────────────────────────
+// Tool serialization
+//
+// The MCP server can receive concurrent tools/call requests. Because every
+// tool operates on ONE shared browser page, overlapping handlers would
+// interleave actions on the same page (double clicks, torn state). Worse,
+// when the watchdog fires, the timed-out handler keeps running underneath
+// and could collide with the NEXT tool call.
+//
+// A simple promise chain serializes execution: each tool waits for the
+// previous one to settle (success, error, or watchdog timeout) before
+// touching the browser. The watchdog on every handler guarantees the chain
+// can never deadlock.
+// ───────────────────────────────────────────────────────────────────────────
+let executionChain: Promise<unknown> = Promise.resolve();
+
+function serialize<T>(fn: () => Promise<T>): Promise<T> {
+  const run = executionChain.then(fn);
+  // Swallow so a rejected link never poisons the chain for later calls.
+  executionChain = run.then(() => undefined, () => undefined);
+  return run;
+}
 
 export async function executeTool(name: string, args: any = {}) {
   if (handlers[name]) {
@@ -68,11 +92,14 @@ export async function executeTool(name: string, args: any = {}) {
       // Validation itself must never block tool execution.
     }
     try {
-      const handlerCall = handlers[name](args);
-      // Long-running tools still get a generous max budget (5 min) to avoid a true deadlock.
-      const result = LONG_RUNNING_TOOLS.has(name)
-        ? await handlerCall
-        : await withWatchdog(name, handlerCall);
+      // Long-running tools still get a generous hard budget (5 min) so a
+      // crashed page can never hang the server forever.
+      const result = await serialize(() => {
+        const handlerCall = handlers[name](args);
+        return LONG_RUNNING_TOOLS.has(name)
+          ? withWatchdog(name, handlerCall, LONG_TOOL_TIMEOUT_MS)
+          : withWatchdog(name, handlerCall);
+      });
       // Guarantee a well-formed response even if a handler returns undefined/non-object
       if (!result || typeof result !== 'object') {
         return { success: true, result };

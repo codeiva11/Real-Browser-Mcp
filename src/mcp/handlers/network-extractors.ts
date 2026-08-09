@@ -1,7 +1,9 @@
 import { requireBrowser, notifyProgress, decoders } from './state';
 import { validateHttpUrl } from '../../shared/url-utils';
+import { logger } from '../../shared/logger';
+import type { ExtractDataParams } from '../../types';
 
-export async function extractData(params: any = {}) {
+export async function extractData(params: ExtractDataParams = {}) {
   const { page } = requireBrowser();
   const {
     type = 'auto', pattern, selector, jsonPath, source = 'all', autoDecode = true,
@@ -221,12 +223,14 @@ export async function extractData(params: any = {}) {
   const typeAliases: Record<string, string> = { parse: 'deobfuscate', transform: 'decrypt' };
   const normalizedType = typeAliases[type] || type;
 
-  // Normalize aliased param names (schema exposes neutral names)
-  const { autoResolveKey, transformKey } = params;
+  // Normalize aliased param names (schema exposes neutral names; the old
+  // autoResolveKey is still accepted as a deprecated alias)
+  const { transformKey } = params;
+  const autoResolve = (params as any).autoDetectKey !== undefined ? (params as any).autoDetectKey : (params as any).autoResolveKey;
   if (params.inputData && !params.encryptedData) params.encryptedData = params.inputData;
   if ((transformKey || params.secretKey) && !params.aesKey) params.aesKey = transformKey || params.secretKey;
   if (params.keyOffset && !params.aesIV) params.aesIV = params.keyOffset;
-  if (autoResolveKey !== undefined) params.autoFindKey = autoResolveKey;
+  if (autoResolve !== undefined) params.autoFindKey = autoResolve;
 
   switch (normalizedType) {
     case 'links': {
@@ -319,7 +323,17 @@ async function deobfuscateJS(page: any) {
   for (const src of externalScripts.slice(0, 10)) {
     // SSRF guard: never server-fetch private/loopback URLs found in page HTML.
     if (!validateHttpUrl(src).valid) continue;
-    try { const resp = await fetch(src); allJs += '\n' + await resp.text(); } catch (e) { }
+    // 10s abort so a stalled script fetch can never hang the tool.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    try {
+      const resp = await fetch(src, { signal: controller.signal });
+      allJs += '\n' + await resp.text();
+    } catch (e) {
+      logger.debug('deobfuscate: script fetch failed', { src, error: (e as Error)?.message || String(e) });
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   const deobfuscated: any = {

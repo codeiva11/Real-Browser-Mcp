@@ -12,11 +12,6 @@ coverage
 .nyc_output
 *.tgz
 
-# Cache files (regenerated at runtime)
-**/cache/filter-cache.json
-# Legacy project-local cache (server now uses OS temp dir instead)
-.cache/
-
 # Build artifacts
 # (lib/esm is intentionally committed — it ships in the npm package)
 

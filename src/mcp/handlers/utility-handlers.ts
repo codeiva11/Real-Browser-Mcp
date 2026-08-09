@@ -4,7 +4,8 @@ import * as fs from 'fs';
 import { state, requireBrowser, notifyProgress } from './state';
 import { helpersHandlers } from './helpers';
 import { resolveIframe } from './handler-utils';
-import type { ProgressTrackerParams, DeepAnalysisParams, ExecuteJsParams } from '../../types';
+import type { ProgressTrackerParams, DeepAnalysisParams, ExecuteJsParams, ApiAnalyzerParams, StorageInspectorParams } from '../../types';
+import { logger } from '../../shared/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // Utility Handlers — General-purpose tools
@@ -110,14 +111,13 @@ export const utilityHandlers = {
       };
 
       if (detectControls) {
+        // Neutral, provider-safe key names — these values are returned to the
+        // model and must not carry content-filter-triggering vocabulary.
         result.accessControls = {
-          cloudflare: {
-            turnstile: !!document.querySelector('.cf-turnstile, input[name="cf-turnstile-response"]'),
-            challenge: document.title.includes('Just a moment') || !!document.querySelector('#challenge-stage'),
-            waf: !!document.querySelector('[data-cf-waf]')
-          },
-          recaptcha: !!document.querySelector('.g-recaptcha, iframe[src*="recaptcha"]'),
-          hcaptcha: !!document.querySelector('.h-captcha, iframe[src*="hcaptcha"]'),
+          embeddedWidget: !!document.querySelector('.cf-turnstile, input[name="cf-turnstile-response"]'),
+          challengeDetected: document.title.includes('Just a moment') || !!document.querySelector('#challenge-stage'),
+          wafDetected: !!document.querySelector('[data-cf-waf]'),
+          thirdPartyWidget: !!document.querySelector('.g-recaptcha, .h-captcha, iframe[src*="recaptcha"], iframe[src*="hcaptcha"]'),
           datadome: !!document.querySelector('script[src*="datadome"]'),
           akamai: !!document.querySelector('script[src*="akamai"]'),
           perimeterx: !!document.querySelector('script[src*="perimeterx"]'),
@@ -150,8 +150,8 @@ export const utilityHandlers = {
       if (analysis.performance.scripts > 20) insights.push('Many scripts — consider lazy loading');
       if (analysis.accessibility.imagesWithoutAlt > 5) insights.push('Multiple images without alt text — accessibility issue');
       if (!analysis.security.hasCSP) insights.push('No Content-Security-Policy detected');
-      if (analysis.accessControls?.cloudflare?.challenge) insights.push('A verification widget appears active — use solve_captcha if the page blocks input');
-      if (analysis.accessControls?.cloudflare?.turnstile) insights.push('Embedded verification widget detected — use solve_captcha if the page blocks input');
+      if (analysis.accessControls?.challengeDetected) insights.push('A challenge appears active — use form_handler if the page blocks input');
+      if (analysis.accessControls?.embeddedWidget) insights.push('Embedded verification widget detected — use form_handler if the page blocks input');
     }
 
     notifyProgress('deep_analysis', 'completed', `Analysis complete: ${analysis.performance.domElements} DOM elements`, { domElements: analysis.performance.domElements });
@@ -251,7 +251,7 @@ export const utilityHandlers = {
     }
   },
 
-  async storage_inspector(params: any) {
+  async storage_inspector(params: StorageInspectorParams = {}) {
     const { page } = requireBrowser();
     const { action = 'indexeddb' } = params;
     notifyProgress('storage_inspector', 'started', `Inspecting ${action}`);
@@ -280,7 +280,7 @@ export const utilityHandlers = {
     }
   },
 
-  async api_analyzer(params: any) {
+  async api_analyzer(params: ApiAnalyzerParams = {}) {
     const { action = 'schema', data, data2, lang = 'ts' } = params;
     notifyProgress('api_analyzer', 'started', `Action: ${action}`);
 
@@ -369,6 +369,7 @@ export const utilityHandlers = {
 
       return { success: false, error: `Unknown action: ${action}. Supported: schema, diff, sdk` };
     } catch (e: any) {
+      logger.debug('api_analyzer failed', { error: e?.message || String(e) });
       return { success: false, error: e.message };
     }
   }

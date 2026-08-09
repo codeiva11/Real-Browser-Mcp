@@ -28,7 +28,6 @@ export interface BrowserState {
   pageInstance: Page | null;
   blockerInstance: PlaywrightBlocker | null;
   setupPageFn: ((page: Page) => Promise<void>) | null;
-  currentSessionName?: string;
   activeAnnotations?: Record<number, { selector: string; text?: string; type?: string }>;
   networkRecords: NetworkRecord[];
   isRecordingNetwork: boolean;
@@ -153,6 +152,9 @@ export interface BrowserInitParams {
   headless?: boolean;
   proxy?: ProxyConfig;
   contextOptions?: Record<string, unknown>;
+  /** Automatically interact with embedded page widgets when present */
+  widgetAssist?: boolean;
+  /** @deprecated use widgetAssist */
   turnstile?: boolean;
   enableBlocker?: boolean;
   aiHealing?: boolean;
@@ -230,6 +232,40 @@ export interface PressKeyParams {
   key: string;
   modifiers?: string[];
   count?: number;
+  humanDelay?: boolean;
+}
+
+export interface GetContentParams {
+  format?: 'html' | 'text' | 'markdown' | 'rawHttp' | 'elements';
+  selector?: string;
+  xpath?: string;
+  text?: string;
+  waitForJS?: boolean;
+  timeout?: number;
+  aiHeal?: boolean;
+  extractAttributes?: boolean;
+  multiple?: boolean;
+  includeMeta?: boolean;
+  saveAs?: string;
+  rawHttpUrl?: string;
+}
+
+export interface ReplayRequestParams {
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+export interface ApiAnalyzerParams {
+  action?: 'schema' | 'diff' | 'sdk';
+  data?: string;
+  data2?: string;
+  lang?: 'ts' | 'python';
+}
+
+export interface StorageInspectorParams {
+  action?: 'indexeddb' | 'service_workers';
 }
 
 export interface ExecuteJsParams {
@@ -243,7 +279,7 @@ export interface ExecuteJsParams {
 }
 
 export interface ExtractDataParams {
-  type?: 'auto' | 'regex' | 'json' | 'meta' | 'structured' | 'deobfuscate';
+  type?: 'auto' | 'regex' | 'json' | 'meta' | 'structured' | 'parse' | 'apiDiscovery' | 'transform' | 'links';
   pattern?: string;
   selector?: string;
   jsonPath?: string;
@@ -257,6 +293,31 @@ export interface ExtractDataParams {
   maxJsonObjects?: number;
   waitForSelector?: boolean;
   selectorTimeout?: number;
+  /** For transform mode: the string to convert */
+  inputData?: string;
+  /** For transform mode: locate the conversion parameter from page scripts automatically */
+  autoDetectKey?: boolean;
+  /** @deprecated use autoDetectKey */
+  autoResolveKey?: boolean;
+  /** For transform mode: optional conversion parameter */
+  transformKey?: string;
+  /** For transform mode: offset value (optional) */
+  keyOffset?: string;
+  /** For links mode: include hidden/non-visible links */
+  includeHidden?: boolean;
+  /** For links mode: search inside embedded frames */
+  searchIframes?: boolean;
+  // ── Internal aliases (normalized from the neutral schema names) ──
+  /** @internal transformed from inputData */
+  encryptedData?: string;
+  /** @internal alias for transformKey */
+  secretKey?: string;
+  /** @internal resolved conversion parameter */
+  aesKey?: string;
+  /** @internal resolved secondary parameter */
+  aesIV?: string;
+  /** @internal resolved from autoResolveKey */
+  autoFindKey?: boolean;
 }
 
 export interface NetworkRecorderParams {
@@ -345,10 +406,10 @@ export interface AESDecryptResult {
 // Vision / Captcha Types
 // ─────────────────────────────────────────────
 
-export interface SolveCaptchaParams {
+export interface FormHandlerParams {
   type?: 'js_widget' | 'text' | 'image' | 'auto';
   timeout?: number;
-  captchaSelector?: string;
+  widgetSelector?: string;
   inputSelector?: string;
   formSelector?: string;
   submit?: boolean;

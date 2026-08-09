@@ -41,6 +41,37 @@ test('url-utils: blocks private/loopback by default', () => {
   }
 });
 
+test('url-utils: blocks numeric-IP SSRF bypasses', () => {
+  const bypasses = [
+    'http://2130706433/',            // 127.0.0.1 in decimal
+    'http://0x7f000001/',            // 127.0.0.1 in hex
+    'http://017700000001/',          // 127.0.0.1 in octal
+    'http://127.1/',                 // short dotted form → 127.0.0.1
+    'http://127.0.1/',               // short dotted form
+    'http://0177.0.0.1/',            // leading-zero octet (octal 127)
+    'http://0.0.0.0/',               // unspecified
+  ];
+  for (const bad of bypasses) {
+    const res = urlUtils.validateHttpUrl(bad);
+    assert.strictEqual(res.valid, false, `expected ${bad} to be blocked`);
+    assert.strictEqual(res.private, true, `expected ${bad} to be flagged private`);
+  }
+});
+
+test('url-utils: numeric forms that are NOT private still pass', () => {
+  for (const good of ['http://8.8.8.8/', 'http://1.1.1.1/']) {
+    const res = urlUtils.validateHttpUrl(good);
+    assert.strictEqual(res.valid, true, `expected ${good} to be allowed`);
+  }
+});
+
+test('url-utils: IPv4-mapped IPv6 loopback is blocked', () => {
+  for (const bad of ['http://[::ffff:127.0.0.1]/', 'http://[::1]/']) {
+    const res = urlUtils.validateHttpUrl(bad);
+    assert.strictEqual(res.valid, false, `expected ${bad} to be blocked`);
+  }
+});
+
 test('url-utils: allows public URLs by default', () => {
   const res = urlUtils.validateHttpUrl('https://example.com/path?q=1');
   assert.strictEqual(res.valid, true);

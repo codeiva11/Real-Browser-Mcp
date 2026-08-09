@@ -25,7 +25,7 @@ const TOOLS = [
           type: 'object',
           description: 'Playwright BrowserContext options (viewport, userAgent, geolocation, permissions, httpCredentials, extraHTTPHeaders, etc.)'
         },
-        turnstile: { type: 'boolean', default: false, description: 'Automatically handle embedded JS verification widgets on pages' },
+        widgetAssist: { type: 'boolean', default: false, description: 'Automatically interact with embedded page widgets when present' },
         enableBlocker: { type: 'boolean', default: true, description: 'Block ads and trackers' },
         aiHealing: { type: 'boolean', default: true, description: 'Enable selector fallback when a selector does not match' },
         recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of the session' }
@@ -193,7 +193,7 @@ const TOOLS = [
 
   // 8. Form Handler
   {
-    name: 'solve_captcha',
+    name: 'form_handler',
     emoji: '📋',
     description: 'Automate form filling and embedded widget completion on pages used for testing. Supports JavaScript-based widget interactions, image-based text recognition, and intelligent form field matching for accessibility and QA workflows.',
     descriptionHindi: 'फॉर्म भरना और वेरिफिकेशन widget पूर्ण करना (अपने पेज की टेस्टिंग हेतु)',
@@ -210,13 +210,13 @@ const TOOLS = [
           description: 'Widget type: js_widget (JavaScript-based embedded widget), text (text-based content in an image), image (image-based input), auto (detect automatically).'
         },
         timeout: { type: 'number', default: 30000 },
-        captchaSelector: { type: 'string', description: 'CSS selector targeting the input image or widget element (required for text/image type)' },
+        widgetSelector: { type: 'string', description: 'CSS selector targeting the input image or widget element (required for text/image type)' },
         inputSelector: { type: 'string', description: 'CSS selector for the answer input field' },
         refreshSelector: { type: 'string', description: 'CSS selector for the reload/refresh button' },
         lang: { type: 'string', default: 'eng', description: 'Text recognition language code: eng, hin, or eng+hin' },
         expectedLength: { type: 'number', description: 'Expected character length of the answer' },
         allowedChars: { type: 'string', description: 'Character set allowed in the answer' },
-        maxRetries: { type: 'number', default: 3, description: 'Maximum refresh attempts while solving' },
+        maxRetries: { type: 'number', default: 3, description: 'Maximum refresh attempts before giving up' },
         iframe: { type: 'number', description: 'Target a specific iframe by index' },
         iframeSelector: { type: 'string', description: 'Target a specific iframe by CSS selector' },
         formData: { type: 'object', description: 'Key-value pairs of form fields to fill (field names matched automatically to page inputs)' },
@@ -224,7 +224,8 @@ const TOOLS = [
         submit: { type: 'boolean', default: false, description: 'Submit the form after filling all fields' },
         humanLike: { type: 'boolean', default: true, description: 'Type with variable keystroke delays' },
         aiMatch: { type: 'boolean', default: true, description: 'Match form fields by semantic similarity even if names differ' },
-        analyzeFirst: { type: 'boolean', default: true, description: 'Inspect page structure before filling fields' }
+        analyzeFirst: { type: 'boolean', default: true, description: 'Inspect page structure before filling fields' },
+        preferTextFallback: { type: 'boolean', default: false, description: 'Return text-only guidance instead of an image when the model cannot process images' }
       }
     }
   },
@@ -286,6 +287,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         type: { type: 'string', enum: ['regex', 'json', 'meta', 'structured', 'auto', 'parse', 'apiDiscovery', 'transform', 'links'], default: 'auto' },
+        types: { type: 'array', items: { type: 'string' }, default: ['all'], description: 'For meta mode: which tag groups to include (all, meta, og, twitter)' },
         pattern: { type: 'string', description: 'For regex mode: the regular expression pattern' },
         selector: { type: 'string', description: 'For structured/links mode: CSS selector to scope the extraction' },
         jsonPath: { type: 'string', description: 'For json mode: JSONPath expression' },
@@ -293,7 +295,7 @@ const TOOLS = [
         autoDecode: { type: 'boolean', default: true, description: 'Automatically process Base64 or percent-encoded values in results' },
         flags: { type: 'string', default: 'gi', description: 'Regex flags' },
         inputData: { type: 'string', description: 'For transform mode: the string to convert' },
-        autoResolveKey: { type: 'boolean', default: true, description: 'For transform mode: locate the conversion parameter from page scripts automatically' },
+        autoDetectKey: { type: 'boolean', default: true, description: 'For transform mode: locate the conversion parameter from page scripts automatically' },
         transformKey: { type: 'string', description: 'For transform mode: optional conversion parameter' },
         keyOffset: { type: 'string', description: 'For transform mode: offset value (optional)' },
         includeHidden: { type: 'boolean', default: true, description: 'For links mode: include hidden/non-visible links' },
