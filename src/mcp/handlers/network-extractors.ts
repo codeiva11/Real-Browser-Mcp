@@ -474,7 +474,11 @@ async function discoverAPIs(page: any) {
 }
 
 async function decryptData(page: any, params: any) {
-  const { encryptedData, autoFindKey = true } = params;
+  // Auto key-discovery from page scripts (and the resulting AES attempt) can
+  // be used to strip content protection, which also trips provider safety
+  // classifiers. Gated behind an explicit env opt-in: REAL_BROWSER_ALLOW_DECRYPT=1.
+  const allowDecrypt = ['1', 'true', 'yes'].includes((process.env.REAL_BROWSER_ALLOW_DECRYPT || '').toLowerCase().trim());
+  const { encryptedData, autoFindKey = allowDecrypt } = params;
   const decryptResults: any = { original: null, decoded: [], detectedEncoding: [], extractedKeys: [], aesDecrypted: null };
 
   let dataToDecrypt = encryptedData;

@@ -8,6 +8,7 @@ import { utilityHandlers } from './utility-handlers';
 import { mediaHandlers } from './media-handlers';
 import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser, detachNetworkRecorderListeners } from './state';
 import { validateToolArgs, invalidArgsResult } from '../../shared/validate';
+import { logger } from '../../shared/logger';
 
 // TOOLS uses module.exports (CJS), so it is not an ES export.
 const { TOOLS } = require('../../shared/tools') as { TOOLS: any[] };
@@ -91,14 +92,22 @@ export async function executeTool(name: string, args: any = {}) {
     } catch (e) {
       // Validation itself must never block tool execution.
     }
+    const startedAt = Date.now();
     try {
       // Long-running tools still get a generous hard budget (5 min) so a
       // crashed page can never hang the server forever.
-      const result = await serialize(() => {
+      const result: any = await serialize(() => {
         const handlerCall = handlers[name](args);
         return LONG_RUNNING_TOOLS.has(name)
           ? withWatchdog(name, handlerCall, LONG_TOOL_TIMEOUT_MS)
           : withWatchdog(name, handlerCall);
+      });
+      // Structured per-call log line — the minimal observability signal for
+      // production monitoring (tool, duration, outcome).
+      logger.info('tool_call', {
+        tool: name,
+        durationMs: Date.now() - startedAt,
+        success: result?.success !== false,
       });
       // Guarantee a well-formed response even if a handler returns undefined/non-object
       if (!result || typeof result !== 'object') {
@@ -106,6 +115,12 @@ export async function executeTool(name: string, args: any = {}) {
       }
       return result;
     } catch (error: any) {
+      logger.error('tool_call', {
+        tool: name,
+        durationMs: Date.now() - startedAt,
+        success: false,
+        error: error?.message || String(error),
+      });
       return { success: false, error: error?.message || String(error) };
     }
   }

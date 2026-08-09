@@ -4,7 +4,7 @@ import { state, requireBrowser, notifyProgress } from './state';
 import { domHandlers } from './dom';
 import { browserHandlers } from './browser';
 import { extractHandlers } from './extract';
-import type { SeePageParams } from '../../types';
+import type { SeePageParams, BrowseStep } from '../../types';
 
 /** Resolve a user-supplied save path, preventing path traversal outside cwd. */
 function safeResolve(savePath: string): string | null {
@@ -251,7 +251,7 @@ export async function seePage(params: SeePageParams = {}) {
     if (!resolved) return { success: false, error: 'path is outside the working directory (path traversal blocked).' };
     const dir = path.dirname(resolved);
     if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(resolved, buffer);
+    await fs.promises.writeFile(resolved, buffer);
     savedTo = resolved;
   }
 
@@ -284,6 +284,14 @@ export async function seePage(params: SeePageParams = {}) {
   // re-capturing the page between steps, then append before/after screenshots
   // and a per-step report to the same response.
   if (Array.isArray(steps) && steps.length > 0) {
+    // Cap the step count (each step can retry 3× with up to 10s timeouts).
+    // A 10k-step array from a runaway agent would block the server for hours.
+    let effectiveSteps: BrowseStep[] = steps;
+    if (effectiveSteps.length > 100) {
+      effectiveSteps = effectiveSteps.slice(0, 100);
+      notifyProgress('see_page', 'warn', 'Steps array truncated to 100 entries');
+    }
+
     let beforeImage: string | null = null;
     if (captureBefore) {
       try {
@@ -296,10 +304,10 @@ export async function seePage(params: SeePageParams = {}) {
     let failed = false;
     const maxAttempts = 3;
 
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i] || {};
+    for (let i = 0; i < effectiveSteps.length; i++) {
+      const step = effectiveSteps[i] || {};
       const action = step.action;
-      notifyProgress('see_page', 'progress', `Step ${i + 1}/${steps.length}: ${action}`);
+      notifyProgress('see_page', 'progress', `Step ${i + 1}/${effectiveSteps.length}: ${action}`);
 
       let res: any = null;
       let err: string | null = null;
@@ -402,7 +410,7 @@ export async function seePage(params: SeePageParams = {}) {
       } catch { /* ignore */ }
     }
 
-    notifyProgress('see_page', 'completed', `🧭 Completed ${stepResults.length}/${steps.length} steps`);
+    notifyProgress('see_page', 'completed', `🧭 Completed ${stepResults.length}/${effectiveSteps.length} steps`);
 
     if (beforeImage) {
       mcpContent.push({ type: 'image', data: beforeImage, mimeType: 'image/jpeg' });
@@ -412,7 +420,7 @@ export async function seePage(params: SeePageParams = {}) {
     }
     mcpContent.push({
       type: 'text',
-      text: `Browse task finished. Steps executed: ${stepResults.length}/${steps.length}.\n${JSON.stringify(
+      text: `Browse task finished. Steps executed: ${stepResults.length}/${effectiveSteps.length}.\n${JSON.stringify(
         stepResults.map(r => ({ step: r.step, action: r.action, success: r.success, error: r.error || undefined })),
         null, 2
       )}`,

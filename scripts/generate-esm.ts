@@ -49,6 +49,12 @@ function convertCjsToEsm(content: string, _filename: string): string {
 
 function processDir(cjsSubDir: string, esmSubDir: string): void {
   if (!fs.existsSync(esmSubDir)) fs.mkdirSync(esmSubDir, { recursive: true });
+  // Remove stale declaration artifacts (*.d.mjs) left by earlier build steps.
+  // They are not emitted by this script and nothing references them, so they
+  // would otherwise accumulate in the published package forever.
+  for (const stale of fs.readdirSync(esmSubDir)) {
+    if (stale.endsWith('.d.mjs')) fs.unlinkSync(path.join(esmSubDir, stale));
+  }
   for (const entry of fs.readdirSync(cjsSubDir, { withFileTypes: true })) {
     const cjsPath = path.join(cjsSubDir, entry.name);
     const esmName = entry.name.replace(/\.ts$/, '.mjs');

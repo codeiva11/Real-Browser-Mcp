@@ -9,15 +9,18 @@ import type { ClickParams, TypeParams, ScrollParams, PressKeyParams } from '../.
 export const domHandlers = {
   async click(params: ClickParams) {
     const { page } = requireBrowser();
+
     const {
       selector: providedSelector,
       annotationId,
       humanLike = true,
-      clickCount = 1,
       delay = 0,
       autoAcceptDialogs = true,
       retries = 3,
       timeout = 60000,
+      // Input caps: an agent can send absurd values (clickCount: 100000).
+      // Clamp so a single call can never lock the page for minutes.
+      clickCount: rawClickCount = 1,
       // Hover support for video player dynamic controls
       hoverFirst = false,
       hoverOnly = false,
@@ -35,6 +38,8 @@ export const domHandlers = {
       waitForPlay = false,
       playerTimeout = 15000
     } = params;
+
+    const clickCount = Math.min(Math.max(rawClickCount, 1), 50);
 
     let selector: string | undefined = providedSelector;
     if (annotationId !== undefined) {
@@ -543,7 +548,9 @@ export const domHandlers = {
 
   async press_key(params: PressKeyParams) {
     const { page } = requireBrowser();
-    const { key, modifiers = [], count = 1, humanDelay = true } = params as PressKeyParams & { humanDelay?: boolean };
+    const { key, modifiers = [], humanDelay = true } = params as PressKeyParams & { humanDelay?: boolean };
+    // Cap repeated presses (100k presses with human delay would run for hours)
+    const count = Math.min(Math.max(params.count ?? 1, 1), 100);
 
     notifyProgress('press_key', 'started', `Pressing: ${modifiers.length ? modifiers.join('+') + '+' : ''}${key} x${count}`);
 

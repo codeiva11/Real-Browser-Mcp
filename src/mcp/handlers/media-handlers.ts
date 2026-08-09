@@ -500,7 +500,18 @@ export const mediaHandlers = {
           return { success: false, error: 'urls array is required for batch_extract action' };
         }
 
-        notifyProgress('media_extractor', 'progress', `Batch extracting from ${urls.length} URLs...`);
+        // Cap the batch: each URL costs up to ~30s of goto + settle time. An
+        // unbounded list (agent or prompt injection) could lock the server
+        // for hours even with the 5-minute watchdog.
+        const MAX_BATCH = 50;
+        const receivedCount = urls.length;
+        let batchUrls: string[] = urls;
+        if (receivedCount > MAX_BATCH) {
+          batchUrls = urls.slice(0, MAX_BATCH);
+          notifyProgress('media_extractor', 'warn', `Batch truncated to ${MAX_BATCH} URLs (received ${receivedCount})`);
+        }
+
+        notifyProgress('media_extractor', 'progress', `Batch extracting from ${batchUrls.length} URLs...`);
 
         // Navigate a dedicated scratch page so the user's current page state
         // is never destroyed by the batch loop.
@@ -514,12 +525,12 @@ export const mediaHandlers = {
         const errors = [];
 
         try {
-          for (let i = 0; i < urls.length; i++) {
-            const url = urls[i];
+          for (let i = 0; i < batchUrls.length; i++) {
+            const url = batchUrls[i];
             try {
               // SSRF guard: reject private/loopback targets unless explicitly allowed.
               await assertSafeUrl(url, 'media_extractor');
-              notifyProgress('media_extractor', 'progress', `Processing ${i + 1}/${urls.length}: ${url}`);
+              notifyProgress('media_extractor', 'progress', `Processing ${i + 1}/${batchUrls.length}: ${url}`);
 
               await scratchPage.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
               await new Promise(r => setTimeout(r, 2000));
@@ -551,14 +562,14 @@ export const mediaHandlers = {
         }
 
         const successCount = results.filter(r => r.success).length;
-        notifyProgress('media_extractor', 'completed', `Batch extraction complete: ${successCount}/${urls.length} successful`);
+        notifyProgress('media_extractor', 'completed', `Batch extraction complete: ${successCount}/${batchUrls.length} successful`);
 
         return {
           success: true,
           action: 'batch_extract',
-          totalUrls: urls.length,
+          totalUrls: batchUrls.length,
           successful: successCount,
-          failed: urls.length - successCount,
+          failed: batchUrls.length - successCount,
           results,
           errors
         };

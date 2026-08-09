@@ -72,7 +72,7 @@ export const extractHandlers = {
       if (saveAs) {
         const out = safeResolve(saveAs);
         if (!out) return { success: false, error: 'saveAs path is outside the working directory (path traversal blocked).' };
-        fs.writeFileSync(out, JSON.stringify(elements, null, 2));
+        await fs.promises.writeFile(out, JSON.stringify(elements, null, 2));
         saveAs = out;
       }
       return { success: true, format: 'elements', found: elements.length, elements, savedTo: saveAs ? saveAs : null };
@@ -110,7 +110,7 @@ export const extractHandlers = {
         if (saveAs) {
           const out = safeResolve(saveAs);
           if (!out) return { success: false, error: 'saveAs path is outside the working directory (path traversal blocked).' };
-          fs.writeFileSync(out, outHtml);
+          await fs.promises.writeFile(out, outHtml);
           saveAs = out;
         }
         return {
@@ -215,7 +215,7 @@ export const extractHandlers = {
     if (saveAs) {
       const outputPath = safeResolve(saveAs);
       if (!outputPath) return { success: false, error: 'saveAs path is outside the working directory (path traversal blocked).' };
-      fs.writeFileSync(outputPath, content);
+      await fs.promises.writeFile(outputPath, content);
       notifyProgress('get_content', 'completed', `Saved ${content.length} chars to ${saveAs}`, { format, length: content.length, savedTo: outputPath });
       return { success: true, url: page.url(), format, length: content.length, savedTo: outputPath, truncated };
     }

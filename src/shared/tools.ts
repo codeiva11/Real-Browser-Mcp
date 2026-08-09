@@ -73,7 +73,6 @@ const TOOLS = [
         text: { type: 'string', description: 'Find elements containing this text' },
         waitForJS: { type: 'boolean', default: true, description: 'Wait for JavaScript to finish rendering' },
         timeout: { type: 'number', default: 10000 },
-        aiHeal: { type: 'boolean', default: true, description: 'Try alternative selectors if primary selector fails' },
         extractAttributes: { type: 'boolean', default: false, description: 'Extract all element attributes' },
         multiple: { type: 'boolean', default: false, description: 'Return multiple matching elements (for format=elements)' },
         includeMeta: { type: 'boolean', default: false, description: 'Include page title and URL at the top' },
@@ -97,8 +96,7 @@ const TOOLS = [
       properties: {
         type: { type: 'string', enum: ['selector', 'navigation', 'timeout', 'networkidle'], default: 'timeout' },
         value: { type: 'string', description: 'Selector string or timeout value in ms' },
-        timeout: { type: 'number', default: 30000 },
-        aiOptimize: { type: 'boolean', default: true, description: 'Adjust wait time based on page load patterns' }
+        timeout: { type: 'number', default: 30000 }
       }
     }
   },
@@ -357,7 +355,6 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        types: { type: 'array', items: { type: 'string' }, default: ['all'], description: 'Analysis categories (all, dom, scripts, accessibility, performance, seo, headers, tech). All categories are currently returned; the list is reserved for future filtering.' },
         detailed: { type: 'boolean', default: true },
         aiInsights: { type: 'boolean', default: true, description: 'Include loading strategy recommendations' },
         detectAccessControls: { type: 'boolean', default: true, description: 'Identify embedded widgets and page components' }

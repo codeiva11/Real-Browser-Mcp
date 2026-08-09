@@ -347,5 +347,8 @@ export function getFilteredRecords(filter: any) {
   }
   if (filter.type) records = records.filter((r: any) => r.type === filter.type);
   if (filter.mediaOnly) records = records.filter((r: any) => r.isMedia);
-  return { success: true, recording: state.isRecordingNetwork, count: records.length, records: records.slice(-200) };
+  // Records are already ring-buffered at MAX_NETWORK_RECORDS (5000) in state,
+  // so the full filtered set is returned — no hidden truncation (count always
+  // matches the returned array length).
+  return { success: true, recording: state.isRecordingNetwork, count: records.length, records };
 }

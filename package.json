@@ -38,7 +38,9 @@
     "cjs_test": "node ./test/test.mjs --cjs",
     "esm_test": "node ./test/test.mjs --esm",
     "mcp_test": "node --test ./test/mcp-smoke.mjs",
-    "e2e_test": "npm run build && node --test ./test/e2e-tools.mjs"
+    "e2e_test": "npm run build && node --test ./test/e2e-tools.mjs",
+    "handler_test": "npm run build && node --test ./test/handlers/*.test.mjs",
+    "run_all_tests": "node ./test/run-all-tests.mjs"
   },
   "keywords": [
     "mcp-server",
