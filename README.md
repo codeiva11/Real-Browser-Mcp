@@ -293,7 +293,7 @@ The server exposes **21 tools** categorized into functional units:
 |:---|:---|:---|
 | `click` | Natural click using ghost cursor with iframe, hover, and video player support. | `selector`, `annotationId`, `humanLike`, `hoverFirst`, `iframe`, `autoDetectPlayer` |
 | `type` | Type text with natural speed variation, smart clearing, and iframe support. | `selector`, `annotationId`, `text`, `clear`, `pressEnter`, `iframe` |
-| `form_handler` | Form filling and embedded widget completion for pages you are testing (JS widgets, text/image input recognition). Externally hosted services are not supported. | `type`, `widgetSelector`, `formData`, `submit` |
+| `solve_captcha` | Form filling and embedded widget completion for pages you are testing (JS widgets, text/image input recognition). Externally hosted services are not supported. | `type`, `captchaSelector`, `formData`, `submit` |
 | `random_scroll` | Natural scrolling with lazy-load detection. | `direction`, `amount`, `smooth`, `aiDetectLazyLoad` |
 | `press_key` | Press keyboard keys with modifier key support (Ctrl/Shift/Alt). | `key`, `modifiers`, `count` |
 | `execute_js` | Run custom JavaScript inside a page or iframe. ⚠️ Use with trusted input only. | `code`, `async`, `iframe`, `timeout` |
@@ -329,13 +329,13 @@ The server exposes **21 tools** categorized into functional units:
 > ```
 
 > [!IMPORTANT]
-> **v3.0 breaking change**: the tool formerly named `solve_captcha` is now
-> **`form_handler`**, and its `captchaSelector` parameter is now
-> **`widgetSelector`**. The rename removes content-filter-triggering vocabulary
-> from the tool registry so AI providers don't reject the schema. Update any
-> saved prompts/flows that referenced the old names.
+> [!IMPORTANT]
+> The verification-widget tool is named **`solve_captcha`** and its
+> **`captchaSelector`** parameter targets the input image or widget element.
+> It only assists with widgets on pages you are testing; externally hosted
+> services (reCAPTCHA/hCaptcha) are not supported — descriptions stay neutral.
 
-If the current model cannot consume images, `see_page` still returns a full text + JSON summary, and `form_handler` can return text-only fallback guidance when called with `preferTextFallback: true`.
+If the current model cannot consume images, `see_page` still returns a full text + JSON summary, and `solve_captcha` can return text-only fallback guidance when called with `preferTextFallback: true`.
 
 ---
 
@@ -449,7 +449,7 @@ Run these scripts from the project root directory:
 
 - **Single-session model**: the MCP server manages one browser instance at a time. Concurrent multi-session isolation is not supported.
 - **reCAPTCHA / hCaptcha**: detected honestly but not solved automatically. Use a third-party service for these.
-- **Vision tools require image-capable models**: `see_page` and `form_handler` return images. Non-vision models get a full text + JSON summary fallback.
+- **Vision tools require image-capable models**: `see_page` and `solve_captcha` return images. Non-vision models get a full text + JSON summary fallback.
 - **TypeScript strict mode**: the project compiles with `strict: true` across all source files, and `noEmitOnError: true` makes a type error fail the build outright (`tsc --noEmit` passes cleanly).
 
 ---

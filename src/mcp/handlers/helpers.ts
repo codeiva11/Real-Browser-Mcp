@@ -160,7 +160,7 @@ export const helpersHandlers = {
 
     // First, analyze the full page
     const pageInfo = await helpersHandlers._analyzeFullPage(page);
-    notifyProgress('form_handler', 'progress', `🔍 Page analyzed: ${pageInfo.totalInputs} inputs found`);
+    notifyProgress('solve_captcha', 'progress', `🔍 Page analyzed: ${pageInfo.totalInputs} inputs found`);
 
     for (const [field, value] of Object.entries(formData || {})) {
       // Enhanced AI Field Matching - uses pageInfo for better matching
@@ -247,7 +247,7 @@ export const helpersHandlers = {
 
         filledCount++;
         filledFields.push({ field, selector: bestMatch.selector, matchScore: bestScore });
-        notifyProgress('form_handler', 'progress', `📝 Filled: ${field} (score: ${bestScore})`, { field, filledCount });
+        notifyProgress('solve_captcha', 'progress', `📝 Filled: ${field} (score: ${bestScore})`, { field, filledCount });
 
         // ponytail: skip Tab on last field — avoids accidental form submit
         const isLastField = filledCount >= fields.length;
@@ -335,10 +335,10 @@ export const helpersHandlers = {
       if (validateFirst) {
         const validation = await helpersHandlers._validateBeforeSubmit(page);
         if (!validation.valid) {
-          notifyProgress('form_handler', 'warn', `⚠️ Validation failed: ${validation.errors.length} issue(s)`);
+          notifyProgress('solve_captcha', 'warn', `⚠️ Validation failed: ${validation.errors.length} issue(s)`);
           return { success: false, message: 'Pre-submit validation failed', errors: validation.errors };
         }
-        notifyProgress('form_handler', 'progress', '✅ Pre-submit validation passed');
+        notifyProgress('solve_captcha', 'progress', '✅ Pre-submit validation passed');
       }
 
       const submitSelector = await page.evaluate(() => {
@@ -360,7 +360,7 @@ export const helpersHandlers = {
       });
 
       if (!submitSelector) {
-        notifyProgress('form_handler', 'warn', '⚠️ Could not auto-detect submit button');
+        notifyProgress('solve_captcha', 'warn', '⚠️ Could not auto-detect submit button');
         return { success: false, message: 'Could not auto-detect submit button' };
       }
 
@@ -376,14 +376,14 @@ export const helpersHandlers = {
       // Wait for response
       try {
         await page.waitForNavigation({ timeout: 5000, waitUntil: 'domcontentloaded' });
-        notifyProgress('form_handler', 'completed', '✅ Form submitted and navigation complete');
+        notifyProgress('solve_captcha', 'completed', '✅ Form submitted and navigation complete');
         return { success: true, message: 'Form submitted and navigation complete', navigated: true };
       } catch (e: any) {
         // No navigation - check for errors on same page
         const postErrors = await helpersHandlers._detectPostSubmitErrors(page);
 
         if (postErrors.hasErrors) {
-          notifyProgress('form_handler', 'warn', `⚠️ Submit detected errors: ${postErrors.errors[0]}`);
+          notifyProgress('solve_captcha', 'warn', `⚠️ Submit detected errors: ${postErrors.errors[0]}`);
           return {
             success: false,
             message: 'Form submitted but errors detected',
@@ -392,7 +392,7 @@ export const helpersHandlers = {
           };
         }
 
-        notifyProgress('form_handler', 'completed', '✅ Form submitted (no navigation detected)');
+        notifyProgress('solve_captcha', 'completed', '✅ Form submitted (no navigation detected)');
         return { success: true, message: 'Form submitted (no navigation detected)', navigated: false };
       }
     } catch (error: any) {

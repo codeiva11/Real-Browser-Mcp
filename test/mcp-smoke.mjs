@@ -26,13 +26,14 @@ test('Tool Registry — all tools registered, no duplicates', async () => {
   // Required tools must be present
   const required = ['browser_init', 'navigate', 'click', 'type', 'see_page',
     'get_content', 'extract_data', 'network_recorder', 'media_extractor',
-    'deep_analysis', 'execute_js', 'form_handler', 'redirect_tracer',
+    'deep_analysis', 'execute_js', 'solve_captcha', 'redirect_tracer',
     'replay_request', 'api_analyzer', 'storage_inspector', 'progress_tracker',
     'wait', 'press_key', 'random_scroll', 'browser_close'];
 
-  // A legacy tool name must never silently disappear — assert the old
-  // solve_captcha is gone (renamed to form_handler) so the rename stays honest.
-  assert.ok(!unique.has('solve_captcha'), 'solve_captcha must be renamed to form_handler');
+  // The verification-widget tool is named solve_captcha (reverted from
+  // form_handler). Assert the form_handler name is not registered so the
+  // revert stays honest.
+  assert.ok(!unique.has('form_handler'), 'form_handler must not be registered');
 
   for (const name of required) {
     assert.ok(unique.has(name), `Missing required tool: ${name}`);

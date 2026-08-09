@@ -189,9 +189,9 @@ const TOOLS = [
     }
   },
 
-  // 8. Form Handler
+  // 8. Solve Captcha
   {
-    name: 'form_handler',
+    name: 'solve_captcha',
     emoji: '📋',
     description: 'Automate form filling and embedded widget completion on pages used for testing. Supports JavaScript-based widget interactions, image-based text recognition, and intelligent form field matching for accessibility and QA workflows.',
     descriptionHindi: 'फॉर्म भरना और वेरिफिकेशन widget पूर्ण करना (अपने पेज की टेस्टिंग हेतु)',
@@ -208,7 +208,7 @@ const TOOLS = [
           description: 'Widget type: js_widget (JavaScript-based embedded widget), text (text-based content in an image), image (image-based input), auto (detect automatically).'
         },
         timeout: { type: 'number', default: 30000 },
-        widgetSelector: { type: 'string', description: 'CSS selector targeting the input image or widget element (required for text/image type)' },
+        captchaSelector: { type: 'string', description: 'CSS selector targeting the input image or widget element (required for text/image type)' },
         inputSelector: { type: 'string', description: 'CSS selector for the answer input field' },
         refreshSelector: { type: 'string', description: 'CSS selector for the reload/refresh button' },
         lang: { type: 'string', default: 'eng', description: 'Text recognition language code: eng, hin, or eng+hin' },

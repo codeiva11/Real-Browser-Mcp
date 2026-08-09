@@ -150,8 +150,8 @@ export const utilityHandlers = {
       if (analysis.performance.scripts > 20) insights.push('Many scripts — consider lazy loading');
       if (analysis.accessibility.imagesWithoutAlt > 5) insights.push('Multiple images without alt text — accessibility issue');
       if (!analysis.security.hasCSP) insights.push('No Content-Security-Policy detected');
-      if (analysis.accessControls?.challengeDetected) insights.push('A challenge appears active — use form_handler if the page blocks input');
-      if (analysis.accessControls?.embeddedWidget) insights.push('Embedded verification widget detected — use form_handler if the page blocks input');
+      if (analysis.accessControls?.challengeDetected) insights.push('A challenge appears active — use solve_captcha if the page blocks input');
+      if (analysis.accessControls?.embeddedWidget) insights.push('Embedded verification widget detected — use solve_captcha if the page blocks input');
     }
 
     notifyProgress('deep_analysis', 'completed', `Analysis complete: ${analysis.performance.domElements} DOM elements`, { domElements: analysis.performance.domElements });

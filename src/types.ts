@@ -406,10 +406,10 @@ export interface AESDecryptResult {
 // Vision / Captcha Types
 // ─────────────────────────────────────────────
 
-export interface FormHandlerParams {
+export interface SolveCaptchaParams {
   type?: 'js_widget' | 'text' | 'image' | 'auto';
   timeout?: number;
-  widgetSelector?: string;
+  captchaSelector?: string;
   inputSelector?: string;
   formSelector?: string;
   submit?: boolean;
