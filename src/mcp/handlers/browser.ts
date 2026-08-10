@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, resolveWaitUntil } from './state';
+import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, resolveWaitUntil, detachNetworkRecorderListeners } from './state';
 import { getEnvBool } from '../../shared/env-utils';
 import { assertSafeUrl } from '../../shared/url-utils';
 import type { BrowserInitParams, NavigateParams, WaitParams, WaitUntilState } from '../../types';
@@ -301,8 +301,21 @@ export const browserHandlers = {
 
     notifyProgress('browser_close', 'started', 'Closing browser...');
 
+    // Detach network recorder listeners and stop recording before closing
+    try {
+      detachNetworkRecorderListeners();
+    } catch { /* ignore */ }
+    state.isRecordingNetwork = false;
+
     if (state.browserInstance) {
       try {
+        // Explicitly close all active contexts to prevent orphaned background pages
+        if (typeof (state.browserInstance as any).contexts === 'function') {
+          const contexts = (state.browserInstance as any).contexts();
+          for (const ctx of contexts) {
+            try { await ctx.close(); } catch { /* ignore */ }
+          }
+        }
         await state.browserInstance.close();
         notifyProgress('browser_close', 'progress', 'Browser closed gracefully');
       } catch (e) {
@@ -318,6 +331,13 @@ export const browserHandlers = {
       state.blockerInstance = null;
       state.setupPageFn = null;
     }
+
+    // Reset memory state
+    state.networkRecords = [];
+    state.networkRecorderBoundPage = null;
+    state.networkRecorderListeners = null;
+    state.activeAnnotations = undefined;
+    state.progressTasks = {};
 
     notifyProgress('browser_close', 'completed', 'Browser closed');
 

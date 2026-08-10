@@ -8,6 +8,7 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
     type = 'auto',
     timeout = 30000,
     captchaSelector,
+    widgetSelector,
     inputSelector,
     refreshSelector,
     lang = 'eng',
@@ -58,7 +59,7 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
   }
 
   let pageAnalysis = null;
-  let detectedCaptchaSelector = captchaSelector;
+  let detectedCaptchaSelector = widgetSelector || captchaSelector;
   let detectedAnswerSelector = inputSelector;
 
   if (analyzeFirst) {

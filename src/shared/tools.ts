@@ -3,7 +3,7 @@ const TOOLS = [
   {
     name: 'browser_init',
     emoji: '🚀',
-    description: 'Initialize a browser session with configurable options: headless mode, proxy, viewport, video recording, and ad blocking. Automatically recovers stale sessions.',
+    description: 'Initialize a browser session with configurable options: headless mode, proxy, viewport, video recording, and resource filtering. Automatically recovers stale sessions.',
     descriptionHindi: 'ब्राउज़र सेशन शुरू करना',
     category: 'browser',
     requiresBrowser: false,
@@ -25,8 +25,8 @@ const TOOLS = [
           type: 'object',
           description: 'Playwright BrowserContext options (viewport, userAgent, geolocation, permissions, httpCredentials, extraHTTPHeaders, etc.)'
         },
-        widgetAssist: { type: 'boolean', default: false, description: 'Automatically interact with embedded page widgets when present' },
-        enableBlocker: { type: 'boolean', default: true, description: 'Block ads and trackers' },
+        widgetAssist: { type: 'boolean', default: false, description: 'Automatically interact with embedded page widgets and challenge elements when present' },
+        enableBlocker: { type: 'boolean', default: true, description: 'Filter auxiliary scripts, telemetry, and background tracking requests' },
         aiHealing: { type: 'boolean', default: true, description: 'Enable selector fallback when a selector does not match' },
         recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of the session' }
       }
@@ -193,7 +193,7 @@ const TOOLS = [
   {
     name: 'solve_captcha',
     emoji: '📋',
-    description: 'Automate form filling and embedded widget completion on pages used for testing. Supports JavaScript-based widget interactions, image-based text recognition, and intelligent form field matching for accessibility and QA workflows.',
+    description: 'Automate form completion and interactive widget verification on web pages. Supports JavaScript-based challenge widgets, image text transcription, and intelligent form field mapping for QA and automated browsing workflows.',
     descriptionHindi: 'फॉर्म भरना और वेरिफिकेशन widget पूर्ण करना (अपने पेज की टेस्टिंग हेतु)',
     category: 'interaction',
     requiresBrowser: true,
@@ -205,10 +205,11 @@ const TOOLS = [
           type: 'string',
           enum: ['js_widget', 'text', 'image', 'auto'],
           default: 'auto',
-          description: 'Widget type: js_widget (JavaScript-based embedded widget), text (text-based content in an image), image (image-based input), auto (detect automatically).'
+          description: 'Widget type: js_widget (JavaScript-based embedded challenge widget), text (text transcription verification), image (image-based input), auto (detect automatically).'
         },
         timeout: { type: 'number', default: 30000 },
-        captchaSelector: { type: 'string', description: 'CSS selector targeting the input image or widget element (required for text/image type)' },
+        captchaSelector: { type: 'string', description: 'CSS selector targeting the verification element, canvas, image, or interactive widget container' },
+        widgetSelector: { type: 'string', description: 'Alias for captchaSelector' },
         inputSelector: { type: 'string', description: 'CSS selector for the answer input field' },
         refreshSelector: { type: 'string', description: 'CSS selector for the reload/refresh button' },
         lang: { type: 'string', default: 'eng', description: 'Text recognition language code: eng, hin, or eng+hin' },
@@ -394,7 +395,7 @@ const TOOLS = [
   {
     name: 'media_extractor',
     emoji: '🎬',
-    description: 'Extract and control media from the current page. Supports 6 actions: extract (find video/audio/HLS/DASH/download URLs including nested iframes), list_iframes, switch_iframe, player_control (play/pause/seek/sources via player API), decode_url (inspect converted string formats), batch_extract.',
+    description: 'Extract and control media from the current page. Supports 6 actions: extract (find video/audio/HLS/DASH/download URLs including nested iframes), list_iframes, switch_iframe, player_control (play/pause/seek/sources via player API), decode_url (inspect converted string and token formats), batch_extract.',
     descriptionHindi: 'मीडिया एक्सट्रैक्टर — 6 actions: extract/list_iframes/switch_iframe/player_control/decode_url/batch_extract',
     category: 'extraction',
     requiresBrowser: true,
@@ -414,9 +415,9 @@ const TOOLS = [
         selector: { type: 'string', description: 'iframe CSS selector' },
         index: { type: 'number', description: 'iframe index number' },
         playerAction: { type: 'string', enum: ['info', 'play', 'pause', 'seek', 'sources'], default: 'info' },
-        encodedData: { type: 'string', description: 'String to convert (for decode_url action)' },
+        encodedData: { type: 'string', description: 'String data to convert (for decode_url action)' },
         decoderType: { type: 'string', enum: ['auto', 'url', 'base64', 'custom'], default: 'auto', description: 'Conversion type: auto-detect, url, base64, or custom' },
-        decoderKey: { type: 'string', description: 'Optional conversion parameter (for custom conversion)' },
+        decoderKey: { type: 'string', description: 'Optional transformation parameter (for custom conversion)' },
         decoderIV: { type: 'string', description: 'Optional secondary parameter (for custom conversion)' },
         urls: { type: 'array', items: { type: 'string' }, description: 'List of URLs for batch_extract action' },
         aiOptimize: { type: 'boolean', default: true, description: 'Select extraction strategy automatically' }

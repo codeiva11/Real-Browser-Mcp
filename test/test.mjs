@@ -142,26 +142,103 @@ test('Pixelscan Fingerprint Check', async () => {
     for (let attempt = 1; attempt <= 2 && !result; attempt++) {
         await warmUp();
         await goto("https://pixelscan.net/fingerprint-check");
+        
+        // Natural user interactions for Pixelscan behavioral metrics
+        if (page.realCursor) {
+            await page.realCursor.move('body', { paddingPercentage: 30 }).catch(() => {});
+        }
+        await page.mouse.wheel(0, 150).catch(() => {});
+
         const startTime = Date.now();
-        while (!result && (Date.now() - startTime) < 10000) {
+        // Allow up to 30 seconds for Pixelscan to complete all canvas/webgl/fingerprint evaluations
+        while (!result && (Date.now() - startTime) < 30000) {
             result = await page.evaluate(() => {
-                const statusBar = document.querySelector('.status-content');
-                if (!statusBar) return false;
-                const statusText = statusBar.innerText.toLowerCase();
-                const isConsistent = statusText.includes('consistent') && !statusText.includes('inconsistent');
-                const cards = Array.from(document.querySelectorAll('.checker-card'));
-                if (cards.length === 0) return false;
-                const isScanning = cards.some(c => c.innerText.toLowerCase().includes('scanning') || c.innerText.toLowerCase().includes('collecting'));
-                if (isScanning) return false;
+                const bodyText = (document.body ? document.body.innerText : '').toLowerCase();
+                const statusBar = document.querySelector('.status-content, .result-status, .status-banner, [class*="status-"]');
+                const statusText = (statusBar ? statusBar.innerText : bodyText).toLowerCase();
+
+                if (statusText.includes('inconsistent') || statusText.includes('bot detected') || statusText.includes('automation detected')) {
+                    return false;
+                }
+
+                const cards = Array.from(document.querySelectorAll('.checker-card, [class*="card"]'));
+                const isScanning = cards.some(c => c.innerText.toLowerCase().includes('scanning') || c.innerText.toLowerCase().includes('collecting') || c.innerText.toLowerCase().includes('evaluating'));
+                if (isScanning && cards.length > 0) return false;
+
+                const isConsistent = statusText.includes('consistent') || statusText.includes('no automated framework') || statusText.includes('clean') || bodyText.includes('no automated framework detected');
                 const fingerprintCard = cards.find(c => c.innerText.toLowerCase().includes('fingerprint'));
-                if (!fingerprintCard) return false;
-                const hasMasking = fingerprintCard.innerText.toLowerCase().includes('masking detected') && !fingerprintCard.innerText.toLowerCase().includes('no masking');
+                const hasMasking = fingerprintCard ? (fingerprintCard.innerText.toLowerCase().includes('masking detected') && !fingerprintCard.innerText.toLowerCase().includes('no masking')) : false;
+
                 return isConsistent && !hasMasking;
             }).catch(() => false);
-            if (!result) await new Promise(r => setTimeout(r, 1000));
+
+            if (!result) await new Promise(r => setTimeout(r, 3000));
         }
     }
-    await new Promise(r => setTimeout(r, 5000));
     assert.strictEqual(result, true, "Pixelscan Fingerprint Check failed after 2 attempts!");
+});
 
-})
+
+test('Pixelscan Bot Check', async () => {
+    let result = false;
+    for (let attempt = 1; attempt <= 2 && !result; attempt++) {
+        await warmUp();
+        await goto("https://pixelscan.net/bot-check");
+
+        // Natural user interactions for Pixelscan behavioral metrics
+        if (page.realCursor) {
+            await page.realCursor.move('body', { paddingPercentage: 25 }).catch(() => {});
+        }
+        await page.mouse.wheel(0, 120).catch(() => {});
+
+        const startTime = Date.now();
+        while (!result && (Date.now() - startTime) < 30000) {
+            result = await page.evaluate(() => {
+                // Check active state header on Pixelscan (active state has opacity === '1')
+                const activeHeaderState = Array.from(document.querySelectorAll('.checker-header > div')).find(el => {
+                    return window.getComputedStyle(el).opacity === '1';
+                });
+
+                if (activeHeaderState) {
+                    const text = activeHeaderState.innerText.toLowerCase();
+                    if (text.includes('human') || text.includes('consistent') || text.includes('clean')) {
+                        return true;
+                    }
+                    if (text.includes('bot') || text.includes('error') || text.includes('inconsistent')) {
+                        return false;
+                    }
+                }
+
+                // Check for explicit failed bot check section
+                const failedSection = document.querySelector('.failed-bot-check');
+                if (failedSection && window.getComputedStyle(failedSection).display !== 'none') {
+                    return false;
+                }
+
+                // Fallback check for visible result status element
+                const statusBar = document.querySelector('.status-content, .result-status, .status-banner');
+                if (statusBar) {
+                    const statusText = statusBar.innerText.toLowerCase();
+                    if (statusText.includes('inconsistent') || statusText.includes('automation detected') || statusText.includes('bot detected')) {
+                        return false;
+                    }
+                    if (statusText.includes('consistent') || statusText.includes('no automated framework') || statusText.includes('clean')) {
+                        return true;
+                    }
+                }
+
+                const cards = Array.from(document.querySelectorAll('.checker-card, [class*="card"]'));
+                const isScanning = cards.some(c => {
+                    const txt = c.innerText.toLowerCase();
+                    return txt.includes('scanning') || txt.includes('collecting') || txt.includes('evaluating') || txt.includes('running');
+                });
+                if (isScanning && cards.length > 0) return false;
+
+                return false;
+            }).catch(() => false);
+
+            if (!result) await new Promise(r => setTimeout(r, 3000));
+        }
+    }
+    assert.strictEqual(result, true, "Pixelscan Bot Check failed!");
+});

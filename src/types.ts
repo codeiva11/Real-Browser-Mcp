@@ -410,6 +410,7 @@ export interface SolveCaptchaParams {
   type?: 'js_widget' | 'text' | 'image' | 'auto';
   timeout?: number;
   captchaSelector?: string;
+  widgetSelector?: string;
   inputSelector?: string;
   formSelector?: string;
   submit?: boolean;
