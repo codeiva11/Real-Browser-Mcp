@@ -1,4 +1,4 @@
-declare module "real-browser-mcp-server" {
+declare module "real-browser-mcp" {
 	import type { Browser, Page } from "patchright";
 	import type { GhostCursor } from "ghost-cursor-patchright";
 

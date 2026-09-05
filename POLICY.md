@@ -1,6 +1,6 @@
 # Acceptable Use Policy
 
-Real Browser MCP Server gives AI agents a real, controllable browser. With that
+Real Browser MCP gives AI agents a real, controllable browser. With that
 power comes responsibility.
 
 ## Intended Use

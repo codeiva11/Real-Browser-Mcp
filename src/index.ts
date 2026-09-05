@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Real Browser MCP Server
+ * Real Browser MCP
  * 
  * Usage:
  *   node src/index.js             - Start MCP Server (default)
@@ -17,7 +17,7 @@ const { colors } = require('./shared/colors') as { colors: Record<string, string
  */
 function showHelp() {
   console.log(`
-${colors.bright}${colors.cyan}🦁 Real Browser MCP Server${colors.reset}
+${colors.bright}${colors.cyan}🦁 Real Browser MCP${colors.reset}
 
 ${colors.bright}USAGE:${colors.reset}
   node src/index.js [options]

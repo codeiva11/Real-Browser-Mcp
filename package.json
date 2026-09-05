@@ -1,6 +1,6 @@
 {
-  "name": "real-browser-mcp-server",
-  "version": "3.2.8",
+  "name": "real-browser-mcp",
+  "version": "1.0.0",
   "description": "MCP Server for Real Browser - Patchright Blocker.",
   "main": "dist/lib/cjs/index.js",
   "module": "lib/esm/index.mjs",
@@ -43,7 +43,7 @@
     "patchright",
     "playwright"
   ],
-  "author": "codeiva4u",
+  "author": "codeiva11",
   "license": "ISC",
   "dependencies": {
     "@ghostery/adblocker-playwright": "2.18.1",

@@ -1,8 +1,8 @@
-# 🦁 Real Browser MCP Server
+# 🦁 Real Browser MCP
 
-[![npm version](https://img.shields.io/npm/v/real-browser-mcp-server.svg)](https://www.npmjs.com/package/real-browser-mcp-server)
+[![npm version](https://img.shields.io/npm/v/real-browser-mcp.svg)](https://www.npmjs.com/package/real-browser-mcp)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg)](https://nodejs.org/)
-[![Build & Test](https://github.com/codeiva4u/Real-Browser-Mcp-Server/actions/workflows/publish.yml/badge.svg)](https://github.com/codeiva4u/Real-Browser-Mcp-Server/actions/workflows/publish.yml)
+[![Build & Test](https://github.com/codeiva11/Real-Browser-Mcp/actions/workflows/publish.yml/badge.svg)](https://github.com/codeiva11/Real-Browser-Mcp/actions/workflows/publish.yml)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
 
 A production-ready **Model Context Protocol (MCP)** server that equips AI agents with a reliable, controlled web browser for automation and testing. Built on **Patchright** (a hardened Playwright fork) and integrated with **Ghostery Adblocker**, **Ghost Cursor** (natural mouse dynamics), and an automation assistant for Cloudflare Turnstile challenges.
@@ -25,7 +25,7 @@ Add the following to your MCP Configuration file (e.g. `cline_mcp_settings.json`
   "mcpServers": {
     "real-browser": {
       "command": "npx",
-      "args": ["-y", "real-browser-mcp-server@latest", "mcp"]
+      "args": ["-y", "real-browser-mcp@latest", "mcp"]
     }
   }
 }
@@ -35,10 +35,10 @@ Add the following to your MCP Configuration file (e.g. `cline_mcp_settings.json`
 ```
 {
   "mcpServers": {
-    "real_browser_mcp_server": {
+    "real_browser_mcp": {
       "command": "node",
       "args": [
-        "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp-Server/dist/src/index.js"
+        "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp/dist/src/index.js"
       ],
       "env": {
         "AI_HEALING": "true",
@@ -54,7 +54,7 @@ Install it globally on your system. The hardened browser (Patchright Chromium) i
 
 ```bash
 # One command: installs the server AND auto-downloads Patchright Chromium
-npm install -g real-browser-mcp-server
+npm install -g real-browser-mcp
 
 # Run the MCP server
 real-browser-mcp mcp
@@ -74,10 +74,10 @@ If you want to clone the repository and run it locally, follow these exact steps
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/codeiva4u/Real-Browser-Mcp-Server.git
+git clone https://github.com/codeiva11/Real-Browser-Mcp.git
 
 # 2. Navigate to the project directory
-cd Real-Browser-Mcp-Server
+cd Real-Browser-Mcp
 
 # 3. Install dependencies (Patchright Chromium is auto-downloaded via postinstall)
 npm install
@@ -99,10 +99,10 @@ We automatically build and publish a production-ready Docker image to GitHub Con
 
 ```bash
 # Pull the latest image
-docker pull ghcr.io/codeiva4u/real-browser-mcp-server:latest
+docker pull ghcr.io/codeiva11/real-browser-mcp:latest
 
 # Run the MCP Server (Interactive stdio mode for AI IDEs)
-docker run -i --rm ghcr.io/codeiva4u/real-browser-mcp-server:latest
+docker run -i --rm ghcr.io/codeiva11/real-browser-mcp:latest
 ```
 
 *(Note: When running via Docker, it automatically runs in headless mode.)*
@@ -132,9 +132,9 @@ Add the following to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "real-browser-mcp-server": {
+    "real-browser-mcp": {
       "command": "npx",
-      "args": ["-y", "real-browser-mcp-server@latest", "mcp"],
+      "args": ["-y", "real-browser-mcp@latest", "mcp"],
       "env": {
         "HEADLESS": "false",
         "AI_HEALING": "true"
@@ -148,9 +148,9 @@ Add the following to your `claude_desktop_config.json`:
 1. Open Cursor Settings ➔ **Features** ➔ **MCP**.
 2. Click **+ Add New MCP Server**.
 3. Configure as follows:
-   * **Name**: `real-browser-mcp-server`
+   * **Name**: `real-browser-mcp`
    * **Type**: `command`
-   * **Command**: `npx -y real-browser-mcp-server@latest mcp`
+   * **Command**: `npx -y real-browser-mcp@latest mcp`
 4. Click **Save**.
 
 ### 3. Cline / Roo Code (VS Code)
@@ -159,10 +159,10 @@ Add the server entry to your global MCP settings file (typically found at `%APPD
 ```json
 {
   "mcpServers": {
-    "real-browser-mcp-server": {
+    "real-browser-mcp": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "real-browser-mcp-server@latest", "mcp"],
+      "args": ["-y", "real-browser-mcp@latest", "mcp"],
       "env": {
         "HEADLESS": "false",
         "AI_HEALING": "true"
@@ -180,9 +180,9 @@ Add the server entry to your `kilo.jsonc`:
 ```json
 {
   "mcp": {
-    "real_browser_mcp_server": {
+    "real_browser_mcp": {
       "type": "local",
-      "command": ["npx", "-y", "real-browser-mcp-server@latest", "mcp"],
+      "command": ["npx", "-y", "real-browser-mcp@latest", "mcp"],
       "environment": {
         "HEADLESS": "false",
         "AI_HEALING": "true"
@@ -199,9 +199,9 @@ Configure the server in your `~/.codeium/windsurf/mcp_config.json`:
 ```json
 {
   "mcpServers": {
-    "real-browser-mcp-server": {
+    "real-browser-mcp": {
       "command": "npx",
-      "args": ["-y", "real-browser-mcp-server@latest", "mcp"],
+      "args": ["-y", "real-browser-mcp@latest", "mcp"],
       "env": {
         "HEADLESS": "false",
         "AI_HEALING": "true"
@@ -217,9 +217,9 @@ Add the configuration via **PearAI Settings** ➔ **MCP Servers** using the stan
 ```json
 {
   "mcpServers": {
-    "real-browser-mcp-server": {
+    "real-browser-mcp": {
       "command": "npx",
-      "args": ["-y", "real-browser-mcp-server@latest", "mcp"],
+      "args": ["-y", "real-browser-mcp@latest", "mcp"],
       "env": { "HEADLESS": "false" }
     }
   }
@@ -232,9 +232,9 @@ Configure the server in your `opencode.jsonc` or standard MCP settings configura
 ```jsonc
 {
   "mcpServers": {
-    "real-browser-mcp-server": {
+    "real-browser-mcp": {
       "command": "npx",
-      "args": ["-y", "real-browser-mcp-server@latest", "mcp"],
+      "args": ["-y", "real-browser-mcp@latest", "mcp"],
       "env": {
         "HEADLESS": "false",
         "AI_HEALING": "true"
@@ -372,7 +372,7 @@ You can also use the core browser connector directly in your custom Node.js scri
 
 ### CommonJS
 ```javascript
-const { connect } = require('real-browser-mcp-server');
+const { connect } = require('real-browser-mcp');
 
 (async () => {
   const { browser, page } = await connect({
@@ -394,7 +394,7 @@ const { connect } = require('real-browser-mcp-server');
 
 ### ESM (ECMAScript Modules)
 ```javascript
-import { connect } from 'real-browser-mcp-server';
+import { connect } from 'real-browser-mcp';
 
 const { browser, page } = await connect({
   headless: false,
@@ -454,4 +454,4 @@ Run these scripts from the project root directory:
 
 ## 🛡️ License
 
-This project is licensed under the **ISC License**. Created and maintained by [codeiva4u](https://github.com/codeiva4u).
+This project is licensed under the **ISC License**. Created and maintained by [codeiva11](https://github.com/codeiva11).

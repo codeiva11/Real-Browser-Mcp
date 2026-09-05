@@ -1,5 +1,5 @@
 /**
- * Real Browser MCP Server — Master Type Definitions
+ * Real Browser MCP — Master Type Definitions
  *
  * All shared TypeScript types and interfaces used across the project.
  * Import from here instead of defining ad-hoc `any` types.
