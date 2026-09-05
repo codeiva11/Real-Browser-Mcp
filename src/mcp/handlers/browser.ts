@@ -95,6 +95,23 @@ export const browserHandlers = {
     state.setupPageFn = result.setupPage;
     state.aiHealingEnabled = aiHealing; // stored for click/type handlers
 
+    const { spoofFingerprint = true, blockWebRTCLeaks = true } = params;
+
+    // Hook auto-switch for popup / target="_blank" new tabs
+    try {
+      const context = state.pageInstance?.context();
+      if (context && !(context as any)._multiTabManaged) {
+        (context as any)._multiTabManaged = true;
+        context.on('page', async (newPage: any) => {
+          notifyProgress('navigate', 'progress', `New tab opened: ${newPage.url() || 'about:blank'}`);
+          state.pageInstance = newPage;
+          try {
+            if (state.setupPageFn) await state.setupPageFn(newPage);
+          } catch { /* ignore */ }
+        });
+      }
+    } catch { /* ignore */ }
+
     if (state.pageInstance) {
       if (!(state.pageInstance as any)._realBrowserDialogBound) {
         (state.pageInstance as any)._realBrowserDialogBound = true;
@@ -149,6 +166,69 @@ export const browserHandlers = {
           return null;
         };
       });
+
+      // Anti-detection: Hardware & WebGL Spoofing, AudioContext Jitter, WebRTC Protection
+      if (spoofFingerprint || blockWebRTCLeaks) {
+        await state.pageInstance.addInitScript(({ doSpoof, doWebRTC }: { doSpoof: boolean; doWebRTC: boolean }) => {
+          if (doSpoof) {
+            try {
+              // WebGL Vendor / Renderer Spoofing
+              const spoofVendor = (ctx: any) => {
+                if (!ctx) return;
+                const origGetParameter = ctx.prototype.getParameter;
+                ctx.prototype.getParameter = function (param: number) {
+                  // UNMASKED_VENDOR_WEBGL
+                  if (param === 37445) return 'Google Inc. (NVIDIA)';
+                  // UNMASKED_RENDERER_WEBGL
+                  if (param === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0, D3D11)';
+                  return origGetParameter.apply(this, [param]);
+                };
+              };
+              if (window.WebGLRenderingContext) spoofVendor(window.WebGLRenderingContext);
+              if (window.WebGL2RenderingContext) spoofVendor(window.WebGL2RenderingContext);
+
+              // AudioContext micro-jitter to prevent static audio hash tracking
+              if (window.AudioBuffer) {
+                const origGetChannelData = AudioBuffer.prototype.getChannelData;
+                AudioBuffer.prototype.getChannelData = function (channel: number) {
+                  const data = origGetChannelData.apply(this, [channel]);
+                  for (let i = 0; i < data.length; i += 100) {
+                    data[i] += (Math.random() - 0.5) * 0.0000001;
+                  }
+                  return data;
+                };
+              }
+
+              // Hardware Concurrency & Memory Consistency
+              Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+              Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+            } catch { /* ignore */ }
+          }
+
+          if (doWebRTC) {
+            try {
+              // WebRTC leak protection: sanitize local IP address leak in ICE candidates
+              if (window.RTCPeerConnection) {
+                const origCreateOffer = RTCPeerConnection.prototype.createOffer;
+                RTCPeerConnection.prototype.createOffer = function (...args: any[]) {
+                  return origCreateOffer.apply(this, args as any).then((offer: any) => {
+                    if (offer && offer.sdp) {
+                      // Strip private IPv4 patterns from SDP
+                      offer.sdp = offer.sdp.replace(/(\d{1,3}\.){3}\d{1,3}/g, (ip: string) => {
+                        if (ip.startsWith('10.') || ip.startsWith('192.168.') || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)) {
+                          return '0.0.0.0';
+                        }
+                        return ip;
+                      });
+                    }
+                    return offer;
+                  });
+                };
+              }
+            } catch { /* ignore */ }
+          }
+        }, { doSpoof: spoofFingerprint, doWebRTC: blockWebRTCLeaks });
+      }
       }
     }
 
@@ -173,7 +253,81 @@ export const browserHandlers = {
 
   async navigate(params: NavigateParams) {
     const { page } = requireBrowser();
-    let { url, waitUntil = 'networkidle' as WaitUntilState, timeout = 30000, retries = 3, smartWait = true } = params;
+    const { tabAction = 'navigate', tabIndex } = params;
+
+    // Multi-Tab & Window Management
+    if (tabAction && tabAction !== 'navigate') {
+      const contexts = state.browserInstance?.contexts() || [];
+      const allPages = contexts.flatMap(c => c.pages());
+
+      if (tabAction === 'list') {
+        const tabs = await Promise.all(allPages.map(async (p, idx) => {
+          let tabTitle = 'Unknown';
+          try { tabTitle = await p.title(); } catch { /* ignore */ }
+          return {
+            index: idx,
+            url: p.url(),
+            title: tabTitle,
+            active: p === state.pageInstance,
+            isClosed: p.isClosed()
+          };
+        }));
+        notifyProgress('navigate', 'completed', `Listed ${tabs.length} tabs`);
+        return { success: true, count: tabs.length, tabs };
+      }
+
+      if (tabAction === 'switch') {
+        if (tabIndex === undefined || tabIndex < 0 || tabIndex >= allPages.length) {
+          throw new Error(`Invalid tabIndex: ${tabIndex}. Available tabs: 0 to ${allPages.length - 1}`);
+        }
+        const targetTab = allPages[tabIndex];
+        await targetTab.bringToFront();
+        state.pageInstance = targetTab;
+        const title = await targetTab.title().catch(() => 'Unknown');
+        notifyProgress('navigate', 'completed', `Switched to tab [${tabIndex}]: ${title}`);
+        return { success: true, activeTabIndex: tabIndex, url: targetTab.url(), title };
+      }
+
+      if (tabAction === 'new') {
+        const targetContext = contexts[0] || await (state.browserInstance as any).newContext();
+        const newTab = await targetContext.newPage();
+        state.pageInstance = newTab;
+        if (state.setupPageFn) {
+          try { await state.setupPageFn(newTab); } catch { /* ignore */ }
+        }
+        notifyProgress('navigate', 'progress', 'Created new tab');
+        if (params.url) {
+          // If url provided, navigate to it
+          await newTab.goto(params.url, { waitUntil: 'domcontentloaded' }).catch(() => {});
+        }
+        const title = await newTab.title().catch(() => 'New Tab');
+        notifyProgress('navigate', 'completed', `New tab opened: ${title}`);
+        return { success: true, url: newTab.url(), title, totalTabs: allPages.length + 1 };
+      }
+
+      if (tabAction === 'close') {
+        const targetTab = (tabIndex !== undefined && tabIndex >= 0 && tabIndex < allPages.length)
+          ? allPages[tabIndex]
+          : state.pageInstance;
+        if (targetTab) {
+          await targetTab.close();
+          const remainingPages = contexts.flatMap(c => c.pages()).filter(p => !p.isClosed());
+          if (remainingPages.length > 0) {
+            state.pageInstance = remainingPages[0];
+            await state.pageInstance.bringToFront().catch(() => {});
+          } else {
+            state.pageInstance = null;
+          }
+          notifyProgress('navigate', 'completed', 'Closed tab');
+          return { success: true, closed: true, remainingTabs: remainingPages.length };
+        }
+      }
+    }
+
+    let { url = '', waitUntil = 'networkidle' as WaitUntilState, timeout = 30000, retries = 3, smartWait = true } = params;
+    if (!url) {
+      throw new Error('url parameter is required for navigation');
+    }
     waitUntil = resolveWaitUntil(waitUntil) as WaitUntilState;
 
     const checkedUrl = await assertSafeUrl(url, 'navigate');

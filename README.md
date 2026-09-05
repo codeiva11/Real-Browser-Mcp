@@ -280,18 +280,18 @@ The server exposes **21 tools** categorized into functional units:
 ### 🌐 Browser & Session
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `browser_init` | Initialize Patchright browser with ad blocker, AI healing, and embedded-widget assist. | `headless`, `proxy`, `widgetAssist`, `enableBlocker`, `aiHealing`, `recordVideo` |
+| `browser_init` | Initialize Patchright browser with ad blocker, AI healing, embedded-widget assist, WebGL/hardware spoofing, and WebRTC leak protection. | `headless`, `proxy`, `widgetAssist`, `enableBlocker`, `aiHealing`, `spoofFingerprint`, `blockWebRTCLeaks` |
 | `browser_close` | Close browser with cleanup. | `force` |
 
-### 🧭 Navigation
+### 🧭 Navigation & Tab Management
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `navigate` | Navigate to URL with smart retry and configurable wait strategy. | `url`, `waitUntil`, `timeout`, `retries`, `smartWait` |
+| `navigate` | Navigate to URL or manage browser tabs (`list`, `switch`, `new`, `close`) with auto-switch for popups and smart retry. | `url`, `tabAction`, `tabIndex`, `autoSwitchNewTab`, `waitUntil`, `timeout` |
 
 ### 👆 Natural Interaction
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `click` | Natural click using ghost cursor with iframe, hover, and video player support. | `selector`, `annotationId`, `humanLike`, `hoverFirst`, `iframe`, `autoDetectPlayer` |
+| `click` | Natural click or drag-and-drop (`dragTo`) using ghost cursor with slider friction, iframe, hover, and video player support. | `selector`, `annotationId`, `dragTo`, `humanLike`, `hoverFirst`, `iframe`, `autoDetectPlayer` |
 | `type` | Type text with natural speed variation, smart clearing, and iframe support. | `selector`, `annotationId`, `text`, `clear`, `pressEnter`, `iframe` |
 | `solve_captcha` | Form filling and embedded widget completion for pages you are testing (JS widgets, text/image input recognition). Externally hosted services are not supported. | `type`, `captchaSelector`, `formData`, `submit` |
 | `random_scroll` | Natural scrolling with lazy-load detection. | `direction`, `amount`, `smooth`, `aiDetectLazyLoad` |
@@ -309,18 +309,18 @@ The server exposes **21 tools** categorized into functional units:
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
 | `redirect_tracer` | Trace full redirect chains (HTTP 301/302, JS, meta refresh). | `url`, `maxRedirects`, `decodeURLs` |
-| `network_recorder` | Capture requests, responses, intercepted APIs, GraphQL, WebSockets, media URLs. Export HAR. | `action`, `captureXhrBody` |
+| `network_recorder` | Capture requests, responses, intercepted APIs, GraphQL, WebSockets, media URLs, block unwanted resource URLs (3x faster loads), and mock API routes. Export HAR. | `action`, `patterns`, `mock`, `captureXhrBody` |
 | `deep_analysis` | DOM structure, scripts, page components, tech stack, SEO, and recommendations. | `types`, `detailed`, `detectAccessControls` |
 | `wait` | Smart delay for selectors, navigation events, or fixed timeout. | `type`, `value`, `timeout` |
 | `progress_tracker` | Track automation progress with AI-estimated remaining time. | `action`, `taskName`, `progress` |
-| `storage_inspector` | Inspect IndexedDB databases and Service Workers. | `action` |
+| `storage_inspector` | Inspect & manage client-side storage, cookies, and session state persistence (`cookies`, `save_session`, `load_session`, `clear_cookies`, `indexeddb`, `service_workers`). | `action`, `sessionPath` |
 | `replay_request` | Replay a captured API request in browser context. | `url`, `method`, `headers`, `body` |
 | `api_analyzer` | Generate JSON schemas, diff two JSONs, or create SDK boilerplates (Python/TypeScript). | `action`, `data`, `lang` |
 
 ### 👁️ AI Vision & Human-like Workflow
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `see_page` | **Unified vision + human-like task runner**: screenshot + page text + all interactive elements + iframe inventory in ONE call. Optionally pass a `steps[]` array (click/type/scroll/press_key/wait/extract/see) to execute the whole multi-step task back-to-back in a single continuous flow — no screenshot pause between steps, with automatic before + after screenshots and a per-step report. The AI agent plans the whole task from this one view. | `fullPage`, `annotate`, `includePageText`, `scanIframes`, `maxElements`, `format`, `quality`, `steps[]`, `captureBefore`, `captureAfter`, `stopOnError` |
+| `see_page` | **Unified vision + human-like task runner**: screenshot + page text + all interactive elements + iframe inventory in ONE call. Optionally pass a `steps[]` array (`click`, `type`, `drag`, `hover`, `double_click`, `triple_click`, `idle`, `scroll`, `wait`, `extract`, `see`) to execute the whole multi-step task back-to-back in a single continuous flow — no screenshot pause between steps, with automatic before + after screenshots and a per-step report. | `fullPage`, `annotate`, `includePageText`, `scanIframes`, `maxElements`, `format`, `quality`, `steps[]`, `captureBefore`, `captureAfter`, `stopOnError` |
 
 > **Human-like Workflow Pattern:**
 > ```

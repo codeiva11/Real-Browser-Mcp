@@ -1,6 +1,7 @@
 // Utility handlers — General-purpose tools
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { state, requireBrowser, notifyProgress } from './state';
 import { helpersHandlers } from './helpers';
 import { resolveIframe } from './handler-utils';
@@ -253,10 +254,46 @@ export const utilityHandlers = {
 
   async storage_inspector(params: StorageInspectorParams = {}) {
     const { page } = requireBrowser();
-    const { action = 'indexeddb' } = params;
-    notifyProgress('storage_inspector', 'started', `Inspecting ${action}`);
+    const { action = 'indexeddb', sessionPath } = params;
+    notifyProgress('storage_inspector', 'started', `Storage action: ${action}`);
 
     try {
+      const context = page.context();
+
+      if (action === 'cookies') {
+        const cookies = await context.cookies();
+        notifyProgress('storage_inspector', 'completed', `Found ${cookies.length} cookies`);
+        return { success: true, count: cookies.length, cookies };
+      }
+
+      if (action === 'clear_cookies') {
+        await context.clearCookies();
+        notifyProgress('storage_inspector', 'completed', 'Cookies cleared successfully');
+        return { success: true, message: 'All browser cookies cleared' };
+      }
+
+      if (action === 'save_session') {
+        const targetPath = sessionPath || path.join(os.tmpdir(), 'real-browser-mcp', 'session-state.json');
+        const dir = path.dirname(targetPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const storageState = await context.storageState({ path: targetPath });
+        notifyProgress('storage_inspector', 'completed', `Session saved to: ${targetPath}`);
+        return { success: true, path: targetPath, cookiesCount: storageState.cookies.length, originsCount: storageState.origins.length };
+      }
+
+      if (action === 'load_session') {
+        const targetPath = sessionPath || path.join(os.tmpdir(), 'real-browser-mcp', 'session-state.json');
+        if (!fs.existsSync(targetPath)) {
+          throw new Error(`Session file not found at: ${targetPath}`);
+        }
+        const stateContent = JSON.parse(fs.readFileSync(targetPath, 'utf8'));
+        if (Array.isArray(stateContent.cookies)) {
+          await context.addCookies(stateContent.cookies);
+        }
+        notifyProgress('storage_inspector', 'completed', `Session loaded from: ${targetPath}`);
+        return { success: true, path: targetPath, restoredCookies: stateContent.cookies?.length || 0 };
+      }
+
       if (action === 'service_workers') {
         const sw = await page.evaluate(async () => {
           const regs = await navigator.serviceWorker.getRegistrations();
@@ -274,7 +311,7 @@ export const utilityHandlers = {
         return { success: true, count: idbs.length, databases: idbs };
       }
 
-      return { success: false, error: `Unknown action: ${action}. Supported: indexeddb, service_workers` };
+      return { success: false, error: `Unknown action: ${action}. Supported: cookies, save_session, load_session, clear_cookies, indexeddb, service_workers` };
     } catch (e: any) {
       return { success: false, error: e.message };
     }

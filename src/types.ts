@@ -159,6 +159,8 @@ export interface BrowserInitParams {
   enableBlocker?: boolean;
   aiHealing?: boolean;
   recordVideo?: boolean;
+  spoofFingerprint?: boolean;
+  blockWebRTCLeaks?: boolean;
 }
 
 export interface ProxyConfig {
@@ -169,7 +171,10 @@ export interface ProxyConfig {
 }
 
 export interface NavigateParams {
-  url: string;
+  url?: string;
+  tabAction?: 'navigate' | 'list' | 'switch' | 'new' | 'close';
+  tabIndex?: number;
+  autoSwitchNewTab?: boolean;
   waitUntil?: WaitUntilState;
   timeout?: number;
   retries?: number;
@@ -187,6 +192,13 @@ export interface WaitParams {
 export interface ClickParams {
   selector?: string;
   annotationId?: number;
+  dragTo?: {
+    selector?: string;
+    x?: number;
+    y?: number;
+    dropDelay?: number;
+    hesitateMidway?: boolean;
+  };
   humanLike?: boolean;
   clickCount?: number;
   delay?: number;
@@ -265,7 +277,22 @@ export interface ApiAnalyzerParams {
 }
 
 export interface StorageInspectorParams {
-  action?: 'indexeddb' | 'service_workers';
+  action?: 'cookies' | 'save_session' | 'load_session' | 'clear_cookies' | 'indexeddb' | 'service_workers';
+  sessionPath?: string;
+}
+
+export interface NetworkRecorderParams {
+  action?: 'start' | 'stop' | 'get' | 'clear' | 'get_media' | 'get_navigations' | 'get_api_calls' | 'get_intercepted_apis' | 'get_websockets' | 'get_graphql' | 'export_har' | 'block_urls' | 'mock_route' | 'clear_routes';
+  filter?: Record<string, unknown>;
+  patterns?: string[];
+  mock?: {
+    urlPattern?: string;
+    status?: number;
+    contentType?: string;
+    body?: string;
+  };
+  aiDetectStreams?: boolean;
+  captureXhrBody?: boolean;
 }
 
 export interface ExecuteJsParams {

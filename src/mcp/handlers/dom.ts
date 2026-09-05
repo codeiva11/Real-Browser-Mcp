@@ -319,6 +319,41 @@ export const domHandlers = {
             }
           }
 
+          // DRAG AND DROP / SLIDER functionality
+          if (params.dragTo) {
+            notifyProgress('click', 'progress', `Dragging ${selector} to target...`);
+            const { createCursor } = require('ghost-cursor-patchright');
+            const cursor = await createCursor(page);
+
+            const dragTarget = (params.dragTo.selector)
+              ? params.dragTo.selector
+              : (params.dragTo.x !== undefined && params.dragTo.y !== undefined)
+                ? { x: params.dragTo.x, y: params.dragTo.y }
+                : null;
+
+            if (dragTarget && typeof cursor.dragAndDrop === 'function') {
+              await cursor.dragAndDrop(selector!, dragTarget, {
+                dropDelay: params.dragTo.dropDelay ?? 120,
+                hesitateMidway: params.dragTo.hesitateMidway ?? true
+              });
+              notifyProgress('click', 'completed', `Dragged ${selector} to target`, { selector, dragTo: params.dragTo });
+              return { success: true, selector, dragged: true, dragTo: params.dragTo };
+            } else if (dragTarget) {
+              // Fallback drag via native mouse API
+              const srcElem = await context.$(selector!);
+              const srcBox = await srcElem?.boundingBox();
+              if (srcBox) {
+                await page.mouse.move(srcBox.x + srcBox.width / 2, srcBox.y + srcBox.height / 2);
+                await page.mouse.down();
+                const targetX = typeof dragTarget === 'object' ? dragTarget.x : 0;
+                const targetY = typeof dragTarget === 'object' ? dragTarget.y : 0;
+                await page.mouse.move(targetX, targetY, { steps: 20 });
+                await page.mouse.up();
+              }
+              return { success: true, selector, dragged: true };
+            }
+          }
+
           // CLICK functionality
           if (forceClick) {
             await context.evaluate((sel) => {
@@ -329,7 +364,7 @@ export const domHandlers = {
           } else if (humanLike) {
             try {
               const { createCursor } = require('ghost-cursor-patchright');
-              const cursor = createCursor(page);
+              const cursor = await createCursor(page);
 
               if (context !== page) {
                 // cursor operates on page-level coordinates; for iframes rely on

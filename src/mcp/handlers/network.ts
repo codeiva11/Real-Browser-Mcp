@@ -106,7 +106,7 @@ export const networkHandlers = {
 
   async network_recorder(params: NetworkRecorderParams = {}) {
     const { page } = requireBrowser();
-    const { action = 'get', filter = {}, captureXhrBody = false } = params;
+    const { action = 'get', filter = {}, captureXhrBody = false, patterns, mock } = params;
 
     switch (action) {
       case 'start': return startRecording(page, captureXhrBody).then(() => ({ success: true, message: 'Recording started', captureXhrBody }));
@@ -119,6 +119,51 @@ export const networkHandlers = {
       case 'get_websockets': return await getWebSocketRecords(page);
       case 'get_graphql': return getGraphQLRecords();
       case 'export_har': return exportHAR();
+
+      case 'block_urls': {
+        const targetPatterns = (Array.isArray(patterns) && patterns.length > 0)
+          ? patterns
+          : ['**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.gif', '**/*.webp', '**/*.svg', '**/*.woff*', '*google-analytics*', '*doubleclick*', '*facebook.net*'];
+
+        for (const pat of targetPatterns) {
+          try {
+            await page.route(pat, (route: any) => route.abort());
+          } catch { /* ignore route errors */ }
+        }
+        notifyProgress('network_recorder', 'completed', `Blocked ${targetPatterns.length} URL patterns`);
+        return { success: true, action: 'block_urls', blockedPatterns: targetPatterns };
+      }
+
+      case 'mock_route': {
+        if (!mock?.urlPattern) {
+          throw new Error('mock.urlPattern is required for mock_route');
+        }
+        const status = mock.status ?? 200;
+        const contentType = mock.contentType ?? 'application/json';
+        const body = mock.body ?? '{}';
+
+        await page.route(mock.urlPattern, (route: any) => {
+          route.fulfill({
+            status,
+            contentType,
+            body
+          });
+        });
+        notifyProgress('network_recorder', 'completed', `Mock route set for: ${mock.urlPattern}`);
+        return { success: true, action: 'mock_route', urlPattern: mock.urlPattern, status, contentType };
+      }
+
+      case 'clear_routes': {
+        try {
+          if (typeof (page as any).unrouteAll === 'function') {
+            await (page as any).unrouteAll({ behavior: 'ignoreErrors' });
+          } else {
+            await page.unroute('**/*');
+          }
+        } catch { /* ignore */ }
+        notifyProgress('network_recorder', 'completed', 'Cleared all network route intercepts');
+        return { success: true, action: 'clear_routes' };
+      }
     }
 
     return getFilteredRecords(filter);

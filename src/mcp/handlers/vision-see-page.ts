@@ -371,6 +371,53 @@ export async function seePage(params: SeePageParams = {}) {
                 scanIframes: step.scanIframes !== false,
               });
               break;
+            case 'drag':
+              res = await domHandlers.click({
+                selector: step.selector,
+                annotationId: step.annotationId,
+                dragTo: {
+                  selector: (step as any).targetSelector,
+                  x: (step as any).targetX,
+                  y: (step as any).targetY
+                }
+              });
+              break;
+            case 'hover':
+              res = await domHandlers.click({
+                selector: step.selector,
+                annotationId: step.annotationId,
+                hoverOnly: true,
+                hoverDuration: (step as any).duration ?? 500
+              });
+              break;
+            case 'double_click':
+              res = await domHandlers.click({
+                selector: step.selector,
+                annotationId: step.annotationId,
+                clickCount: 2
+              });
+              break;
+            case 'triple_click':
+              res = await domHandlers.click({
+                selector: step.selector,
+                annotationId: step.annotationId,
+                clickCount: 3
+              });
+              break;
+            case 'idle':
+              try {
+                const { createCursor } = require('ghost-cursor-patchright');
+                const cursor = await createCursor(page);
+                if (typeof cursor.idle === 'function') {
+                  await cursor.idle({ duration: (step as any).duration ?? 2000 });
+                } else {
+                  await new Promise(r => setTimeout(r, (step as any).duration ?? 2000));
+                }
+              } catch {
+                await new Promise(r => setTimeout(r, (step as any).duration ?? 2000));
+              }
+              res = { success: true, idle: true, duration: (step as any).duration ?? 2000 };
+              break;
             default:
               res = { success: false, error: `Unknown step action: ${action}` };
           }

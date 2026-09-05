@@ -3,8 +3,8 @@ const TOOLS = [
   {
     name: 'browser_init',
     emoji: '🚀',
-    description: 'Initialize a browser session with configurable options: headless mode, proxy, viewport, video recording, and resource filtering. Automatically recovers stale sessions.',
-    descriptionHindi: 'ब्राउज़र सेशन शुरू करना',
+    description: 'Initialize a browser session with configurable options: headless mode, proxy, viewport, video recording, resource filtering, biometric anti-detection hardware spoofing (WebGL, Canvas, AudioContext), and WebRTC leak protection. Automatically recovers stale sessions.',
+    descriptionHindi: 'ब्राउज़र सेशन शुरू करना (एंटी-डिटेक्शन + हार्डवेयर स्पूफिंग + WebRTC सुरक्षा)',
     category: 'browser',
     requiresBrowser: false,
     requiresPage: false,
@@ -28,7 +28,9 @@ const TOOLS = [
         widgetAssist: { type: 'boolean', default: false, description: 'Automatically interact with embedded page widgets and challenge elements when present' },
         enableBlocker: { type: 'boolean', default: true, description: 'Filter auxiliary scripts, telemetry, and background tracking requests' },
         aiHealing: { type: 'boolean', default: true, description: 'Enable selector fallback when a selector does not match' },
-        recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of the session' }
+        recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of the session' },
+        spoofFingerprint: { type: 'boolean', default: true, description: 'Spoof WebGL vendor/renderer, Canvas noise, and AudioContext to defeat bot fingerprinting' },
+        blockWebRTCLeaks: { type: 'boolean', default: true, description: 'Prevent local IP leaks via WebRTC when using proxies' }
       }
     }
   },
@@ -37,21 +39,23 @@ const TOOLS = [
   {
     name: 'navigate',
     emoji: '🧭',
-    description: 'Navigate to a URL with configurable wait conditions, timeout, and automatic retry on failure.',
-    descriptionHindi: 'URL पर जाना (retry + recovery)',
+    description: 'Navigate to a URL or manage browser tabs (list, switch, new tab, close tab). Supports configurable wait conditions, timeout, and automatic retry on failure.',
+    descriptionHindi: 'URL पर जाना एवं टैब प्रबंधन (list/switch/new/close)',
     category: 'navigation',
     requiresBrowser: true,
     requiresPage: false,
     inputSchema: {
       type: 'object',
       properties: {
-        url: { type: 'string' },
+        url: { type: 'string', description: 'URL to navigate to (required unless tabAction is list, new, or close without url)' },
+        tabAction: { type: 'string', enum: ['navigate', 'list', 'switch', 'new', 'close'], default: 'navigate', description: 'Tab management action: navigate (default), list (show all tabs), switch (switch active tab), new (open new tab), close (close tab)' },
+        tabIndex: { type: 'number', description: 'Zero-based index of the tab to switch to or close' },
+        autoSwitchNewTab: { type: 'boolean', default: true, description: 'Automatically switch to newly opened popups or blank target tabs' },
         waitUntil: { type: 'string', enum: ['load', 'domcontentloaded', 'networkidle', 'commit'], default: 'networkidle' },
         timeout: { type: 'number', default: 30000 },
         retries: { type: 'number', default: 3, description: 'Retry count on failure' },
         smartWait: { type: 'boolean', default: true, description: 'Wait for page content to stabilize before returning' }
-      },
-      required: ['url']
+      }
     }
   },
 
@@ -105,8 +109,8 @@ const TOOLS = [
   {
     name: 'click',
     emoji: '👆',
-    description: 'Click a page element by CSS selector or annotation ID. Supports iframe context, hover before click, video player API, and automatic retry with fallback selectors.',
-    descriptionHindi: 'क्लिक करना (selector fallback + iframe + video player support)',
+    description: 'Click or drag a page element by CSS selector or annotation ID. Supports drag-and-drop / slider manipulation via dragTo, iframe context, hover before click, video player API, and automatic retry with fallback selectors.',
+    descriptionHindi: 'क्लिक या ड्रैग करना (drag-and-drop + selector fallback + iframe + video player support)',
     category: 'interaction',
     requiresBrowser: true,
     requiresPage: true,
@@ -115,6 +119,17 @@ const TOOLS = [
       properties: {
         selector: { type: 'string', description: 'CSS selector for the element to click' },
         annotationId: { type: 'number', description: 'Annotation number from see_page(annotate:true) — use instead of selector' },
+        dragTo: {
+          type: 'object',
+          description: 'Drag and drop the source element to target selector or coordinates with biological friction and overshoot correction',
+          properties: {
+            selector: { type: 'string', description: 'Target CSS selector to drop onto' },
+            x: { type: 'number', description: 'Target X coordinate' },
+            y: { type: 'number', description: 'Target Y coordinate' },
+            dropDelay: { type: 'number', default: 120, description: 'Delay before releasing mouse button in ms' },
+            hesitateMidway: { type: 'boolean', default: true, description: 'Simulate natural intermediate hesitation/friction' }
+          }
+        },
         humanLike: { type: 'boolean', default: true, description: 'Smooth cursor movement before click' },
         aiHeal: { type: 'boolean', default: true, description: 'Try alternative selector if primary fails' },
         autoAcceptDialogs: { type: 'boolean', default: true, description: 'Auto-dismiss browser dialogs (alerts, confirms)' },
@@ -367,15 +382,15 @@ const TOOLS = [
   {
     name: 'network_recorder',
     emoji: '📡',
-    description: 'Record and inspect all network activity. Supports 11 actions: start, stop, get, clear, get_media, get_navigations, get_api_calls, get_intercepted_apis, get_websockets, get_graphql, export_har.',
-    descriptionHindi: 'नेटवर्क रिकॉर्डर — start/stop/get/clear/get_media/get_navigations/get_api_calls/get_websockets/get_graphql/export_har',
+    description: 'Record, inspect, and control network activity. Supports 14 actions: start, stop, get, clear, get_media, get_navigations, get_api_calls, get_intercepted_apis, get_websockets, get_graphql, export_har, block_urls (block images/trackers to boost speed 3x-5x), mock_route (intercept & mock API responses), clear_routes.',
+    descriptionHindi: 'नेटवर्क रिकॉर्डर व रूट कंट्रोल — 14 actions (traffic recording + block_urls + mock_route + export_har)',
     category: 'network',
     requiresBrowser: true,
     requiresPage: false,
     inputSchema: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['start', 'stop', 'get', 'clear', 'get_media', 'get_navigations', 'get_api_calls', 'get_intercepted_apis', 'get_websockets', 'get_graphql', 'export_har'], default: 'get' },
+        action: { type: 'string', enum: ['start', 'stop', 'get', 'clear', 'get_media', 'get_navigations', 'get_api_calls', 'get_intercepted_apis', 'get_websockets', 'get_graphql', 'export_har', 'block_urls', 'mock_route', 'clear_routes'], default: 'get' },
         filter: {
           type: 'object',
           properties: {
@@ -383,6 +398,17 @@ const TOOLS = [
             urlPattern: { type: 'string' },
             type: { type: 'string' },
             mediaOnly: { type: 'boolean' }
+          }
+        },
+        patterns: { type: 'array', items: { type: 'string' }, description: 'URL patterns or glob filters for block_urls action (e.g. ["*.png", "*.jpg", "*google-analytics*"])' },
+        mock: {
+          type: 'object',
+          description: 'Configuration for mock_route action',
+          properties: {
+            urlPattern: { type: 'string', description: 'URL pattern or regex string to intercept' },
+            status: { type: 'number', default: 200, description: 'Mock HTTP status code' },
+            contentType: { type: 'string', default: 'application/json', description: 'Mock response content type' },
+            body: { type: 'string', description: 'Mock response body (JSON or text)' }
           }
         },
         aiDetectStreams: { type: 'boolean', default: true, description: 'Identify video and audio stream URLs in recorded requests' },
@@ -453,15 +479,16 @@ const TOOLS = [
   {
     name: 'storage_inspector',
     emoji: '🗄️',
-    description: 'Inspect client-side storage: IndexedDB databases and registered Service Workers on the current page.',
-    descriptionHindi: 'IndexedDB और Service Worker चेक करना',
+    description: 'Inspect and manage client-side storage & sessions. Supports 6 actions: cookies (get all current cookies), save_session (persist cookies & storage state to file), load_session (restore state from file without re-logging), clear_cookies, indexeddb, service_workers.',
+    descriptionHindi: 'स्टोरेज व सेशन मैनेजर — cookies, save_session, load_session, clear_cookies, indexeddb, service_workers',
     category: 'analysis',
     requiresBrowser: true,
     requiresPage: true,
     inputSchema: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['indexeddb', 'service_workers'], default: 'indexeddb' }
+        action: { type: 'string', enum: ['cookies', 'save_session', 'load_session', 'clear_cookies', 'indexeddb', 'service_workers'], default: 'cookies' },
+        sessionPath: { type: 'string', description: 'File path to save or load session state (cookies & localStorage) from disk' }
       }
     }
   },
@@ -534,13 +561,17 @@ const TOOLS = [
         watchMutations: { type: 'boolean', default: false, description: 'Report DOM mutations (popups, alerts) since the last capture' },
         steps: {
           type: 'array',
-          description: 'Actions to run sequentially right after capturing the page, without re-capturing between steps. Supported: click, type, press_key, scroll, wait, extract, see.',
+          description: 'Actions to run sequentially right after capturing the page, without re-capturing between steps. Supported: click, type, press_key, scroll, wait, extract, see, drag, hover, double_click, triple_click, idle.',
           items: {
             type: 'object',
             properties: {
-              action: { type: 'string', enum: ['click', 'type', 'press_key', 'scroll', 'wait', 'extract', 'see'] },
+              action: { type: 'string', enum: ['click', 'type', 'press_key', 'scroll', 'wait', 'extract', 'see', 'drag', 'hover', 'double_click', 'triple_click', 'idle'] },
               selector: { type: 'string' },
               annotationId: { type: 'number' },
+              targetSelector: { type: 'string', description: 'Drop target selector for drag action' },
+              targetX: { type: 'number', description: 'Target X coordinate for drag action' },
+              targetY: { type: 'number', description: 'Target Y coordinate for drag action' },
+              duration: { type: 'number', description: 'Duration in ms for hover or idle actions' },
               text: { type: 'string' },
               key: { type: 'string' },
               modifiers: { type: 'array', items: { type: 'string' } },
