@@ -1,7 +1,7 @@
 # 🦁 Real Browser MCP
 
 [![npm version](https://img.shields.io/npm/v/real-browser-mcp-server.svg)](https://www.npmjs.com/package/real-browser-mcp-server)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg)](https://nodejs.org/)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D24.20.0-brightgreen.svg)](https://nodejs.org/)
 [![Build & Test](https://github.com/codeiva11/Real-Browser-Mcp/actions/workflows/publish.yml/badge.svg)](https://github.com/codeiva11/Real-Browser-Mcp/actions/workflows/publish.yml)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
 
