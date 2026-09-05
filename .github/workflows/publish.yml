@@ -115,8 +115,9 @@ jobs:
             git push origin --delete "v$NEW_VERSION" || true
           fi
           
-          # Bump version, commit changes and create tag
-          npm version $INCREMENT_TYPE -m "🔖 Release: v%s [skip ci]"
+          # Stage any newly built artifacts and bump version
+          git add -A
+          npm version $INCREMENT_TYPE --force -m "🔖 Release: v%s [skip ci]"
           
           # Capture actual new version for subsequent steps
           NEW_VERSION=$(node -p "require('./package.json').version")
