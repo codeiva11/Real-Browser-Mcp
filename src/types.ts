@@ -283,7 +283,7 @@ export interface StorageInspectorParams {
 
 export interface NetworkRecorderParams {
   action?: 'start' | 'stop' | 'get' | 'clear' | 'get_media' | 'get_navigations' | 'get_api_calls' | 'get_intercepted_apis' | 'get_websockets' | 'get_graphql' | 'export_har' | 'block_urls' | 'mock_route' | 'clear_routes';
-  filter?: Record<string, unknown>;
+  filter?: NetworkFilter | Record<string, unknown>;
   patterns?: string[];
   mock?: {
     urlPattern?: string;
@@ -293,6 +293,13 @@ export interface NetworkRecorderParams {
   };
   aiDetectStreams?: boolean;
   captureXhrBody?: boolean;
+}
+
+export interface NetworkFilter {
+  resourceType?: string;
+  urlPattern?: string;
+  type?: string;
+  mediaOnly?: boolean;
 }
 
 export interface ExecuteJsParams {
@@ -345,19 +352,6 @@ export interface ExtractDataParams {
   aesIV?: string;
   /** @internal resolved from autoResolveKey */
   autoFindKey?: boolean;
-}
-
-export interface NetworkRecorderParams {
-  action?: 'start' | 'stop' | 'get' | 'clear' | 'get_media' | 'get_navigations' | 'get_api_calls' | 'get_intercepted_apis' | 'get_websockets' | 'get_graphql' | 'export_har';
-  filter?: NetworkFilter;
-  captureXhrBody?: boolean;
-}
-
-export interface NetworkFilter {
-  resourceType?: string;
-  urlPattern?: string;
-  type?: string;
-  mediaOnly?: boolean;
 }
 
 
@@ -484,9 +478,13 @@ export interface SeePageParams {
  * see so the agent can plan an entire task from one page view.
  */
 export interface BrowseStep {
-  action: 'click' | 'type' | 'press_key' | 'scroll' | 'wait' | 'extract' | 'see';
+  action: 'click' | 'type' | 'press_key' | 'scroll' | 'wait' | 'extract' | 'see' | 'drag' | 'hover' | 'double_click' | 'triple_click' | 'idle';
   selector?: string;
   annotationId?: number;
+  targetSelector?: string;
+  targetX?: number;
+  targetY?: number;
+  duration?: number;
   text?: string;
   key?: string;
   modifiers?: string[];
