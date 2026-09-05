@@ -71,7 +71,7 @@ try {
 function createServer() {
   const server = new Server(
     {
-      name: 'real-browser-mcp',
+      name: 'real-browser-mcp-server',
       version: PKG_VERSION,
     },
     {

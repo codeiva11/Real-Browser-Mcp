@@ -143,10 +143,10 @@ jobs:
           TAG="v${{ steps.versioning.outputs.NEW_VERSION }}"
           
           cat > release_body.md <<'EOF'
-          ## 🚀 Real Browser MCP v${{ steps.versioning.outputs.NEW_VERSION }}
+          ## 🚀 Real Browser MCP Server v${{ steps.versioning.outputs.NEW_VERSION }}
           
           ### 📦 Published Packages
-          - **NPM Package**: [real-browser-mcp](https://www.npmjs.com/package/real-browser-mcp)
+          - **NPM Package**: [real-browser-mcp-server](https://www.npmjs.com/package/real-browser-mcp-server)
           - **Stealth automation**: Powered by Patchright (undetected Playwright fork).
           
           ### 🛠️ Key Capabilities
@@ -156,7 +156,7 @@ jobs:
           
           ### 📥 Installation
           ```bash
-          npm install real-browser-mcp@${{ steps.versioning.outputs.NEW_VERSION }}
+          npm install real-browser-mcp-server@${{ steps.versioning.outputs.NEW_VERSION }}
           ```
           
           ---
