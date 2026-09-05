@@ -19,7 +19,7 @@
   ],
   "typings": "typings.d.ts",
   "engines": {
-    "node": ">=24.20.0"
+    "node": ">=24.0.0"
   },
   "bin": {
     "real-browser-mcp": "./dist/src/index.js"
