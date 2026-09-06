@@ -87,6 +87,9 @@ export const browserHandlers = {
 
     if (recordVideo) {
       notifyProgress('browser_init', 'progress', `Recording videos to: ${videosDir}`);
+      try {
+        ((result.page as any).context())._realBrowserRecording = true;
+      } catch { /* ignore */ }
     }
 
     state.browserInstance = result.browser;
@@ -289,6 +292,10 @@ export const browserHandlers = {
       }
 
       if (tabAction === 'new') {
+        // Determine whether video recording is active in the existing context so
+        // the new tab inherits the same recording setup (recordVideo is per-context
+        // in Playwright; new pages in the SAME context are recorded automatically,
+        // but a freshly created context would not be).
         const targetContext = contexts[0] || await (state.browserInstance as any).newContext();
         const newTab = await targetContext.newPage();
         state.pageInstance = newTab;
@@ -302,7 +309,7 @@ export const browserHandlers = {
         }
         const title = await newTab.title().catch(() => 'New Tab');
         notifyProgress('navigate', 'completed', `New tab opened: ${title}`);
-        return { success: true, url: newTab.url(), title, totalTabs: allPages.length + 1 };
+        return { success: true, url: newTab.url(), title, totalTabs: allPages.length + 1, videoRecording: (targetContext as any)._realBrowserRecording === true };
       }
 
       if (tabAction === 'close') {

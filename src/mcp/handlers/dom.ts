@@ -533,12 +533,21 @@ export const domHandlers = {
   async random_scroll(params: ScrollParams = {}) {
     const { page } = requireBrowser();
     // Default matches the registered schema (direction: 'smart').
-    const { direction = 'smart', amount = 0, smooth = true, aiDetectLazyLoad = true } = params;
+    const { direction = 'smart', amount = 0, smooth = true, aiDetectLazyLoad = true, iframe, iframeSelector } = params;
+
+    // Iframe-aware scrolling: resolve the target context (main frame or a specific iframe)
+    let context: any = page;
+    let frameInfo: Record<string, unknown> | null = null;
+    if (iframe !== undefined || iframeSelector !== undefined) {
+      const resolved = await resolveIframe(page, iframe, iframeSelector, 'random_scroll');
+      context = resolved.context;
+      frameInfo = resolved.frameInfo;
+    }
 
     let scrollAmount = amount || Math.floor(Math.random() * 500) + 200;
 
     if (aiDetectLazyLoad) {
-      const lazyInfo = await page.evaluate(() => {
+      const lazyInfo = await context.evaluate(() => {
         const lazyImages = document.querySelectorAll('img[loading="lazy"], img[data-src], [data-lazy]');
         const infiniteScroll = !!document.querySelector('[class*="infinite"], [class*="load-more"]');
         return { lazyImages: lazyImages.length, infiniteScroll };
@@ -553,7 +562,7 @@ export const domHandlers = {
     if (direction === 'random') {
       scrollDirection = Math.random() > 0.5 ? 'down' : 'up';
     } else if (direction === 'smart') {
-      const scrollInfo = await page.evaluate(() => ({
+      const scrollInfo = await context.evaluate(() => ({
         scrollY: window.scrollY,
         scrollHeight: document.body.scrollHeight,
         innerHeight: window.innerHeight
@@ -565,20 +574,22 @@ export const domHandlers = {
       scrollDirection = direction;
     }
 
-    notifyProgress('random_scroll', 'started', `Scrolling ${scrollDirection} ${scrollAmount}px`);
+    notifyProgress('random_scroll', 'started', `Scrolling ${scrollDirection} ${scrollAmount}px${frameInfo ? ' (iframe)' : ''}`);
 
     const y = scrollDirection === 'down' ? scrollAmount : -scrollAmount;
-    if (smooth && (page as any).realScroll) {
+    // Iframes can't use page-level realScroll (mouse-wheel on main viewport);
+    // scroll them via their own scrollBy with smooth behavior.
+    if (smooth && !frameInfo && (page as any).realScroll) {
       await (page as any).realScroll(y, 600);
     } else {
-      await page.evaluate(({ y, smooth }: any) => {
+      await context.evaluate(({ y, smooth }: any) => {
         window.scrollBy({ top: y, behavior: smooth ? 'smooth' : 'auto' });
       }, { y, smooth });
     }
 
-    notifyProgress('random_scroll', 'completed', `Scrolled ${scrollDirection} ${scrollAmount}px`, { direction: scrollDirection, amount: scrollAmount });
+    notifyProgress('random_scroll', 'completed', `Scrolled ${scrollDirection} ${scrollAmount}px`, { direction: scrollDirection, amount: scrollAmount, iframe: frameInfo });
 
-    return { success: true, direction: scrollDirection, amount: scrollAmount };
+    return { success: true, direction: scrollDirection, amount: scrollAmount, iframe: frameInfo };
   },
 
   async press_key(params: PressKeyParams) {

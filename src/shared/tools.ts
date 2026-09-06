@@ -259,7 +259,9 @@ const TOOLS = [
         direction: { type: 'string', enum: ['up', 'down', 'random', 'smart'], default: 'smart' },
         amount: { type: 'number', default: 0, description: 'Pixels to scroll. 0 = auto-decide based on page content height' },
         smooth: { type: 'boolean', default: true },
-        aiDetectLazyLoad: { type: 'boolean', default: true, description: 'Detect and trigger lazy-loaded content' }
+        aiDetectLazyLoad: { type: 'boolean', default: true, description: 'Detect and trigger lazy-loaded content' },
+        iframe: { type: 'number', description: 'Scroll inside a specific iframe by index instead of the main frame' },
+        iframeSelector: { type: 'string', description: 'Scroll inside a specific iframe by CSS selector instead of the main frame' }
       }
     }
   },
@@ -488,7 +490,8 @@ const TOOLS = [
       type: 'object',
       properties: {
         action: { type: 'string', enum: ['cookies', 'save_session', 'load_session', 'clear_cookies', 'indexeddb', 'service_workers'], default: 'cookies' },
-        sessionPath: { type: 'string', description: 'File path to save or load session state (cookies & localStorage) from disk' }
+        sessionPath: { type: 'string', description: 'File path to save or load session state (cookies & localStorage) from disk' },
+        passphrase: { type: 'string', description: 'AES-256-GCM passphrase. When provided with save_session the file is encrypted; required to load an encrypted session. Never logged or stored.' }
       }
     }
   },

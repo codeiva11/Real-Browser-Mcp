@@ -237,6 +237,9 @@ export interface ScrollParams {
   amount?: number;
   smooth?: boolean;
   aiDetectLazyLoad?: boolean;
+  /** Scroll inside a specific iframe (by index or CSS selector) instead of the main frame */
+  iframe?: number;
+  iframeSelector?: string;
 }
 
 
@@ -279,6 +282,8 @@ export interface ApiAnalyzerParams {
 export interface StorageInspectorParams {
   action?: 'cookies' | 'save_session' | 'load_session' | 'clear_cookies' | 'indexeddb' | 'service_workers';
   sessionPath?: string;
+  /** Encrypt (save) / decrypt (load) the session file with AES-256-GCM using this passphrase */
+  passphrase?: string;
 }
 
 export interface NetworkRecorderParams {

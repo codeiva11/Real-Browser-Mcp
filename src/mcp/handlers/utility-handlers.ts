@@ -2,11 +2,58 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as crypto from 'crypto';
 import { state, requireBrowser, notifyProgress } from './state';
 import { helpersHandlers } from './helpers';
 import { resolveIframe } from './handler-utils';
 import type { ProgressTrackerParams, DeepAnalysisParams, ExecuteJsParams, ApiAnalyzerParams, StorageInspectorParams } from '../../types';
 import { logger } from '../../shared/logger';
+
+// ═══════════════════════════════════════════════════════════════
+// Session Encryption Helpers (AES-256-GCM, scrypt-derived key)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Encrypts a JSON-serializable session state into a self-contained
+ * base64 envelope: v1.salt.iv.authTag.ciphertext
+ */
+function encryptJson (data: unknown, passphrase: string): string {
+  const salt = crypto.randomBytes(16);
+  const iv = crypto.randomBytes(12);
+  const key = crypto.scryptSync(passphrase, salt, 32);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const plaintext = Buffer.from(JSON.stringify(data), 'utf8');
+  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return ['v1', salt.toString('base64'), iv.toString('base64'), authTag.toString('base64'), ciphertext.toString('base64')].join('.');
+}
+
+/**
+ * Decrypts an envelope produced by encryptJson. Throws a descriptive
+ * error when the passphrase is wrong or the file is tampered with.
+ */
+function decryptJson (envelope: string, passphrase?: string): Record<string, unknown> {
+  if (!passphrase) {
+    throw new Error('This session file is AES-256-GCM encrypted. Provide the "passphrase" parameter to load it.');
+  }
+  const parts = envelope.trim().split('.');
+  if (parts.length !== 5 || parts[0] !== 'v1') {
+    throw new Error('Invalid encrypted session envelope format.');
+  }
+  try {
+    const salt = Buffer.from(parts[1], 'base64');
+    const iv = Buffer.from(parts[2], 'base64');
+    const authTag = Buffer.from(parts[3], 'base64');
+    const ciphertext = Buffer.from(parts[4], 'base64');
+    const key = crypto.scryptSync(passphrase, salt, 32);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    return JSON.parse(plaintext.toString('utf8'));
+  } catch {
+    throw new Error('Could not decrypt session: wrong passphrase or corrupted file.');
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Utility Handlers — General-purpose tools
@@ -276,9 +323,19 @@ export const utilityHandlers = {
         const targetPath = sessionPath || path.join(os.tmpdir(), 'real-browser-mcp', 'session-state.json');
         const dir = path.dirname(targetPath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        const storageState = await context.storageState({ path: targetPath });
-        notifyProgress('storage_inspector', 'completed', `Session saved to: ${targetPath}`);
-        return { success: true, path: targetPath, cookiesCount: storageState.cookies.length, originsCount: storageState.origins.length };
+        const storageState = await context.storageState();
+
+        let wroteEncrypted = false;
+        if (params.passphrase) {
+          // AES-256-GCM encrypted session file
+          const encrypted = encryptJson(storageState, params.passphrase);
+          fs.writeFileSync(targetPath, encrypted, 'utf8');
+          wroteEncrypted = true;
+        } else {
+          await context.storageState({ path: targetPath });
+        }
+        notifyProgress('storage_inspector', 'completed', `Session saved to: ${targetPath}${wroteEncrypted ? ' (AES-256-GCM encrypted)' : ''}`);
+        return { success: true, path: targetPath, encrypted: wroteEncrypted, cookiesCount: storageState.cookies.length, originsCount: storageState.origins.length };
       }
 
       if (action === 'load_session') {
@@ -286,7 +343,10 @@ export const utilityHandlers = {
         if (!fs.existsSync(targetPath)) {
           throw new Error(`Session file not found at: ${targetPath}`);
         }
-        const stateContent = JSON.parse(fs.readFileSync(targetPath, 'utf8'));
+        const rawContent = fs.readFileSync(targetPath, 'utf8');
+        const stateContent = rawContent.trimStart().startsWith('{')
+          ? JSON.parse(rawContent) // plain JSON
+          : decryptJson(rawContent, params.passphrase); // AES-256-GCM encrypted
         if (Array.isArray(stateContent.cookies)) {
           await context.addCookies(stateContent.cookies);
         }

@@ -335,7 +335,7 @@ The server exposes **21 tools** categorized into functional units:
 | `click` | Natural click or drag-and-drop (`dragTo`) using ghost cursor with slider friction, iframe, hover, and video player support. | `selector`, `annotationId`, `dragTo`, `humanLike`, `hoverFirst`, `iframe`, `autoDetectPlayer` |
 | `type` | Type text with natural speed variation, smart clearing, and iframe support. | `selector`, `annotationId`, `text`, `clear`, `pressEnter`, `iframe` |
 | `solve_captcha` | Form filling and embedded widget completion for pages you are testing (JS widgets, text/image input recognition). Externally hosted services are not supported. | `type`, `captchaSelector`, `formData`, `submit` |
-| `random_scroll` | Natural scrolling with lazy-load detection. | `direction`, `amount`, `smooth`, `aiDetectLazyLoad` |
+| `random_scroll` | Natural scrolling with lazy-load detection, including inside specific iframes. | `direction`, `amount`, `smooth`, `aiDetectLazyLoad`, `iframe`, `iframeSelector` |
 | `press_key` | Press keyboard keys with modifier key support (Ctrl/Shift/Alt). | `key`, `modifiers`, `count` |
 | `execute_js` | Run custom JavaScript inside a page or iframe. ⚠️ Use with trusted input only. | `code`, `async`, `iframe`, `timeout` |
 
@@ -354,7 +354,7 @@ The server exposes **21 tools** categorized into functional units:
 | `deep_analysis` | DOM structure, scripts, page components, tech stack, SEO, and recommendations. | `types`, `detailed`, `detectAccessControls` |
 | `wait` | Smart delay for selectors, navigation events, or fixed timeout. | `type`, `value`, `timeout` |
 | `progress_tracker` | Track automation progress with AI-estimated remaining time. | `action`, `taskName`, `progress` |
-| `storage_inspector` | Inspect & manage client-side storage, cookies, and session state persistence (`cookies`, `save_session`, `load_session`, `clear_cookies`, `indexeddb`, `service_workers`). | `action`, `sessionPath` |
+| `storage_inspector` | Inspect & manage client-side storage, cookies, and session state persistence (`cookies`, `save_session`, `load_session`, `clear_cookies`, `indexeddb`, `service_workers`). Sessions can optionally be AES-256-GCM encrypted via `passphrase`. | `action`, `sessionPath`, `passphrase` |
 | `replay_request` | Replay a captured API request in browser context. | `url`, `method`, `headers`, `body` |
 | `api_analyzer` | Generate JSON schemas, diff two JSONs, or create SDK boilerplates (Python/TypeScript). | `action`, `data`, `lang` |
 
