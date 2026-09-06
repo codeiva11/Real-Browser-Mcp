@@ -14,11 +14,11 @@ This server is **100% compatible with all major AI IDEs** (Cursor, VS Code, Clin
 ---
 
 ## ⚙️ Installation & Setup
-Since this project is published on NPM, the easiest way to use it is via `npx` (which handles downloading and executing automatically).
+Since this project is published on NPM, you can run it either globally via `npx` / `npm`, or locally by building from source.
 
 ### ⚡ Quick Start (Using npx)
 
-Add the following to your MCP Configuration file (e.g. `cline_mcp_settings.json` or `claude_desktop_config.json`):
+Add the following to your MCP Configuration file (e.g. `cline_mcp_settings.json`, `claude_desktop_config.json`, or Cursor):
 
 ```json
 {
@@ -31,18 +31,20 @@ Add the following to your MCP Configuration file (e.g. `cline_mcp_settings.json`
 }
 ```
 
+### 💻 Local Run (Direct Source / Pre-built)
+If running directly from the local repository build:
 
-```
+```json
 {
   "mcpServers": {
     "real_browser_mcp_server": {
       "command": "node",
       "args": [
-        "c:/Users/Admin/Desktop/Software/Real-Browser-Mcp/dist/src/index.js"
+        "E:/Github-Software/Real-Browser-Mcp/dist/src/index.js"
       ],
       "env": {
         "AI_HEALING": "true",
-        "HEADLESS": "true"
+        "HEADLESS": "false"
       }
     }
   }
@@ -175,8 +177,47 @@ Add the server entry to your global MCP settings file (typically found at `%APPD
 ```
 
 ### 4. Kilo Code (VS Code)
-Add the server entry to your `kilo.jsonc`:
+Add the server entry to your `~/.config/kilo/kilo.jsonc` (global) or project `kilo.jsonc`:
 
+**Option A: Local Clone (Recommended for development)**
+```json
+{
+  "mcp": {
+    "real_browser_mcp_server": {
+      "type": "local",
+      "command": [
+        "node",
+        "E:/Github-Software/Real-Browser-Mcp/dist/src/index.js"
+      ],
+      "environment": {
+        "HEADLESS": "false",
+        "AI_HEALING": "true"
+      },
+      "enabled": true
+    }
+  }
+}
+```
+
+**Option B: Global via npx (Windows)**
+On Windows, call through `cmd.exe /c npx` so the batch script resolves cleanly:
+```json
+{
+  "mcp": {
+    "real_browser_mcp_server": {
+      "type": "local",
+      "command": ["cmd.exe", "/c", "npx", "-y", "real-browser-mcp-server@latest", "mcp"],
+      "environment": {
+        "HEADLESS": "false",
+        "AI_HEALING": "true"
+      },
+      "enabled": true
+    }
+  }
+}
+```
+
+**Option C: Global via npx (macOS / Linux)**
 ```json
 {
   "mcp": {
