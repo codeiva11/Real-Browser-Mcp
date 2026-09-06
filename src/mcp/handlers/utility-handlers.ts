@@ -269,9 +269,11 @@ export const utilityHandlers = {
       let runnable: any = code;
       if (!looksLikeFunctionArg && (hasTopLevelReturn || wantsAsync)) {
         // Wrap so `return` is valid. Async is supported because evaluate awaits
-        // the returned promise. We also normalize a non-promise return from an
-        // async wrapper into a resolved value transparently.
-        runnable = `(async () => { ${code} })()`;
+        // the returned promise. When the snippet is an *expression* (no return),
+        // wrap it as `return (expr)` so the resolved value is not discarded.
+        runnable = hasTopLevelReturn
+          ? `(async () => { ${code} })()`
+          : `(async () => { return (${code}); })()`;
       }
 
       // Race the evaluate against the timeout so async code that never resolves
