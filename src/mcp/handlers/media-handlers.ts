@@ -305,10 +305,7 @@ export const mediaHandlers = {
     const { page } = requireBrowser();
     const {
       action = 'extract',
-      types = ['all'],
-      quality = 'best',
       searchIframes = true,
-      deep = true,
       selector,
       index,
       playerAction = 'info',
@@ -319,8 +316,7 @@ export const mediaHandlers = {
       // neutral aliases from schema
       decoderKey,
       decoderIV,
-      urls,
-      aiOptimize = true
+      urls
     } = params;
 
     // Normalize aliased decoder params (schema exposes neutral names)
