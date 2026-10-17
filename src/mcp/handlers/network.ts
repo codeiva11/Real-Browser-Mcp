@@ -8,7 +8,7 @@ import {
 } from './network-recorder';
 import { extractData } from './network-extractors';
 import { assertSafeUrl } from '../../shared/url-utils';
-import type { RedirectTracerParams, NetworkRecorderParams, ReplayRequestParams } from '../../types';
+import type { RedirectTracerParams, NetworkRecorderParams } from '../../types';
 
 /**
  * Convert a user-friendly glob (`*example.com*`, `** /*.png`, full URLs) to a
@@ -207,30 +207,5 @@ export const networkHandlers = {
 
   async extract_data(params: any = {}) {
     return extractData(params);
-  },
-
-  async replay_request(params: ReplayRequestParams) {
-    const { page } = requireBrowser();
-    const { url, method = 'GET', headers, body } = params;
-    await assertSafeUrl(url, 'replay_request');
-    notifyProgress('replay_request', 'started', `Replaying ${method} to ${url}`);
-    try {
-      // Page-side abort: a stalled request can never hang the tool forever.
-      const result = await page.evaluate(async ({ u, m, h, b }: any) => {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 30000);
-        try {
-          const res = await fetch(u, { method: m, headers: h, body: b, signal: controller.signal });
-          return { status: res.status, headers: Object.fromEntries(res.headers.entries()), body: await res.text().catch(() => null) };
-        } finally {
-          clearTimeout(timer);
-        }
-      }, { u: url, m: method, h: headers || {}, b: body });
-      notifyProgress('replay_request', 'completed', `Replay finished with status ${result.status}`);
-      return { success: true, result };
-    } catch (e: any) {
-      notifyProgress('replay_request', 'error', `Replay failed: ${e.message}`);
-      return { success: false, error: e.message };
-    }
   }
 };
