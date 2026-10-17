@@ -37,14 +37,14 @@ export interface BrowserState {
   progressCallback: ProgressCallback | null;
   aiHealingEnabled: boolean;
   // Advanced tools state
-  downloads?: Array<{ filename: string; path: string; url: string; savedAt: string }>;
+  downloads?: Array<{ filename: string; path: string; url: string; savedAt: string; at?: string; suggestedFilename?: string | null }>;
   consoleLogs?: Array<{ kind: string; level: string; text: string; url: string; at: string }>;
   consoleListening?: boolean;
   consoleListeners?: Record<string, unknown> | null;
   sessionAutosave?: boolean;
   sessionLastSavedAt?: string | null;
   sessionLastUrl?: string | null;
-  visualBaseline?: Buffer | null;
+  visualBaseline?: string | null;
   visualBaselineAt?: string | null;
 }
 
@@ -296,14 +296,16 @@ export interface ApiAnalyzerParams {
 }
 
 export interface StorageInspectorParams {
-  action?: 'cookies' | 'save_session' | 'load_session' | 'clear_cookies' | 'indexeddb' | 'service_workers';
+  action?: 'cookies' | 'save_session' | 'load_session' | 'clear_cookies' | 'autosave' | 'indexeddb' | 'service_workers';
   sessionPath?: string;
   /** Encrypt (save) / decrypt (load) the session file with AES-256-GCM using this passphrase */
   passphrase?: string;
+  /** For action='autosave': enable (true) or disable (false) session autosave on navigation */
+  enabled?: boolean;
 }
 
 export interface NetworkRecorderParams {
-  action?: 'start' | 'stop' | 'get' | 'clear' | 'get_media' | 'get_navigations' | 'get_api_calls' | 'get_intercepted_apis' | 'get_websockets' | 'get_graphql' | 'export_har' | 'block_urls' | 'mock_route' | 'rewrite_headers' | 'clear_routes';
+  action?: 'start' | 'stop' | 'get' | 'clear' | 'get_media' | 'get_navigations' | 'get_api_calls' | 'get_intercepted_apis' | 'get_websockets' | 'get_graphql' | 'export_har' | 'block_urls' | 'mock_route' | 'clear_routes';
   filter?: NetworkFilter | Record<string, unknown>;
   patterns?: string[];
   headers?: Record<string, string>;
@@ -493,6 +495,10 @@ export interface SeePageParams {
   captureBefore?: boolean;
   captureAfter?: boolean;
   stopOnError?: boolean;
+  /** Visual regression: save current screenshot as baseline */
+  saveBaseline?: boolean;
+  /** Visual regression: diff current screenshot against saved baseline */
+  compareBaseline?: boolean;
 }
 
 /**
