@@ -46,11 +46,10 @@ function withWatchdog<T>(name: string, promise: Promise<T>, budgetMs: number = T
   });
 }
 
-// Some tools (network_recorder, progress_tracker, media_extractor, execute_js)
+// Some tools (network_recorder, media_extractor, execute_js)
 // are legitimately long-lived and get the larger 5-minute budget above.
 const LONG_RUNNING_TOOLS = new Set([
   'network_recorder',
-  'progress_tracker',
   'media_extractor',
   'execute_js',
   'navigate', // navigate(waitForChallenge) can legitimately wait up to ~90s
@@ -156,7 +155,6 @@ export async function cleanup() {
   state.networkRecorderBoundPage = null;
   state.networkRecorderListeners = null;
   state.activeAnnotations = undefined;
-  state.progressTasks = {};
 }
 
 export { getState, requireBrowser, setProgressCallback, notifyProgress, getHeadlessFromEnv };
