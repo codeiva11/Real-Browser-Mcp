@@ -236,6 +236,8 @@ export const utilityHandlers = {
     const { page } = requireBrowser();
     const {
       code,
+      action = 'execute',
+      url, method = 'GET', headers, body,
       returnValue = true,
       iframe,
       iframeSelector,
@@ -243,6 +245,31 @@ export const utilityHandlers = {
       timeout = 30000,
       async: wantsAsync = false
     } = params;
+
+    // Merged from replay_request: fetch action replays HTTP requests with the
+    // page's session (cookies/auth inherited), 30s abort timeout, structured output.
+    if (action === 'fetch') {
+      if (!url) return { success: false, error: 'fetch action requires "url"' };
+      const { assertSafeUrl } = await import('../../shared/url-utils');
+      await assertSafeUrl(url, 'execute_js.fetch');
+      notifyProgress('execute_js', 'started', `Fetching ${method} ${url}`);
+      try {
+        const result = await page.evaluate(async ({ u, m, h, b }: any) => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 30000);
+          try {
+            const res = await fetch(u, { method: m, headers: h, body: b, signal: controller.signal });
+            return { status: res.status, headers: Object.fromEntries(res.headers.entries()), body: await res.text().catch(() => null) };
+          } finally {
+            clearTimeout(timer);
+          }
+        }, { u: url, m: method, h: headers || {}, b: body });
+        notifyProgress('execute_js', 'completed', `Fetch finished with status ${result.status}`);
+        return { success: true, action: 'fetch', result };
+      } catch (e: any) {
+        return { success: false, error: e.message };
+      }
+    }
 
     // Guard against accidental huge payloads (multi-MB strings) that would
     // block the page and bloat the MCP response. 200k chars is generous.
