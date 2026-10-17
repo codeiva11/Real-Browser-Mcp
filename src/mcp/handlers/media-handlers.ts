@@ -515,6 +515,11 @@ export const mediaHandlers = {
 
         // Navigate a dedicated scratch page so the user's current page state
         // is never destroyed by the batch loop.
+        // NOTE: opening any page fires the context 'page' listener registered
+        // in browser_init, which repoints state.pageInstance at the newest
+        // page. Save/restore around the scratch page so later tools keep
+        // working on the user's original page.
+        const originalPage = page;
         const context = page.context();
         const scratchPage = await context.newPage();
         if (state.setupPageFn) {
@@ -559,6 +564,12 @@ export const mediaHandlers = {
           }
         } finally {
           try { await scratchPage.close(); } catch { /* already closed */ }
+          // Restore the user's original page (see NOTE above).
+          try {
+            if (originalPage && !(originalPage as any).isClosed()) {
+              state.pageInstance = originalPage;
+            }
+          } catch { /* keep current state on restore failure */ }
         }
 
         const successCount = results.filter(r => r.success).length;
