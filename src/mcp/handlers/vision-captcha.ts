@@ -202,6 +202,21 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
     return { success: false, error: 'All capture attempts were exhausted', formResult };
   }
 
+  // No challenge detected at all: auto-detection found no JS widget, no
+  // captcha image/input, and the caller gave no explicit selectors. Report it
+  // honestly instead of looping and claiming a phantom "challenge_passed".
+  const noChallengeFound =
+    type === 'auto' &&
+    !formData &&
+    !detectedJsType &&
+    !detectedCaptchaSelector &&
+    !detectedAnswerSelector &&
+    !(pageAnalysis && (pageAnalysis.captchas.length > 0 || pageAnalysis.captchaInputs.length > 0 || pageAnalysis.forms.length > 0));
+  if (noChallengeFound) {
+    notifyProgress('solve_captcha', 'completed', 'No captcha/challenge detected on the page');
+    return { success: true, type: 'no_challenge_found', completed: true, formResult };
+  }
+
   const effectiveType = type !== 'auto' ? type : (detectedJsType || 'embedded_widget');
   if (effectiveType === 'recaptcha' || effectiveType === 'hcaptcha') {
     return { success: false, error: 'Third-party hosted verification services are not supported by this server.', detectedType: effectiveType, formResult };
