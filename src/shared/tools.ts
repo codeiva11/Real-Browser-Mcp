@@ -43,7 +43,7 @@ const TOOLS = [
   {
     name: 'navigate',
     emoji: '🧭',
-    description: 'Navigate to a URL or manage browser tabs (list, switch, new tab, close tab). Supports configurable wait conditions, timeout, and automatic retry on failure.',
+    description: 'Navigate to a URL or manage browser tabs (list, switch, new tab, close tab). Supports configurable wait conditions, timeout, automatic retry on failure, and waitForChallenge to auto-solve Cloudflare-style JS challenges.',
     descriptionHindi: 'URL पर जाना एवं टैब प्रबंधन (list/switch/new/close)',
     category: 'navigation',
     requiresBrowser: true,
