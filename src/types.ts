@@ -36,6 +36,16 @@ export interface BrowserState {
   progressTasks: Record<string, ProgressTask>;
   progressCallback: ProgressCallback | null;
   aiHealingEnabled: boolean;
+  // Advanced tools state
+  downloads?: Array<{ filename: string; path: string; url: string; savedAt: string }>;
+  consoleLogs?: Array<{ kind: string; level: string; text: string; url: string; at: string }>;
+  consoleListening?: boolean;
+  consoleListeners?: Record<string, unknown> | null;
+  sessionAutosave?: boolean;
+  sessionLastSavedAt?: string | null;
+  sessionLastUrl?: string | null;
+  visualBaseline?: Buffer | null;
+  visualBaselineAt?: string | null;
 }
 
 // ─────────────────────────────────────────────
@@ -161,6 +171,12 @@ export interface BrowserInitParams {
   recordVideo?: boolean;
   spoofFingerprint?: boolean;
   blockWebRTCLeaks?: boolean;
+  /**
+   * Fingerprint profile for the browser context. 'random' picks a coherent
+   * realistic profile (UA + viewport + timezone + locale); an object applies
+   * a custom one. Merged over contextOptions (explicit contextOptions win).
+   */
+  fingerprint?: 'random' | FingerprintConfig;
 }
 
 export interface ProxyConfig {
@@ -287,14 +303,16 @@ export interface StorageInspectorParams {
 }
 
 export interface NetworkRecorderParams {
-  action?: 'start' | 'stop' | 'get' | 'clear' | 'get_media' | 'get_navigations' | 'get_api_calls' | 'get_intercepted_apis' | 'get_websockets' | 'get_graphql' | 'export_har' | 'block_urls' | 'mock_route' | 'clear_routes';
+  action?: 'start' | 'stop' | 'get' | 'clear' | 'get_media' | 'get_navigations' | 'get_api_calls' | 'get_intercepted_apis' | 'get_websockets' | 'get_graphql' | 'export_har' | 'block_urls' | 'mock_route' | 'rewrite_headers' | 'clear_routes';
   filter?: NetworkFilter | Record<string, unknown>;
   patterns?: string[];
+  headers?: Record<string, string>;
   mock?: {
     urlPattern?: string;
     status?: number;
     contentType?: string;
     body?: string;
+    headers?: Record<string, string>;
   };
   aiDetectStreams?: boolean;
   captureXhrBody?: boolean;
@@ -510,4 +528,65 @@ export interface BrowseStep {
   retries?: number;
   pressEnter?: boolean;
   clear?: boolean;
+}
+
+// ─────────────────────────────────────────────
+// Advanced tool params
+// ─────────────────────────────────────────────
+
+export interface CloudflareBypassParams {
+  url: string;
+  timeout?: number;
+  pollInterval?: number;
+  exportCookies?: boolean;
+  waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' | 'commit';
+}
+
+export interface DownloadManagerParams {
+  action?: 'monitor' | 'stop_monitor' | 'wait' | 'list' | 'clear';
+  timeout?: number;
+  saveDir?: string;
+  filename?: string;
+}
+
+export interface SessionManagerParams {
+  action?: 'save' | 'load' | 'autosave' | 'recover' | 'info';
+  sessionPath?: string;
+  autosave?: boolean;
+}
+
+export interface ConsoleLogsParams {
+  action?: 'start' | 'stop' | 'get' | 'clear';
+  level?: string;
+  limit?: number;
+  clearAfterGet?: boolean;
+}
+
+export interface FingerprintConfig {
+  userAgent?: string;
+  viewport?: { width: number; height: number };
+  timezoneId?: string;
+  locale?: string;
+  geolocation?: { latitude: number; longitude: number };
+  colorScheme?: 'light' | 'dark' | 'no-preference';
+}
+
+export interface FillFormParams {
+  formData: Record<string, string>;
+  formSelector?: string;
+  submit?: boolean;
+  humanLike?: boolean;
+  aiMatch?: boolean;
+  pressEnter?: boolean;
+}
+
+export interface PerformanceMetricsParams {
+  // No params needed; measures the current page. Reserved for future use.
+  _reserved?: never;
+}
+
+export interface CompareScreenshotsParams {
+  action?: 'baseline' | 'compare';
+  threshold?: number;
+  fullPage?: boolean;
 }
