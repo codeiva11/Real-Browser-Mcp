@@ -525,28 +525,7 @@ const TOOLS = [
     }
   },
 
-  // 20. API Analyzer
-  {
-    name: 'api_analyzer',
-    emoji: '🧩',
-    description: 'Generate JSON schemas from API responses, diff two JSON objects, or create SDK boilerplate code in Python or TypeScript.',
-    descriptionHindi: 'API रिस्पांस से Schema/SDK/Diff बनाना',
-    category: 'analysis',
-    requiresBrowser: false,
-    requiresPage: false,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: { type: 'string', enum: ['schema', 'diff', 'sdk'], default: 'schema' },
-        data: { type: 'string', description: 'JSON string (for schema/diff) or URL (for sdk)' },
-        data2: { type: 'string', description: 'Second JSON string for diff comparison' },
-        lang: { type: 'string', enum: ['ts', 'python'], default: 'ts' }
-      },
-      required: ['action', 'data']
-    }
-  },
-
-  // 21. See Page
+  // 20. See Page
   {
     name: 'see_page',
     emoji: '👁️',
