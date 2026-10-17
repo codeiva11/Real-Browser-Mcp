@@ -288,13 +288,6 @@ export interface ReplayRequestParams {
   body?: string;
 }
 
-export interface ApiAnalyzerParams {
-  action?: 'schema' | 'diff' | 'sdk';
-  data?: string;
-  data2?: string;
-  lang?: 'ts' | 'python';
-}
-
 export interface StorageInspectorParams {
   action?: 'cookies' | 'save_session' | 'load_session' | 'clear_cookies' | 'autosave' | 'indexeddb' | 'service_workers';
   sessionPath?: string;
