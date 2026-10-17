@@ -4,10 +4,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import { state, requireBrowser, notifyProgress } from './state';
-import { helpersHandlers } from './helpers';
 import { resolveIframe } from './handler-utils';
 import type { ProgressTrackerParams, DeepAnalysisParams, ExecuteJsParams, StorageInspectorParams } from '../../types';
-import { logger } from '../../shared/logger';
 
 // ═══════════════════════════════════════════════════════════════
 // Session Encryption Helpers (AES-256-GCM, scrypt-derived key)
@@ -124,7 +122,7 @@ export const utilityHandlers = {
 
   async deep_analysis(params: DeepAnalysisParams = {}) {
     const { page } = requireBrowser();
-    const { types = ['all'], detailed = true, aiInsights = true, detectAccessControls, detectAntiBot } = params;
+    const { detailed = true, aiInsights = true, detectAccessControls, detectAntiBot } = params;
     const detectControls = detectAccessControls ?? detectAntiBot ?? true;
 
     notifyProgress('deep_analysis', 'started', 'Analyzing page...');
