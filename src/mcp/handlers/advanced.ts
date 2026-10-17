@@ -9,7 +9,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { state, requireBrowser, notifyProgress } from './state';
-import { assertSafeUrl } from '../../shared/url-utils';
 
 /** Resolve a user-supplied save path, preventing path traversal outside cwd. */
 export function safeResolve(savePath: string): string | null {
@@ -106,45 +105,6 @@ export async function maybeAutosaveSession(): Promise<void> {
 }
 
 /** Save full session (cookies + storage) to a file. Used by storage_inspector. */
-export async function saveSessionToFile(page: any, sessionPath: string) {
-  const resolved = safeResolve(sessionPath);
-  if (!resolved) return { success: false as const, error: 'sessionPath is outside the working directory (path traversal blocked).' };
-  const cookies = await page.context().cookies().catch(() => []);
-  const storage: any = await page.evaluate(() => {
-    const ls: Record<string, string> = {};
-    const ss: Record<string, string> = {};
-    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i)!; ls[k] = localStorage.getItem(k) || ''; } } catch {}
-    try { for (let i = 0; i < sessionStorage.length; i++) { const k = sessionStorage.key(i)!; ss[k] = sessionStorage.getItem(k) || ''; } } catch {}
-    return { localStorage: ls, sessionStorage: ss, url: location.href };
-  }).catch(() => ({ localStorage: {}, sessionStorage: {}, url: '' }));
-  const payload = { savedAt: new Date().toISOString(), cookies, ...storage };
-  fs.mkdirSync(path.dirname(resolved), { recursive: true });
-  fs.writeFileSync(resolved, JSON.stringify(payload, null, 2));
-  state.sessionLastSavedAt = payload.savedAt;
-  state.sessionLastUrl = storage.url;
-  return { success: true as const, path: resolved, cookieCount: cookies.length, url: storage.url };
-}
-
-/** Load session from file. Used by storage_inspector. */
-export async function loadSessionFromFile(page: any, sessionPath: string) {
-  const resolved = safeResolve(sessionPath);
-  if (!resolved) return { success: false as const, error: 'sessionPath is outside the working directory (path traversal blocked).' };
-  if (!fs.existsSync(resolved)) return { success: false as const, error: `Session file not found: ${sessionPath}` };
-  const payload = JSON.parse(fs.readFileSync(resolved, 'utf-8'));
-  if (Array.isArray(payload.cookies) && payload.cookies.length > 0) {
-    await page.context().addCookies(payload.cookies).catch(() => {});
-  }
-  const targetUrl: string = payload.url || '';
-  if (targetUrl && targetUrl.startsWith('http') && page.url() === 'about:blank') {
-    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
-  }
-  await page.evaluate((s: any) => {
-    try { Object.entries(s.localStorage || {}).forEach(([k, v]) => localStorage.setItem(k, v as string)); } catch {}
-    try { Object.entries(s.sessionStorage || {}).forEach(([k, v]) => sessionStorage.setItem(k, v as string)); } catch {}
-  }, { localStorage: payload.localStorage, sessionStorage: payload.sessionStorage }).catch(() => {});
-  return { success: true as const, restoredUrl: targetUrl, cookieCount: (payload.cookies || []).length };
-}
-
 /** Start CDP-based console capture (always-on core). */
 export async function startConsoleCapture(page: any): Promise<{ success: boolean; error?: string }> {
   if (state.consoleListening) return { success: true };
@@ -235,6 +195,3 @@ export async function diffScreenshots(page: any, baselineB64: string, currentB64
     { baselineB64, currentB64 }
   ).catch((e: any) => ({ error: e.message }));
 }
-
-// Re-export for handlers that need it
-export { assertSafeUrl };
