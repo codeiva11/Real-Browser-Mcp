@@ -348,27 +348,7 @@ const TOOLS = [
     }
   },
 
-  // 13. Progress Tracker
-  {
-    name: 'progress_tracker',
-    emoji: '📈',
-    description: 'Track multi-step task progress with estimated time remaining.',
-    descriptionHindi: 'प्रोग्रेस ट्रैक करना',
-    category: 'utility',
-    requiresBrowser: false,
-    requiresPage: false,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: { type: 'string', enum: ['start', 'update', 'complete', 'get', 'clear'], default: 'get' },
-        taskName: { type: 'string' },
-        progress: { type: 'number', description: 'Progress value from 0 to 100' },
-        aiEstimate: { type: 'boolean', default: true, description: 'Estimate remaining time from current progress rate' }
-      }
-    }
-  },
-
-  // 14. Page Inspector
+  // 13. Page Inspector
   {
     name: 'deep_analysis',
     emoji: '🧠',
