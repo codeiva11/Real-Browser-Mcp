@@ -33,7 +33,6 @@ export interface BrowserState {
   isRecordingNetwork: boolean;
   networkRecorderBoundPage?: Page | null;
   networkRecorderListeners?: Record<string, unknown> | null;
-  progressTasks: Record<string, ProgressTask>;
   progressCallback: ProgressCallback | null;
   aiHealingEnabled: boolean;
   // Advanced tools state
@@ -72,12 +71,6 @@ export interface NetworkRecord {
 // ─────────────────────────────────────────────
 // Progress Tracking
 // ─────────────────────────────────────────────
-
-export interface ProgressTask {
-  progress: number;
-  startTime: number;
-  endTime?: number;
-}
 
 export type ProgressStatus = 'started' | 'progress' | 'completed' | 'error' | 'warn' | 'in_progress';
 
@@ -410,13 +403,6 @@ export interface DeepAnalysisParams {
   detectAccessControls?: boolean;
   /** @deprecated Use detectAccessControls instead. Kept for backward compatibility. */
   detectAntiBot?: boolean;
-}
-
-export interface ProgressTrackerParams {
-  action?: 'start' | 'update' | 'complete' | 'get' | 'clear';
-  taskName?: string;
-  progress?: number;
-  aiEstimate?: boolean;
 }
 
 // ─────────────────────────────────────────────
