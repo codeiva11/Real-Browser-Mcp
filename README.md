@@ -316,18 +316,18 @@ Values are case-insensitive. Priority for each option is: **explicit `browser_in
 
 ## 🌐 Complete MCP Tool Reference (21 Tools)
 
-The server exposes **21 tools** categorized into functional units:
+The server exposes **19 tools** categorized into functional units:
 
 ### 🌐 Browser & Session
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `browser_init` | Initialize Patchright browser with ad blocker, AI healing, embedded-widget assist, WebGL/hardware spoofing, and WebRTC leak protection. | `headless`, `proxy`, `widgetAssist`, `enableBlocker`, `aiHealing`, `spoofFingerprint`, `blockWebRTCLeaks` |
+| `browser_init` | Initialize Patchright browser with ad blocker, AI healing, embedded-widget assist, WebGL/hardware spoofing, WebRTC leak protection, and fingerprint profiles. | `headless`, `proxy`, `widgetAssist`, `enableBlocker`, `aiHealing`, `spoofFingerprint`, `blockWebRTCLeaks`, `fingerprint` |
 | `browser_close` | Close browser with cleanup. | `force` |
 
 ### 🧭 Navigation & Tab Management
 | Tool Name | Description | Key Parameters |
 |:---|:---|:---|
-| `navigate` | Navigate to URL or manage browser tabs (`list`, `switch`, `new`, `close`) with auto-switch for popups and smart retry. | `url`, `tabAction`, `tabIndex`, `autoSwitchNewTab`, `waitUntil`, `timeout` |
+| `navigate` | Navigate to URL or manage browser tabs (`list`, `switch`, `new`, `close`) with auto-switch for popups, smart retry, and `waitForChallenge` to auto-solve Cloudflare-style JS challenges. | `url`, `tabAction`, `tabIndex`, `autoSwitchNewTab`, `waitUntil`, `timeout`, `waitForChallenge`, `challengeTimeout` |
 
 ### 👆 Natural Interaction
 | Tool Name | Description | Key Parameters |
@@ -337,7 +337,7 @@ The server exposes **21 tools** categorized into functional units:
 | `solve_captcha` | Form filling and embedded widget completion for pages you are testing (JS widgets, text/image input recognition). Externally hosted services are not supported. | `type`, `captchaSelector`, `formData`, `submit` |
 | `random_scroll` | Natural scrolling with lazy-load detection, including inside specific iframes. | `direction`, `amount`, `smooth`, `aiDetectLazyLoad`, `iframe`, `iframeSelector` |
 | `press_key` | Press keyboard keys with modifier key support (Ctrl/Shift/Alt). | `key`, `modifiers`, `count` |
-| `execute_js` | Run custom JavaScript inside a page or iframe. ⚠️ Use with trusted input only. | `code`, `async`, `iframe`, `timeout` |
+| `execute_js` | Run custom JavaScript inside a page or iframe. Also supports `action="fetch"` to replay HTTP requests with the page session (cookies/auth inherited). ⚠️ Use with trusted input only. | `code`, `action`, `url`, `method`, `headers`, `body`, `async`, `iframe`, `timeout` |
 
 ### 📄 Extraction & Decoding
 | Tool Name | Description | Key Parameters |
@@ -351,12 +351,11 @@ The server exposes **21 tools** categorized into functional units:
 |:---|:---|:---|
 | `redirect_tracer` | Trace full redirect chains (HTTP 301/302, JS, meta refresh). | `url`, `maxRedirects`, `decodeURLs` |
 | `network_recorder` | Capture requests, responses, intercepted APIs, GraphQL, WebSockets, media URLs, block unwanted resource URLs (3x faster loads), and mock API routes. Export HAR. | `action`, `patterns`, `mock`, `captureXhrBody` |
-| `deep_analysis` | DOM structure, scripts, page components, tech stack, SEO, and recommendations. | `types`, `detailed`, `detectAccessControls` |
+| `deep_analysis` | DOM structure, scripts, page components, tech stack, SEO, web performance metrics, console errors, and recommendations. | `types`, `detailed`, `detectAccessControls`, `includeWebPerf`, `includeConsole` |
 | `wait` | Smart delay for selectors, navigation events, or fixed timeout. | `type`, `value`, `timeout` |
 | `progress_tracker` | Track automation progress with AI-estimated remaining time. | `action`, `taskName`, `progress` |
-| `storage_inspector` | Inspect & manage client-side storage, cookies, and session state persistence (`cookies`, `save_session`, `load_session`, `clear_cookies`, `indexeddb`, `service_workers`). Sessions can optionally be AES-256-GCM encrypted via `passphrase`. | `action`, `sessionPath`, `passphrase` |
-| `replay_request` | Replay a captured API request in browser context. | `url`, `method`, `headers`, `body` |
-| `api_analyzer` | Generate JSON schemas, diff two JSONs, or create SDK boilerplates (Python/TypeScript). | `action`, `data`, `lang` |
+| `storage_inspector` | Inspect & manage client-side storage, cookies, and session state persistence (`cookies`, `save_session`, `load_session`, `clear_cookies`, `autosave`, `indexeddb`, `service_workers`). Sessions can optionally be AES-256-GCM encrypted via `passphrase`. | `action`, `sessionPath`, `passphrase`, `enabled` |
+| `see_page` | Capture a snapshot of the current page: screenshot image with optional full-page text, interactive element map, iframe inventory, and visual baseline save/compare for regression testing. | `fullPage`, `annotate`, `saveBaseline`, `compareBaseline`, `steps` |
 
 ### 👁️ AI Vision & Human-like Workflow
 | Tool Name | Description | Key Parameters |
