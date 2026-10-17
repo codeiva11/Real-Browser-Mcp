@@ -1,7 +1,6 @@
 // Internal core-engine helpers (NOT exposed as tools).
-// These power features integrated into the existing 21 tools:
+// These power features integrated into the existing tools:
 //  - Cloudflare challenge auto-bypass  -> navigate(waitForChallenge)
-//  - Download auto-save               -> browser_init(downloadDir)
 //  - Session persistence              -> storage_inspector(save/load_session)
 //  - Console capture                  -> core (always-on) + deep_analysis
 //  - Performance metrics              -> deep_analysis
