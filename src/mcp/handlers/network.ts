@@ -175,6 +175,31 @@ export const networkHandlers = {
         notifyProgress('network_recorder', 'completed', 'Cleared all network route intercepts');
         return { success: true, action: 'clear_routes' };
       }
+
+      case 'rewrite_headers': {
+        const headerPattern = Array.isArray(patterns) && patterns.length > 0 ? patterns[0] : '**/*';
+        const extra = (mock && typeof mock === 'object' ? (mock as any).headers : undefined)
+          || (params as any).headers;
+        if (!extra || typeof extra !== 'object') {
+          throw new Error('rewrite_headers requires headers (object) — pass via headers param or mock.headers');
+        }
+        (state as any)._rewriteFiredUrls = [];
+        await page.route(headerPattern, async (route: any) => {
+          try {
+            (state as any)._rewriteFiredUrls.push(route.request().url());
+          } catch {}
+          const merged = { ...route.request().headers(), ...extra };
+          // Playwright forbids overriding certain headers; fall back to
+          // unmodified continue rather than hanging the request.
+          try {
+            await route.continue({ headers: merged });
+          } catch {
+            await route.continue().catch(() => {});
+          }
+        });
+        notifyProgress('network_recorder', 'completed', `Rewriting headers for: ${headerPattern}`);
+        return { success: true, action: 'rewrite_headers', urlPattern: headerPattern, headers: extra };
+      }
     }
 
     return getFilteredRecords(filter);
