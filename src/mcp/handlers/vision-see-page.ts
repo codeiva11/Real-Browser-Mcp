@@ -41,7 +41,10 @@ export async function seePage(params: SeePageParams = {}) {
     steps,
     captureBefore = true,
     captureAfter = true,
-    stopOnError = true
+    stopOnError = true,
+    // Core: visual regression — save/compare screenshot baselines
+    saveBaseline = false,
+    compareBaseline = false
   } = params;
 
   notifyProgress('see_page', 'started', `👁️ Looking at the page (${fullPage ? 'full page' : 'viewport'})${annotate ? ' with Super Annotations' : ''}...`);
@@ -472,6 +475,34 @@ export async function seePage(params: SeePageParams = {}) {
         null, 2
       )}`,
     });
+  }
+
+  // Core: visual baseline save/compare (no extra tool needed)
+  let visualDiff: any = undefined;
+  if (saveBaseline || compareBaseline) {
+    try {
+      const { diffScreenshots } = await import('./advanced');
+      const buf = await page.screenshot({ type: 'png' });
+      const currentB64 = Buffer.from(buf).toString('base64');
+      if (saveBaseline) {
+        state.visualBaseline = currentB64;
+        state.visualBaselineAt = new Date().toISOString();
+        visualDiff = { baselineSaved: true, at: state.visualBaselineAt };
+      } else if (compareBaseline) {
+        if (!state.visualBaseline) {
+          visualDiff = { error: 'No baseline saved yet — call see_page(saveBaseline: true) first.' };
+        } else {
+          visualDiff = await diffScreenshots(page, state.visualBaseline, currentB64);
+          visualDiff.baselineAt = state.visualBaselineAt;
+        }
+      }
+    } catch (e: any) {
+      visualDiff = { error: e.message };
+    }
+    // mcpContent is the only thing the server returns — embed the diff as text
+    if (visualDiff) {
+      mcpContent.push({ type: 'text', text: `Visual diff: ${JSON.stringify(visualDiff)}` });
+    }
   }
 
   return {
