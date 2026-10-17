@@ -2,9 +2,54 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { state, requireBrowser, notifyProgress, getHeadlessFromEnv, resolveWaitUntil, detachNetworkRecorderListeners } from './state';
+import { maybeAutosaveSession } from './advanced';
 import { getEnvBool } from '../../shared/env-utils';
 import { assertSafeUrl } from '../../shared/url-utils';
-import type { BrowserInitParams, NavigateParams, WaitParams, WaitUntilState } from '../../types';
+import type { BrowserInitParams, NavigateParams, WaitParams, WaitUntilState, FingerprintConfig } from '../../types';
+
+/** Realistic desktop fingerprint presets for rotation (coherent UA+platform+locale+tz). */
+const FINGERPRINT_PRESETS: FingerprintConfig[] = [
+  {
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    viewport: { width: 1920, height: 1080 },
+    timezoneId: 'America/New_York',
+    locale: 'en-US',
+  },
+  {
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    viewport: { width: 1440, height: 900 },
+    timezoneId: 'America/Los_Angeles',
+    locale: 'en-US',
+  },
+  {
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    viewport: { width: 1366, height: 768 },
+    timezoneId: 'Europe/London',
+    locale: 'en-GB',
+  },
+  {
+    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    viewport: { width: 1920, height: 1080 },
+    timezoneId: 'Europe/Berlin',
+    locale: 'de-DE',
+  },
+  {
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    viewport: { width: 1512, height: 982 },
+    timezoneId: 'Asia/Tokyo',
+    locale: 'ja-JP',
+  },
+  {
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    viewport: { width: 1536, height: 864 },
+    timezoneId: 'Asia/Kolkata',
+    locale: 'en-IN',
+  },
+];
+
+function pickRandomFingerprint(): FingerprintConfig {
+  return FINGERPRINT_PRESETS[Math.floor(Math.random() * FINGERPRINT_PRESETS.length)];
+}
 
 export const browserHandlers = {
   async browser_init(params: BrowserInitParams = {}) {
@@ -67,6 +112,37 @@ export const browserHandlers = {
 
     const mergedContextOptions: Record<string, unknown> = contextOptions;
 
+    // Downloads are canceled by default in Playwright unless the context opts
+    // in. Default to true so download_manager works out of the box; explicit
+    // contextOptions.acceptDownloads=false still wins.
+    if (mergedContextOptions['acceptDownloads'] === undefined) {
+      mergedContextOptions['acceptDownloads'] = true;
+    }
+
+    // Fingerprint profile: 'random' picks a coherent realistic profile,
+    // an object applies a custom one. Explicit contextOptions win on conflict.
+    // NOTE: lib-core applies its own UA via CDP after context creation, so a
+    // custom userAgent is re-applied via CDP below (stored for that step).
+    const fingerprint = (params as any).fingerprint;
+    let fingerprintUA: string | null = null;
+    if (fingerprint) {
+      const profile = fingerprint === 'random' ? pickRandomFingerprint() : fingerprint;
+      if (profile && typeof profile === 'object') {
+        for (const [k, v] of Object.entries(profile)) {
+          if (k === 'userAgent') continue; // applied via CDP below
+          if (mergedContextOptions[k] === undefined && v !== undefined) {
+            mergedContextOptions[k] = v;
+          }
+        }
+        if (typeof (profile as any).userAgent === 'string') {
+          fingerprintUA = (profile as any).userAgent;
+        }
+        notifyProgress('browser_init', 'progress',
+          `Fingerprint applied: ${fingerprintUA ? 'custom UA' : 'default UA'}, ` +
+          `${(profile as any).locale || 'default locale'}, ${(profile as any).timezoneId || 'default timezone'}`);
+      }
+    }
+
     // Videos go to the OS temp dir (or REAL_BROWSER_VIDEO_DIR) so they never
     // depend on the server's CWD. Creating ./videos relative to dist/ broke
     // on npx/global installs and left orphaned files in the project tree.
@@ -97,6 +173,15 @@ export const browserHandlers = {
     state.blockerInstance = result.blocker;
     state.setupPageFn = result.setupPage;
     state.aiHealingEnabled = aiHealing; // stored for click/type handlers
+
+    // Re-apply fingerprint UA via CDP (lib-core's own UA override runs first)
+    if (fingerprintUA && state.pageInstance) {
+      try {
+        const client: any = await (state.pageInstance as any).context().newCDPSession(state.pageInstance);
+        await client.send('Emulation.setUserAgentOverride', { userAgent: fingerprintUA });
+        notifyProgress('browser_init', 'progress', 'Custom User-Agent applied via CDP');
+      } catch { /* UA override is best-effort */ }
+    }
 
     const { spoofFingerprint = true, blockWebRTCLeaks = true } = params;
 
@@ -386,6 +471,9 @@ export const browserHandlers = {
         }
 
         notifyProgress('navigate', 'completed', `Loaded: ${title}`, { url: page.url(), title });
+
+        // Session autosave hook (no-op unless session_manager autosave is on)
+        await maybeAutosaveSession();
 
         return { success: true, url: page.url(), title };
       } catch (error: unknown) {
