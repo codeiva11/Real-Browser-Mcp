@@ -12,7 +12,7 @@ import type { RedirectTracerParams, NetworkRecorderParams, ReplayRequestParams }
 
 export const networkHandlers = {
   async redirect_tracer(params: RedirectTracerParams) {
-    const { browser } = requireBrowser();
+    const { browser, page: originalPage } = requireBrowser();
     const { url, maxRedirects = 20, includeHeaders = false, followJS = true, followMeta = true, decodeURLs = true, timeout = 30000 } = params;
 
     await assertSafeUrl(url, 'redirect_tracer');
@@ -22,6 +22,9 @@ export const networkHandlers = {
     // Trace on a dedicated scratch page so the user's current page state is
     // preserved — this tool performs a real navigation. New pages in the same
     // context automatically get UA override, blocking, and popup protection.
+    // NOTE: opening any page fires the context 'page' listener registered in
+    // browser_init, which repoints state.pageInstance at the newest page.
+    // We restore the original page below so later tools keep working.
     const context = browser.contexts()[0];
     const tracePage = await context.newPage();
     if (state.setupPageFn) {
@@ -86,6 +89,14 @@ export const networkHandlers = {
     tracePage.off('framenavigated', frameNavigatedHandler);
     const finalUrl = tracePage.url();
     try { await tracePage.close(); } catch { /* already closed */ }
+
+    // Restore the user's original page: the context 'page' listener hijacked
+    // state.pageInstance when we opened the scratch tracePage (now closed).
+    try {
+      if (originalPage && !(originalPage as any).isClosed()) {
+        state.pageInstance = originalPage;
+      }
+    } catch { /* keep current state on restore failure */ }
 
     let allRedirects = [...redirects, ...jsNavigations.filter(nav => nav.url && nav.url.startsWith('http'))];
 
