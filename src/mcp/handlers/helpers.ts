@@ -1,5 +1,5 @@
 // Auto-generated helpers handlers
-import { requireBrowser, notifyProgress } from './state';
+import { notifyProgress } from './state';
 import { logger } from '../../shared/logger';
 
 export const helpersHandlers = {
@@ -152,7 +152,6 @@ export const helpersHandlers = {
   },
 
   async _fillFormFields(page: any, formData: any, formSelector: any, humanLike = true, aiMatch = true) {
-    const targetForm = formSelector || 'form';
     const fields = Object.keys(formData || {});
     let filledCount = 0;
     const filledFields = [];
