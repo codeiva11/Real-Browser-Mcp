@@ -613,7 +613,6 @@ export const browserHandlers = {
     state.networkRecorderBoundPage = null;
     state.networkRecorderListeners = null;
     state.activeAnnotations = undefined;
-    state.progressTasks = {};
 
     notifyProgress('browser_close', 'completed', 'Browser closed');
 
