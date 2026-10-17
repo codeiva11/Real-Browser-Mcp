@@ -34,8 +34,7 @@ const TOOLS = [
         fingerprint: {
           type: ['string', 'object'],
           description: "Fingerprint profile: 'random' picks a coherent realistic profile (UA + viewport + timezone + locale), or pass an object {userAgent, viewport:{width,height}, timezoneId, locale, geolocation, colorScheme}. Explicit contextOptions win on conflict."
-        },
-        downloadDir: { type: 'string', description: 'Auto-save every download to this directory (inside working dir). Downloads are tracked in browser state.' }
+        }
       }
     }
   },
