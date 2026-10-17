@@ -6,6 +6,7 @@ import { visionHandlers } from './vision';
 import { extractHandlers } from './extract';
 import { utilityHandlers } from './utility-handlers';
 import { mediaHandlers } from './media-handlers';
+import { advancedHandlers } from './advanced';
 import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser, detachNetworkRecorderListeners } from './state';
 import { validateToolArgs, invalidArgsResult } from '../../shared/validate';
 import { logger } from '../../shared/logger';
@@ -21,7 +22,8 @@ export const handlers: any = {
   ...visionHandlers,
   ...extractHandlers,
   ...utilityHandlers,
-  ...mediaHandlers
+  ...mediaHandlers,
+  ...advancedHandlers
 };
 
 // Global watchdog: no tool handler may block the MCP request forever.
@@ -53,6 +55,8 @@ const LONG_RUNNING_TOOLS = new Set([
   'progress_tracker',
   'media_extractor',
   'execute_js',
+  'cloudflare_bypass',
+  'download_manager',
 ]);
 
 // ───────────────────────────────────────────────────────────────────────────
