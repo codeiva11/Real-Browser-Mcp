@@ -5,7 +5,7 @@ import * as os from 'os';
 import * as crypto from 'crypto';
 import { state, requireBrowser, notifyProgress } from './state';
 import { resolveIframe } from './handler-utils';
-import type { ProgressTrackerParams, DeepAnalysisParams, ExecuteJsParams, StorageInspectorParams } from '../../types';
+import type { DeepAnalysisParams, ExecuteJsParams, StorageInspectorParams } from '../../types';
 
 // ═══════════════════════════════════════════════════════════════
 // Session Encryption Helpers (AES-256-GCM, scrypt-derived key)
@@ -58,67 +58,6 @@ function decryptJson (envelope: string, passphrase?: string): Record<string, unk
 // ═══════════════════════════════════════════════════════════════
 
 export const utilityHandlers = {
-
-  async progress_tracker(params: ProgressTrackerParams = {}) {
-    const { action = 'get', taskName = '', progress, aiEstimate = true } = params;
-
-    // TTL + cap: drop stale tasks and bound the map so a long-lived server
-    // never accumulates an unbounded number of task entries.
-    const STALE_MS = 60 * 60 * 1000; // 1 hour
-    const MAX_TASKS = 500;
-    const now = Date.now();
-    for (const [name, task] of Object.entries(state.progressTasks)) {
-      const age = now - (task.endTime || task.startTime);
-      if (age > STALE_MS) delete state.progressTasks[name];
-    }
-    const entries = Object.entries(state.progressTasks);
-    if (entries.length > MAX_TASKS) {
-      entries.sort((a, b) => a[1].startTime - b[1].startTime);
-      for (const [name] of entries.slice(0, entries.length - MAX_TASKS)) {
-        delete state.progressTasks[name];
-      }
-    }
-
-    if (action === 'clear') {
-      state.progressTasks = {};
-      return { success: true, message: 'All tasks cleared', tasks: state.progressTasks };
-    }
-
-    switch (action) {
-      case 'start':
-        state.progressTasks[taskName] = { progress: 0, startTime: Date.now() };
-        notifyProgress('progress_tracker', 'started', `Task started: ${taskName}`);
-        break;
-      case 'update':
-        if (taskName && state.progressTasks[taskName]) {
-          state.progressTasks[taskName].progress = progress ?? 0;
-          notifyProgress('progress_tracker', 'progress', `${taskName}: ${progress}%`, { taskName, progress });
-        }
-        break;
-      case 'complete':
-        if (taskName && state.progressTasks[taskName]) {
-          state.progressTasks[taskName].progress = 100;
-          state.progressTasks[taskName].endTime = Date.now();
-          const duration = state.progressTasks[taskName].endTime! - state.progressTasks[taskName].startTime;
-          notifyProgress('progress_tracker', 'completed', `${taskName} completed in ${duration}ms`, { taskName, duration });
-        }
-        break;
-    }
-
-    const result: Record<string, unknown> = { success: true, tasks: state.progressTasks };
-
-    if (aiEstimate && taskName && state.progressTasks[taskName]) {
-      const task = state.progressTasks[taskName];
-      if (task.progress > 0 && task.progress < 100 && !task.endTime) {
-        const elapsed = Date.now() - task.startTime;
-        const rate = task.progress / elapsed;
-        const remaining = (100 - task.progress) / rate;
-        result.estimate = { taskName, remainingMs: Math.round(remaining), remainingSec: Math.round(remaining / 1000) };
-      }
-    }
-
-    return result;
-  },
 
   async deep_analysis(params: DeepAnalysisParams = {}) {
     const { page } = requireBrowser();
