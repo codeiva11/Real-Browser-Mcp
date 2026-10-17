@@ -322,6 +322,37 @@ export const browserHandlers = {
 
     const pid = (typeof (state.browserInstance as any).process === 'function') ? (state.browserInstance as any).process()?.pid : null;
 
+    // Core: always-on console capture (CDP-based; page.on('console') does not
+    // fire in headless shell). Logs feed deep_analysis.
+    if (state.pageInstance) {
+      try {
+        const { startConsoleCapture } = await import('./advanced');
+        await startConsoleCapture(state.pageInstance);
+      } catch { /* console capture is best-effort */ }
+    }
+
+    // Core: download auto-save. When downloadDir is set, every download is
+    // saved there automatically (no separate tool needed).
+    const downloadDir = (params as any).downloadDir as string | undefined;
+    if (downloadDir && state.pageInstance) {
+      try {
+        const { safeResolve } = await import('./advanced');
+        const dir = safeResolve(downloadDir) || require('path').resolve(downloadDir);
+        require('fs').mkdirSync(dir, { recursive: true });
+        (state.pageInstance as any)._downloadDir = dir;
+        state.pageInstance.on('download', async (dl: any) => {
+          try {
+            const p = require('path').join(dir, await dl.suggestedFilename().catch(() => `download-${Date.now()}`));
+            await dl.saveAs(p);
+            state.downloads = state.downloads || [];
+            state.downloads.push({ filename: require('path').basename(p), path: p, url: dl.url(), savedAt: new Date().toISOString(), at: new Date().toISOString(), suggestedFilename: await dl.suggestedFilename().catch(() => null) });
+            notifyProgress('browser_init', 'progress', `Download saved: ${p}`);
+          } catch { /* best-effort */ }
+        });
+        notifyProgress('browser_init', 'progress', `Download auto-save enabled: ${dir}`);
+      } catch { /* best-effort */ }
+    }
+
     notifyProgress('browser_init', 'completed', `Browser started (PID: ${pid})`, {
       headless,
       pid,
@@ -472,10 +503,28 @@ export const browserHandlers = {
 
         notifyProgress('navigate', 'completed', `Loaded: ${title}`, { url: page.url(), title });
 
-        // Session autosave hook (no-op unless session_manager autosave is on)
+        // Core: Cloudflare challenge auto-bypass. When waitForChallenge is
+        // set, poll until the "Just a moment" challenge clears (auto-solves
+        // in a real browser, typically 10-30s) and report clearance cookies.
+        let challenge: any = undefined;
+        if ((params as any).waitForChallenge) {
+          try {
+            const { waitForChallengeToClear } = await import('./advanced');
+            challenge = await waitForChallengeToClear(
+              page,
+              (params as any).challengeTimeout || 90000,
+              (params as any).challengePollInterval || 2000
+            );
+            title = challenge.title || title;
+            notifyProgress('navigate', 'completed',
+              challenge.solved ? `Challenge solved in ${challenge.elapsedMs}ms` : 'Challenge NOT solved within timeout');
+          } catch { /* best-effort */ }
+        }
+
+        // Session autosave hook (no-op unless autosave is on)
         await maybeAutosaveSession();
 
-        return { success: true, url: page.url(), title };
+        return { success: true, url: page.url(), title, ...(challenge ? { challenge } : {}) };
       } catch (error: unknown) {
         lastError = error;
         const errMsg = error instanceof Error ? error.message : String(error);
