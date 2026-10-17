@@ -4,15 +4,8 @@ import { state, requireBrowser, notifyProgress } from './state';
 import { domHandlers } from './dom';
 import { browserHandlers } from './browser';
 import { extractHandlers } from './extract';
+import { safeResolve } from './advanced';
 import type { SeePageParams, BrowseStep } from '../../types';
-
-/** Resolve a user-supplied save path, preventing path traversal outside cwd. */
-function safeResolve(savePath: string): string | null {
-  const resolved = path.resolve(savePath);
-  const cwd = path.resolve(process.cwd());
-  if (resolved !== cwd && !resolved.startsWith(cwd + path.sep)) return null;
-  return resolved;
-}
 
 type StepResult = { step: number; action: string; success: boolean; result?: any; error?: string };
 
@@ -304,7 +297,6 @@ export async function seePage(params: SeePageParams = {}) {
     }
 
     const stepResults: StepResult[] = [];
-    let failed = false;
     const maxAttempts = 3;
 
     for (let i = 0; i < effectiveSteps.length; i++) {
@@ -442,7 +434,6 @@ export async function seePage(params: SeePageParams = {}) {
 
       if (!stepSuccess) {
         stepResults.push({ step: i + 1, action, success: false, error: err || 'Unknown error' });
-        failed = true;
         if (stopOnError) {
           notifyProgress('see_page', 'error', `Step ${i + 1} failed after ${maxAttempts} attempts: ${err}. Stopping sequence.`);
           break;
