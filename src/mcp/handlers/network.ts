@@ -8,23 +8,8 @@ import {
 } from './network-recorder';
 import { extractData } from './network-extractors';
 import { assertSafeUrl } from '../../shared/url-utils';
+import { globToUrlPredicate } from './advanced';
 import type { RedirectTracerParams, NetworkRecorderParams } from '../../types';
-
-/**
- * Convert a user-friendly glob (`*example.com*`, `** /*.png`, full URLs) to a
- * predicate. Playwright's native glob has a quirk where a leading single `*`
- * never matches the scheme+host part, so `*example.com*` matches nothing.
- * Our own glob->regex translation behaves as users expect.
- */
-function globToUrlPredicate(pattern: string): (url: string) => boolean {
-  const regexStr = pattern
-    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*/g, '.*')
-    .replace(/\*/g, '.*')
-    .replace(/\?/g, '.');
-  const re = new RegExp(`^${regexStr}$`, 'i');
-  return (url: string) => re.test(url);
-}
 
 export const networkHandlers = {
   async redirect_tracer(params: RedirectTracerParams) {
