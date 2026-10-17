@@ -10,6 +10,22 @@ import { extractData } from './network-extractors';
 import { assertSafeUrl } from '../../shared/url-utils';
 import type { RedirectTracerParams, NetworkRecorderParams, ReplayRequestParams } from '../../types';
 
+/**
+ * Convert a user-friendly glob (`*example.com*`, `** /*.png`, full URLs) to a
+ * predicate. Playwright's native glob has a quirk where a leading single `*`
+ * never matches the scheme+host part, so `*example.com*` matches nothing.
+ * Our own glob->regex translation behaves as users expect.
+ */
+function globToUrlPredicate(pattern: string): (url: string) => boolean {
+  const regexStr = pattern
+    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '.*')
+    .replace(/\*/g, '.*')
+    .replace(/\?/g, '.');
+  const re = new RegExp(`^${regexStr}$`, 'i');
+  return (url: string) => re.test(url);
+}
+
 export const networkHandlers = {
   async redirect_tracer(params: RedirectTracerParams) {
     const { browser, page: originalPage } = requireBrowser();
@@ -138,7 +154,12 @@ export const networkHandlers = {
 
         for (const pat of targetPatterns) {
           try {
-            await page.route(pat, (route: any) => route.abort());
+            // Predicate matcher: native glob quirk (leading `*` never matches
+            // scheme+host) would silently skip patterns like `*analytics*`.
+            // Context-level routes (not page-level) for robustness.
+            const matchUrl = globToUrlPredicate(pat);
+            await page.context().route((url: any) => { try { return matchUrl(url.toString()); } catch { return false; } },
+              (route: any) => route.abort());
           } catch { /* ignore route errors */ }
         }
         notifyProgress('network_recorder', 'completed', `Blocked ${targetPatterns.length} URL patterns`);
@@ -175,31 +196,10 @@ export const networkHandlers = {
         notifyProgress('network_recorder', 'completed', 'Cleared all network route intercepts');
         return { success: true, action: 'clear_routes' };
       }
-
-      case 'rewrite_headers': {
-        const headerPattern = Array.isArray(patterns) && patterns.length > 0 ? patterns[0] : '**/*';
-        const extra = (mock && typeof mock === 'object' ? (mock as any).headers : undefined)
-          || (params as any).headers;
-        if (!extra || typeof extra !== 'object') {
-          throw new Error('rewrite_headers requires headers (object) — pass via headers param or mock.headers');
-        }
-        (state as any)._rewriteFiredUrls = [];
-        await page.route(headerPattern, async (route: any) => {
-          try {
-            (state as any)._rewriteFiredUrls.push(route.request().url());
-          } catch {}
-          const merged = { ...route.request().headers(), ...extra };
-          // Playwright forbids overriding certain headers; fall back to
-          // unmodified continue rather than hanging the request.
-          try {
-            await route.continue({ headers: merged });
-          } catch {
-            await route.continue().catch(() => {});
-          }
-        });
-        notifyProgress('network_recorder', 'completed', `Rewriting headers for: ${headerPattern}`);
-        return { success: true, action: 'rewrite_headers', urlPattern: headerPattern, headers: extra };
-      }
+      // NOTE: rewrite_headers action was removed — header modification via
+      // route.continue({headers}) works in isolation but is silently dropped
+      // in the full server environment (lib-core page setup interaction).
+      // Use replay_request with custom headers instead.
     }
 
     return getFilteredRecords(filter);
