@@ -13,7 +13,6 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
     refreshSelector,
     lang = 'eng',
     expectedLength,
-    allowedChars,
     maxRetries = 3,
     iframe = null,
     iframeSelector = null,
@@ -255,7 +254,6 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
             document.querySelectorAll('div, iframe').forEach(item => {
               try {
                 const rect = item.getBoundingClientRect();
-                const css = window.getComputedStyle(item);
                 const isWidgetSize = rect.width >= 150 && rect.width <= 400 && rect.height >= 40 && rect.height <= 100;
                 if (isWidgetSize) {
                   if (item.tagName === 'IFRAME') coordinates.push({ x: rect.x, y: rect.y, w: rect.width, h: rect.height });
