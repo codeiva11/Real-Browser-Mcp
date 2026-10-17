@@ -331,28 +331,6 @@ export const browserHandlers = {
       } catch { /* console capture is best-effort */ }
     }
 
-    // Core: download auto-save. When downloadDir is set, every download is
-    // saved there automatically (no separate tool needed).
-    const downloadDir = (params as any).downloadDir as string | undefined;
-    if (downloadDir && state.pageInstance) {
-      try {
-        const { safeResolve } = await import('./advanced');
-        const dir = safeResolve(downloadDir) || require('path').resolve(downloadDir);
-        require('fs').mkdirSync(dir, { recursive: true });
-        (state.pageInstance as any)._downloadDir = dir;
-        state.pageInstance.on('download', async (dl: any) => {
-          try {
-            const p = require('path').join(dir, await dl.suggestedFilename().catch(() => `download-${Date.now()}`));
-            await dl.saveAs(p);
-            state.downloads = state.downloads || [];
-            state.downloads.push({ filename: require('path').basename(p), path: p, url: dl.url(), savedAt: new Date().toISOString(), at: new Date().toISOString(), suggestedFilename: await dl.suggestedFilename().catch(() => null) });
-            notifyProgress('browser_init', 'progress', `Download saved: ${p}`);
-          } catch { /* best-effort */ }
-        });
-        notifyProgress('browser_init', 'progress', `Download auto-save enabled: ${dir}`);
-      } catch { /* best-effort */ }
-    }
-
     notifyProgress('browser_init', 'completed', `Browser started (PID: ${pid})`, {
       headless,
       pid,
