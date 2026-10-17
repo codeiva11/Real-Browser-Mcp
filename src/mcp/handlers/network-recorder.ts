@@ -1,4 +1,4 @@
-import { state, requireBrowser, notifyProgress, detachNetworkRecorderListeners, pushNetworkRecord } from './state';
+import { state, notifyProgress, detachNetworkRecorderListeners, pushNetworkRecord } from './state';
 import { logger } from '../../shared/logger';
 
 export async function startRecording(page: any, captureXhrBody = false) {
