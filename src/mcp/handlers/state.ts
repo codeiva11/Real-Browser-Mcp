@@ -26,6 +26,15 @@ export const state: BrowserState = {
   progressTasks: {},
   progressCallback: null,
   aiHealingEnabled: true,
+  downloads: [],
+  consoleLogs: [],
+  consoleListening: false,
+  consoleListeners: null,
+  sessionAutosave: false,
+  sessionLastSavedAt: null,
+  sessionLastUrl: null,
+  visualBaseline: null,
+  visualBaselineAt: null,
 };
 
 export function detachNetworkRecorderListeners(): void {
