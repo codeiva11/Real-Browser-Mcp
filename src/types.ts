@@ -281,13 +281,6 @@ export interface GetContentParams {
   rawHttpUrl?: string;
 }
 
-export interface ReplayRequestParams {
-  url: string;
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string;
-}
-
 export interface StorageInspectorParams {
   action?: 'cookies' | 'save_session' | 'load_session' | 'clear_cookies' | 'autosave' | 'indexeddb' | 'service_workers';
   sessionPath?: string;
@@ -321,7 +314,12 @@ export interface NetworkFilter {
 }
 
 export interface ExecuteJsParams {
-  code: string;
+  code?: string;
+  action?: 'execute' | 'fetch';
+  url?: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
   returnValue?: boolean;
   async?: boolean;
   iframe?: number;
