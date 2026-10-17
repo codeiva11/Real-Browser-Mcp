@@ -30,7 +30,11 @@ const TOOLS = [
         aiHealing: { type: 'boolean', default: true, description: 'Enable selector fallback when a selector does not match' },
         recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of the session' },
         spoofFingerprint: { type: 'boolean', default: true, description: 'Spoof WebGL vendor/renderer, Canvas noise, and AudioContext to defeat bot fingerprinting' },
-        blockWebRTCLeaks: { type: 'boolean', default: true, description: 'Prevent local IP leaks via WebRTC when using proxies' }
+        blockWebRTCLeaks: { type: 'boolean', default: true, description: 'Prevent local IP leaks via WebRTC when using proxies' },
+        fingerprint: {
+          type: ['string', 'object'],
+          description: "Fingerprint profile: 'random' picks a coherent realistic profile (UA + viewport + timezone + locale), or pass an object {userAgent, viewport:{width,height}, timezoneId, locale, geolocation, colorScheme}. Explicit contextOptions win on conflict."
+        }
       }
     }
   },
@@ -384,15 +388,16 @@ const TOOLS = [
   {
     name: 'network_recorder',
     emoji: '📡',
-    description: 'Record, inspect, and control network activity. Supports 14 actions: start, stop, get, clear, get_media, get_navigations, get_api_calls, get_intercepted_apis, get_websockets, get_graphql, export_har, block_urls (block images/trackers to boost speed 3x-5x), mock_route (intercept & mock API responses), clear_routes.',
-    descriptionHindi: 'नेटवर्क रिकॉर्डर व रूट कंट्रोल — 14 actions (traffic recording + block_urls + mock_route + export_har)',
+    description: 'Record, inspect, and control network activity. Supports 15 actions: start, stop, get, clear, get_media, get_navigations, get_api_calls, get_intercepted_apis, get_websockets, get_graphql, export_har, block_urls (block images/trackers to boost speed 3x-5x), mock_route (intercept & mock API responses), rewrite_headers (modify request headers on the fly), clear_routes.',
+    descriptionHindi: 'नेटवर्क रिकॉर्डर व रूट कंट्रोल — 15 actions (traffic recording + block_urls + mock_route + rewrite_headers + export_har)',
     category: 'network',
     requiresBrowser: true,
     requiresPage: false,
     inputSchema: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['start', 'stop', 'get', 'clear', 'get_media', 'get_navigations', 'get_api_calls', 'get_intercepted_apis', 'get_websockets', 'get_graphql', 'export_har', 'block_urls', 'mock_route', 'clear_routes'], default: 'get' },
+        action: { type: 'string', enum: ['start', 'stop', 'get', 'clear', 'get_media', 'get_navigations', 'get_api_calls', 'get_intercepted_apis', 'get_websockets', 'get_graphql', 'export_har', 'block_urls', 'mock_route', 'rewrite_headers', 'clear_routes'], default: 'get' },
+        headers: { type: 'object', description: 'Headers to merge into matching requests (for rewrite_headers action)' },
         filter: {
           type: 'object',
           properties: {
@@ -601,6 +606,144 @@ const TOOLS = [
         captureBefore: { type: 'boolean', default: true, description: 'Take a screenshot before running the steps array' },
         captureAfter: { type: 'boolean', default: true, description: 'Take a screenshot after the steps array completes' },
         stopOnError: { type: 'boolean', default: true, description: 'Stop step execution on first failure' }
+      }
+    }
+  },
+
+  // 22. Cloudflare Bypass
+  {
+    name: 'cloudflare_bypass',
+    emoji: '🛡️',
+    description: 'Navigate to a URL and automatically wait for a Cloudflare (or similar) JavaScript challenge to clear. Returns solved status, final URL/title, and clearance cookies (cf_clearance) that a plain HTTP client can replay.',
+    descriptionHindi: 'Cloudflare challenge auto-bypass — solve होने तक wait + cookies export',
+    category: 'network',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'URL to open (must be http/https)' },
+        timeout: { type: 'number', default: 90000, description: 'Max wait for the challenge to clear, in ms' },
+        pollInterval: { type: 'number', default: 2000, description: 'Challenge check interval in ms' },
+        exportCookies: { type: 'boolean', default: true, description: 'Export Cloudflare clearance cookies' },
+        waitUntil: { type: 'string', enum: ['load', 'domcontentloaded', 'networkidle', 'commit'], default: 'domcontentloaded' }
+      },
+      required: ['url']
+    }
+  },
+
+  // 23. Download Manager
+  {
+    name: 'download_manager',
+    emoji: '📥',
+    description: 'Handle browser downloads: monitor mode auto-saves every download inside the working directory (use before clicking a download link), wait blocks for the next download, list/clear manage history.',
+    descriptionHindi: 'browser downloads — monitor/wait/list/clear, working directory में auto-save',
+    category: 'network',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['monitor', 'stop_monitor', 'wait', 'list', 'clear'], default: 'list' },
+        timeout: { type: 'number', default: 60000, description: 'Max wait for a download to start, in ms (wait action)' },
+        saveDir: { type: 'string', default: 'downloads', description: 'Directory (inside working dir) to save downloads' },
+        filename: { type: 'string', description: 'Override the saved filename' }
+      }
+    }
+  },
+
+  // 24. Session Manager
+  {
+    name: 'session_manager',
+    emoji: '💾',
+    description: 'Persist and restore browsing sessions (cookies + storage). Save/load named sessions, toggle autosave on navigation, recover the last autosave after a crash, or inspect session status.',
+    descriptionHindi: 'session save/load/autosave/recover — cookies + storage persist',
+    category: 'browser',
+    requiresBrowser: false,
+    requiresPage: false,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['save', 'load', 'autosave', 'recover', 'info'], default: 'info' },
+        sessionPath: { type: 'string', default: 'session.json', description: 'Session file path (inside working dir)' },
+        autosave: { type: 'boolean', description: 'Turn navigation autosave on/off (for action=autosave)' }
+      }
+    }
+  },
+
+  // 25. Console Logs
+  {
+    name: 'console_logs',
+    emoji: '📟',
+    description: 'Capture page console messages and uncaught page errors. Start/stop the listener, get filtered logs, or clear the buffer.',
+    descriptionHindi: 'page console + JS errors capture — start/stop/get/clear',
+    category: 'analysis',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['start', 'stop', 'get', 'clear'], default: 'get' },
+        level: { type: 'string', description: 'Filter by console level (log, warning, error, ...)' },
+        limit: { type: 'number', default: 200, description: 'Max log entries to return' },
+        clearAfterGet: { type: 'boolean', default: false, description: 'Clear the buffer after reading' }
+      }
+    }
+  },
+
+  // 26. Fill Form
+  {
+    name: 'fill_form',
+    emoji: '📝',
+    description: 'Smart form filling: maps field names to page inputs automatically (fuzzy/semantic matching), types with human-like delays, and optionally submits the form or presses Enter.',
+    descriptionHindi: 'smart form fill — auto field mapping + human-like typing + submit',
+    category: 'interaction',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        formData: { type: 'object', description: 'Field name -> value pairs (matched automatically to page inputs)' },
+        formSelector: { type: 'string', description: 'CSS selector for the form (auto-detected if omitted)' },
+        submit: { type: 'boolean', default: false, description: 'Submit the form after filling' },
+        humanLike: { type: 'boolean', default: true, description: 'Type with variable keystroke delays' },
+        aiMatch: { type: 'boolean', default: true, description: 'Match fields by semantic similarity' },
+        pressEnter: { type: 'boolean', default: false, description: 'Press Enter after filling (when not submitting)' }
+      },
+      required: ['formData']
+    }
+  },
+
+  // 27. Performance Metrics
+  {
+    name: 'performance_metrics',
+    emoji: '⚡',
+    description: 'Web performance metrics for the current page: Navigation Timing (TTFB, DOMContentLoaded, load), paint timings (FCP), buffered Web Vitals (LCP, CLS), resource count, and DOM size.',
+    descriptionHindi: 'page performance — TTFB/LCP/CLS/FCP + resource count',
+    category: 'analysis',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    }
+  },
+
+  // 28. Compare Screenshots
+  {
+    name: 'compare_screenshots',
+    emoji: '🔍',
+    description: 'Visual regression: capture a baseline screenshot, then compare the current viewport against it and get a difference percentage. Useful for change detection and UI testing.',
+    descriptionHindi: 'visual diff — baseline vs current screenshot, difference %',
+    category: 'vision',
+    requiresBrowser: true,
+    requiresPage: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['baseline', 'compare'], default: 'compare' },
+        threshold: { type: 'number', default: 1.0, description: 'Difference % above which the comparison is flagged' },
+        fullPage: { type: 'boolean', default: false, description: 'Compare full page instead of viewport' }
       }
     }
   }
