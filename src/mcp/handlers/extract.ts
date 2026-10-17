@@ -3,25 +3,12 @@ import * as fs from 'fs';
 
 import { requireBrowser, notifyProgress } from './state';
 import { assertSafeUrl } from '../../shared/url-utils';
+import { safeResolve } from './advanced';
 import type { GetContentParams } from '../../types';
 
 // Cap for HTML/text payloads returned to the MCP client. Multi-MB page dumps
 // bloat the response and can break clients; we truncate and flag instead.
 const MAX_CONTENT_CHARS = 2_000_000;
-
-/**
- * Resolve a user-supplied save path, preventing path traversal outside cwd.
- * Returns null if the resolved path would escape the working directory.
- */
-function safeResolve(savePath: string): string | null {
-  const resolved = path.resolve(savePath);
-  const cwd = path.resolve(process.cwd());
-  // Allow writing only inside cwd (or its subfolders) to avoid traversal escapes
-  if (resolved !== cwd && !resolved.startsWith(cwd + path.sep)) {
-    return null;
-  }
-  return resolved;
-}
 
 
 export const extractHandlers = {
