@@ -464,23 +464,27 @@ const TOOLS = [
   {
     name: 'execute_js',
     emoji: '💻',
-    description: 'Execute custom JavaScript in the page context with async support, return value capture, and iframe targeting.',
-    descriptionHindi: 'कस्टम JS चलाना (async + iframe context)',
+    description: 'Execute custom JavaScript in the page context with async support, return value capture, and iframe targeting. Also supports action="fetch" to replay HTTP requests with the page session (cookies/auth inherited, 30s timeout, structured status/headers/body output).',
+    descriptionHindi: 'कस्टम JS चलाना (async + iframe context) या fetch action से HTTP request भेजना',
     category: 'interaction',
     requiresBrowser: true,
     requiresPage: true,
     inputSchema: {
       type: 'object',
       properties: {
-        code: { type: 'string', description: 'JavaScript code to execute in the page context' },
+        code: { type: 'string', description: 'JavaScript code to execute in the page context (required unless action="fetch")' },
+        action: { type: 'string', enum: ['execute', 'fetch'], default: 'execute', description: 'execute: run JS code; fetch: replay an HTTP request with page session' },
+        url: { type: 'string', description: 'URL for fetch action' },
+        method: { type: 'string', default: 'GET', description: 'HTTP method for fetch action' },
+        headers: { type: 'object', description: 'Headers for fetch action' },
+        body: { type: 'string', description: 'Body for fetch action (POST/PUT)' },
         returnValue: { type: 'boolean', default: true, description: 'Return the result of the expression' },
         async: { type: 'boolean', default: false, description: 'Wrap code in an async function' },
         timeout: { type: 'number', default: 30000 },
         iframe: { type: 'number', description: 'Execute inside a specific iframe (0 = main frame, 1+ = iframe by index)' },
         iframeSelector: { type: 'string', description: 'Execute inside iframe matched by CSS selector' },
         waitForIframe: { type: 'boolean', default: true, description: 'Wait for the iframe to finish loading before executing' }
-      },
-      required: ['code']
+      }
     }
   },
 
@@ -504,28 +508,7 @@ const TOOLS = [
     }
   },
 
-  // 19. Replay Request
-  {
-    name: 'replay_request',
-    emoji: '🔁',
-    description: 'Re-send a network request inside the page context, reusing the current session headers.',
-    descriptionHindi: 'नेटवर्क रिक्वेस्ट को session context में फिर से भेजना',
-    category: 'network',
-    requiresBrowser: true,
-    requiresPage: true,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        url: { type: 'string' },
-        method: { type: 'string', default: 'GET' },
-        headers: { type: 'object' },
-        body: { type: 'string' }
-      },
-      required: ['url']
-    }
-  },
-
-  // 20. See Page
+  // 19. See Page
   {
     name: 'see_page',
     emoji: '👁️',
