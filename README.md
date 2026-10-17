@@ -316,7 +316,7 @@ Values are case-insensitive. Priority for each option is: **explicit `browser_in
 
 ## 🌐 Complete MCP Tool Reference (21 Tools)
 
-The server exposes **19 tools** categorized into functional units:
+The server exposes **18 tools** categorized into functional units:
 
 ### 🌐 Browser & Session
 | Tool Name | Description | Key Parameters |
@@ -353,7 +353,6 @@ The server exposes **19 tools** categorized into functional units:
 | `network_recorder` | Capture requests, responses, intercepted APIs, GraphQL, WebSockets, media URLs, block unwanted resource URLs (3x faster loads), and mock API routes. Export HAR. | `action`, `patterns`, `mock`, `captureXhrBody` |
 | `deep_analysis` | DOM structure, scripts, page components, tech stack, SEO, web performance metrics, console errors, and recommendations. | `types`, `detailed`, `detectAccessControls`, `includeWebPerf`, `includeConsole` |
 | `wait` | Smart delay for selectors, navigation events, or fixed timeout. | `type`, `value`, `timeout` |
-| `progress_tracker` | Track automation progress with AI-estimated remaining time. | `action`, `taskName`, `progress` |
 | `storage_inspector` | Inspect & manage client-side storage, cookies, and session state persistence (`cookies`, `save_session`, `load_session`, `clear_cookies`, `autosave`, `indexeddb`, `service_workers`). Sessions can optionally be AES-256-GCM encrypted via `passphrase`. | `action`, `sessionPath`, `passphrase`, `enabled` |
 | `see_page` | Capture a snapshot of the current page: screenshot image with optional full-page text, interactive element map, iframe inventory, and visual baseline save/compare for regression testing. | `fullPage`, `annotate`, `saveBaseline`, `compareBaseline`, `steps` |
 
