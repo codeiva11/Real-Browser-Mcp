@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 import { state, requireBrowser, notifyProgress } from './state';
 import { helpersHandlers } from './helpers';
 import { resolveIframe } from './handler-utils';
-import type { ProgressTrackerParams, DeepAnalysisParams, ExecuteJsParams, ApiAnalyzerParams, StorageInspectorParams } from '../../types';
+import type { ProgressTrackerParams, DeepAnalysisParams, ExecuteJsParams, StorageInspectorParams } from '../../types';
 import { logger } from '../../shared/logger';
 
 // ═══════════════════════════════════════════════════════════════
@@ -406,100 +406,6 @@ export const utilityHandlers = {
 
       return { success: false, error: `Unknown action: ${action}. Supported: cookies, save_session, load_session, clear_cookies, autosave, indexeddb, service_workers` };
     } catch (e: any) {
-      return { success: false, error: e.message };
-    }
-  },
-
-  async api_analyzer(params: ApiAnalyzerParams = {}) {
-    const { action = 'schema', data, data2, lang = 'ts' } = params;
-    notifyProgress('api_analyzer', 'started', `Action: ${action}`);
-
-    try {
-      let parsed = null;
-      try { parsed = typeof data === 'string' && (data.startsWith('{') || data.startsWith('[')) ? JSON.parse(data) : null; } catch {}
-
-      if (action === 'diff') {
-        let p2 = null;
-        try { p2 = typeof data2 === 'string' && (data2.startsWith('{') || data2.startsWith('[')) ? JSON.parse(data2) : null; } catch {}
-        if (!parsed || !p2) return { success: false, error: 'Invalid JSON for diff' };
-
-        // Field-level recursive diff: reports added / removed / changed paths
-        // instead of a boolean "same or not".
-        const summarize = (v: any): any => {
-          if (v === null) return null;
-          if (typeof v !== 'object') return v;
-          if (Array.isArray(v)) return `[array:${v.length}]`;
-          return `{object:${Object.keys(v).length} keys}`;
-        };
-        const diffPaths = (a: any, b: any, path = ''): any[] => {
-          const changes: any[] = [];
-          const root = path || '(root)';
-          const isObj = (v: any) => typeof v === 'object' && v !== null;
-          if (typeof a !== typeof b || isObj(a) !== isObj(b)) {
-            changes.push({ path: root, type: 'changed', from: summarize(a), to: summarize(b) });
-            return changes;
-          }
-          if (!isObj(a)) {
-            if (JSON.stringify(a) !== JSON.stringify(b)) changes.push({ path: root, type: 'changed', from: a, to: b });
-            return changes;
-          }
-          if (Array.isArray(a) !== Array.isArray(b)) {
-            changes.push({ path: root, type: 'changed', from: summarize(a), to: summarize(b) });
-            return changes;
-          }
-          if (Array.isArray(a)) {
-            const max = Math.max(a.length, b.length);
-            for (let i = 0; i < max; i++) {
-              if (i >= a.length) changes.push({ path: `${path}[${i}]`, type: 'added', to: summarize(b[i]) });
-              else if (i >= b.length) changes.push({ path: `${path}[${i}]`, type: 'removed', from: summarize(a[i]) });
-              else changes.push(...diffPaths(a[i], b[i], `${path}[${i}]`));
-            }
-            return changes;
-          }
-          const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-          for (const k of keys) {
-            const p = path ? `${path}.${k}` : k;
-            if (!(k in a)) changes.push({ path: p, type: 'added', to: summarize(b[k]) });
-            else if (!(k in b)) changes.push({ path: p, type: 'removed', from: summarize(a[k]) });
-            else changes.push(...diffPaths(a[k], b[k], p));
-          }
-          return changes;
-        };
-
-        const changes = diffPaths(parsed, p2);
-        return {
-          success: true,
-          equal: changes.length === 0,
-          changeCount: changes.length,
-          changes: changes.slice(0, 100),
-        };
-      }
-
-      if (action === 'schema') {
-        if (!parsed) return { success: false, error: 'Invalid JSON for schema' };
-        const genSchema = (obj: any): any => {
-          if (Array.isArray(obj)) return obj.length ? [genSchema(obj[0])] : ['any'];
-          if (typeof obj === 'object' && obj) {
-            const schema: any = {};
-            for (const [k, v] of Object.entries(obj)) schema[k] = genSchema(v);
-            return schema;
-          }
-          return typeof obj;
-        };
-        return { success: true, schema: genSchema(parsed) };
-      }
-
-      if (action === 'sdk') {
-        const url = parsed?.url || data || 'https://api.example.com';
-        const code = lang === 'python'
-          ? `import requests\n\ndef fetch_data(url="${url}"):\n    return requests.get(url).json()`
-          : `export async function fetchData(url: string = "${url}") {\n  const res = await fetch(url);\n  return res.json();\n}`;
-        return { success: true, sdk_boilerplate: code };
-      }
-
-      return { success: false, error: `Unknown action: ${action}. Supported: schema, diff, sdk` };
-    } catch (e: any) {
-      logger.debug('api_analyzer failed', { error: e?.message || String(e) });
       return { success: false, error: e.message };
     }
   }
