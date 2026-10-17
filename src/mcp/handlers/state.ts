@@ -23,7 +23,6 @@ export const state: BrowserState = {
   isRecordingNetwork: false,
   networkRecorderBoundPage: null,
   networkRecorderListeners: null,
-  progressTasks: {},
   progressCallback: null,
   aiHealingEnabled: true,
   downloads: [],
