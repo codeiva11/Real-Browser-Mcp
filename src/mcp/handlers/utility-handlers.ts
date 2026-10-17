@@ -204,7 +204,31 @@ export const utilityHandlers = {
 
     notifyProgress('deep_analysis', 'completed', `Analysis complete: ${analysis.performance.domElements} DOM elements`, { domElements: analysis.performance.domElements });
 
-    return { success: true, url: page.url(), analysis, insights: aiInsights ? insights : undefined };
+    // Core: real web-performance timings (Navigation Timing + paints + LCP/CLS)
+    let webPerf: any = undefined;
+    if ((params as any).includeWebPerf !== false) {
+      try {
+        const { collectPerformanceMetrics } = await import('./advanced');
+        webPerf = await collectPerformanceMetrics(page);
+      } catch { /* best-effort */ }
+    }
+
+    // Core: recent console errors/warnings captured by the always-on CDP listener
+    let consoleErrors: any = undefined;
+    if ((params as any).includeConsole !== false && Array.isArray(state.consoleLogs) && state.consoleLogs.length) {
+      consoleErrors = state.consoleLogs
+        .filter((l: any) => l.level === 'error' || l.kind === 'pageerror')
+        .slice(-20);
+    }
+
+    return {
+      success: true,
+      url: page.url(),
+      analysis,
+      insights: aiInsights ? insights : undefined,
+      ...(webPerf ? { webPerformance: webPerf } : {}),
+      ...(consoleErrors ? { consoleErrors } : {}),
+    };
   },
 
 
@@ -356,6 +380,13 @@ export const utilityHandlers = {
         return { success: true, path: targetPath, restoredCookies: stateContent.cookies?.length || 0 };
       }
 
+      if (action === 'autosave') {
+        state.sessionAutosave = params.enabled !== false;
+        notifyProgress('storage_inspector', 'completed',
+          `Session autosave ${state.sessionAutosave ? 'enabled' : 'disabled'}`);
+        return { success: true, autosave: state.sessionAutosave };
+      }
+
       if (action === 'service_workers') {
         const sw = await page.evaluate(async () => {
           const regs = await navigator.serviceWorker.getRegistrations();
@@ -373,7 +404,7 @@ export const utilityHandlers = {
         return { success: true, count: idbs.length, databases: idbs };
       }
 
-      return { success: false, error: `Unknown action: ${action}. Supported: cookies, save_session, load_session, clear_cookies, indexeddb, service_workers` };
+      return { success: false, error: `Unknown action: ${action}. Supported: cookies, save_session, load_session, clear_cookies, autosave, indexeddb, service_workers` };
     } catch (e: any) {
       return { success: false, error: e.message };
     }
