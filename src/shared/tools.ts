@@ -401,7 +401,9 @@ const TOOLS = [
           }
         },
         aiDetectStreams: { type: 'boolean', default: true, description: 'Identify video and audio stream URLs in recorded requests' },
-        captureXhrBody: { type: 'boolean', default: false, description: 'Capture fetch/XHR response bodies (JSON or form-urlencoded)' }
+        captureXhrBody: { type: 'boolean', default: false, description: 'Capture fetch/XHR response bodies (JSON or form-urlencoded)' },
+        limit: { type: 'number', description: 'For the get action: maximum records to return (default 200, hard max 1000). The result includes totalCount so you know when more records exist.' },
+        offset: { type: 'number', description: 'For the get action: number of matching records to skip before returning (default 0). Use with limit to page through a recording.' }
       }
     }
   },
