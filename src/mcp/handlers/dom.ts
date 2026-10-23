@@ -14,10 +14,10 @@ export const domHandlers = {
       selector: providedSelector,
       annotationId,
       humanLike = true,
-      delay = 0,
+      delay: rawDelay = 0,
       autoAcceptDialogs = true,
-      retries = 3,
-      timeout = 60000,
+      retries: rawRetries = 3,
+      timeout: rawTimeout = 60000,
       // Input caps: an agent can send absurd values (clickCount: 100000).
       // Clamp so a single call can never lock the page for minutes.
       clickCount: rawClickCount = 1,
@@ -36,9 +36,16 @@ export const domHandlers = {
       autoDetectPlayer = false,
       usePlayerAPI = true,
       waitForPlay = false,
-      playerTimeout = 15000
+      playerTimeout: rawPlayerTimeout = 15000
     } = params;
 
+    // P1a defense-in-depth clamps mirroring the schema ceilings (the
+    // validator rejects beyond them; these guard internal callers such as
+    // see_page steps, which invoke this handler directly).
+    const delay = Math.min(Math.max(Number(rawDelay) || 0, 0), 1000);
+    const retries = Math.min(Math.max(Math.floor(Number(rawRetries) || 0), 0), 5);
+    const timeout = Math.min(Math.max(Number(rawTimeout) || 60000, 0), 60000);
+    const playerTimeout = Math.min(Math.max(Number(rawPlayerTimeout) || 15000, 0), 30000);
     const clickCount = Math.min(Math.max(rawClickCount, 1), 50);
 
     let selector: string | undefined = providedSelector;
@@ -421,8 +428,8 @@ export const domHandlers = {
     const {
       selector: providedSelector,
       annotationId,
-      text,
-      delay = 50,
+      text: rawText,
+      delay: rawDelay = 50,
       clear = true,
       // iframe support
       iframe,
@@ -432,6 +439,11 @@ export const domHandlers = {
       waitForSelector = true,
       aiHeal = state.aiHealingEnabled,  // respect global aiHealing setting
     } = params;
+
+    // P1a clamps mirroring the schema ceilings (the validator rejects beyond
+    // them; these guard internal callers such as see_page steps).
+    const text = rawText.length > 10000 ? rawText.slice(0, 10000) : rawText;
+    const delay = Math.min(Math.max(Number(rawDelay) || 0, 0), 200);
 
     let selector = providedSelector;
     if (annotationId !== undefined) {
