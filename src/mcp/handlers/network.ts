@@ -118,7 +118,7 @@ export const networkHandlers = {
 
   async network_recorder(params: NetworkRecorderParams = {}) {
     const { page } = requireBrowser();
-    const { action = 'get', filter = {}, captureXhrBody = false, patterns, mock } = params;
+    const { action = 'get', filter = {}, captureXhrBody = false, patterns, mock, limit, offset } = params;
 
     switch (action) {
       case 'start': return startRecording(page, captureXhrBody).then(() => ({ success: true, message: 'Recording started', captureXhrBody }));
@@ -187,7 +187,7 @@ export const networkHandlers = {
       // Use replay_request with custom headers instead.
     }
 
-    return getFilteredRecords(filter);
+    return getFilteredRecords(filter, limit, offset);
   },
 
   async extract_data(params: any = {}) {
