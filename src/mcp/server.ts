@@ -12,6 +12,67 @@ const {
 const { TOOLS } = require('../shared/tools');
 const { executeTool, cleanup, setProgressCallback } = require('./handlers');
 
+// ───────────────────────────────────────────────────────────────────────────
+// Global result-size guard (P0)
+//
+// Strict MCP clients (Anthropic) require every tool_use to be answered by a
+// tool_result that survives in the conversation history. A multi-MB result
+// (full page HTML, thousands of network records, a raw JS return value)
+// forces the client to compact/truncate history — and dropping one
+// tool_result orphans its tool_use, which Anthropic rejects with a 400.
+// So EVERY tool result passes through this single choke point: above
+// MAX_RESULT_CHARS the payload is replaced by a small truncation notice
+// with a preview, no matter which handler produced it.
+// ───────────────────────────────────────────────────────────────────────────
+const MAX_RESULT_CHARS = parseInt(process.env.REAL_BROWSER_MAX_RESULT_CHARS || '200000', 10);
+// Chars of the original payload kept as a preview inside a truncation notice.
+const RESULT_PREVIEW_CHARS = 20000;
+// At or below this size results keep the historical pretty-printed JSON;
+// above it they are serialized compactly to avoid pretty-print inflation.
+const COMPACT_JSON_THRESHOLD_CHARS = 20000;
+
+function truncationNotice(serialized: string, success: unknown): string {
+  return JSON.stringify(
+    {
+      ...(typeof success === 'boolean' ? { success } : {}),
+      truncated: true,
+      originalSizeChars: serialized.length,
+      note:
+        `Result exceeded ${MAX_RESULT_CHARS} chars and was truncated to protect the conversation context. ` +
+        'Narrow the request (use limit/offset, a selector, or a smaller page region).',
+      preview: serialized.slice(0, RESULT_PREVIEW_CHARS),
+    },
+    null,
+    2
+  );
+}
+
+// Serialize a result object for the text path, applying the global cap.
+function serializeResultText(result: any): string {
+  let text = JSON.stringify(result);
+  if (typeof text !== 'string') text = String(text);
+  if (text.length <= COMPACT_JSON_THRESHOLD_CHARS) {
+    text = JSON.stringify(result, null, 2);
+  }
+  if (text.length > MAX_RESULT_CHARS) {
+    return truncationNotice(text, result?.success);
+  }
+  return text;
+}
+
+// Apply the same cap to the text blocks of an mcpContent array. Image
+// blocks are left untouched (screenshot size is bounded at capture time in
+// see_page); only text blocks can carry unbounded payloads.
+function guardMcpContent(content: any[], success: unknown): any[] {
+  if (!Array.isArray(content)) return content;
+  return content.map((block: any) => {
+    if (block && block.type === 'text' && typeof block.text === 'string' && block.text.length > MAX_RESULT_CHARS) {
+      return { ...block, text: truncationNotice(block.text, success) };
+    }
+    return block;
+  });
+}
+
 // The progressToken of the in-flight tool call, captured from the request's
 // _meta.progressToken (MCP spec) so notifications carry the client's token.
 let activeProgressToken: unknown = undefined;
@@ -127,14 +188,14 @@ function createServer() {
       }
 
       if (result.mcpContent) {
-        return { content: result.mcpContent };
+        return { content: guardMcpContent(result.mcpContent, result.success) };
       }
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(result, null, 2),
+            text: serializeResultText(result),
           },
         ],
       };
