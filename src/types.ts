@@ -45,6 +45,13 @@ export interface BrowserState {
   sessionLastUrl?: string | null;
   visualBaseline?: string | null;
   visualBaselineAt?: string | null;
+  // P1b real cancellation: epoch-ms deadline of the call currently executing
+  // (watchdog/arrival deadline for sync calls, job deadline for async jobs),
+  // plus a cooperative cancel flag set by async_job cancel. Long loops check
+  // these and bail out cleanly instead of running on as zombies after the
+  // client has already been answered (see tool-result-pairing research).
+  activeCallDeadline?: number | null;
+  activeCallCancelled?: boolean;
 }
 
 // ─────────────────────────────────────────────
