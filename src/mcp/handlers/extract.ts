@@ -8,7 +8,14 @@ import type { GetContentParams } from '../../types';
 
 // Cap for HTML/text payloads returned to the MCP client. Multi-MB page dumps
 // bloat the response and can break clients; we truncate and flag instead.
-const MAX_CONTENT_CHARS = 2_000_000;
+// 200k chars matches the server-wide result guard (server.ts) — anything
+// larger would be cut there anyway, losing the structured fields.
+const MAX_CONTENT_CHARS = 200_000;
+// Per-element outerHTML cap and result-count cap for elements mode: a
+// `multiple` query on a listing page can match hundreds of elements, each
+// with a full outerHTML — unbounded before, now bounded like everything else.
+const MAX_ELEMENT_HTML_CHARS = 20_000;
+const MAX_ELEMENTS_RETURNED = 50;
 
 
 export const extractHandlers = {
@@ -55,14 +62,28 @@ export const extractHandlers = {
           })];
         }
       }
-      notifyProgress('get_content', 'completed', `Found ${elements.length} element(s)`);
+      // Bound the elements payload: cap the number of returned elements and
+      // each element's outerHTML (flagged per element when cut).
+      const totalFound = elements.length;
+      let elementsTruncated = false;
+      if (elements.length > MAX_ELEMENTS_RETURNED) {
+        elementsTruncated = true;
+        elements = elements.slice(0, MAX_ELEMENTS_RETURNED);
+      }
+      for (const el of elements) {
+        if (el && typeof el.html === 'string' && el.html.length > MAX_ELEMENT_HTML_CHARS) {
+          el.html = el.html.slice(0, MAX_ELEMENT_HTML_CHARS);
+          el.htmlTruncated = true;
+        }
+      }
+      notifyProgress('get_content', 'completed', `Found ${totalFound} element(s)`);
       if (saveAs) {
         const out = safeResolve(saveAs);
         if (!out) return { success: false, error: 'saveAs path is outside the working directory (path traversal blocked).' };
         await fs.promises.writeFile(out, JSON.stringify(elements, null, 2));
         saveAs = out;
       }
-      return { success: true, format: 'elements', found: elements.length, elements, savedTo: saveAs ? saveAs : null };
+      return { success: true, format: 'elements', found: totalFound, returned: elements.length, elementsTruncated, elements, savedTo: saveAs ? saveAs : null };
     }
 
     // === rawHttp mode: fetch raw HTTP response without JS rendering ===
@@ -100,8 +121,24 @@ export const extractHandlers = {
           await fs.promises.writeFile(out, outHtml);
           saveAs = out;
         }
+        // The saved file (when saveAs is used) keeps the full body; the
+        // RETURNED fields are capped like every other mode (diff above was
+        // computed from the full strings, so its lengths stay truthful).
+        let rawHtmlTruncated = false;
+        let renderedHtmlTruncated = false;
+        let returnedRawHtml = rawHtml;
+        let returnedRenderedHtml = renderedHtml;
+        if (returnedRawHtml.length > MAX_CONTENT_CHARS) {
+          rawHtmlTruncated = true;
+          returnedRawHtml = returnedRawHtml.slice(0, MAX_CONTENT_CHARS);
+        }
+        if (returnedRenderedHtml.length > MAX_CONTENT_CHARS) {
+          renderedHtmlTruncated = true;
+          returnedRenderedHtml = returnedRenderedHtml.slice(0, MAX_CONTENT_CHARS);
+        }
         return {
-          success: true, rawHtml, renderedHtml, diff,
+          success: true, rawHtml: returnedRawHtml, renderedHtml: returnedRenderedHtml, diff,
+          rawHtmlTruncated, renderedHtmlTruncated,
           url, finalUrl: response.url, statusCode: response.status, format: 'rawHttp',
           savedTo: saveAs ? saveAs : null
         };
