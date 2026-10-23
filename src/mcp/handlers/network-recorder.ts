@@ -173,7 +173,17 @@ export async function startRecording(page: any, captureXhrBody = false) {
             if (responseBody) {
               record.responseBody = responseBody.substring(0, 5000);
               record.responseTruncated = responseBody.length > 5000;
-              try { record.responseJson = JSON.parse(responseBody); } catch (e) { }
+              if (responseBody.length > 5000) {
+                // Never store the FULL parsed JSON of a large body: a busy
+                // page can produce thousands of records, and returning their
+                // untruncated JSON verbatim is the single biggest result-size
+                // hazard in this server (multi-MB tool results break strict
+                // MCP clients). The truncated text body above is kept.
+                record.responseJson = null;
+                record.responseJsonTruncated = true;
+              } else {
+                try { record.responseJson = JSON.parse(responseBody); } catch (e) { }
+              }
             }
           }
         } catch (e) {
@@ -230,6 +240,28 @@ export function getNavigationRecords() {
 // Cap on API records returned to the client. Each record can carry a 5KB
 // response body, so an unbounded list would bloat the MCP response to MBs.
 const MAX_API_RECORDS = 300;
+
+// Serialized-size ceiling for a record's parsed responseJson. Bodies up to
+// this size are stored as text (responseBody); the parsed JSON must not be
+// able to dwarf it when serialized back out.
+const MAX_RESPONSE_JSON_CHARS = 5000;
+
+// Return-time responseJson enforcement: any record whose serialized
+// responseJson exceeds MAX_RESPONSE_JSON_CHARS is returned with
+// responseJson dropped and flagged instead. Record-time enforcement (in
+// startRecording's response listener) already prevents new oversized
+// values; this covers records stored by any other path. Returns a shallow
+// copy when a replacement is made — stored records are never mutated.
+function capRecordResponseJson(record: any): any {
+  if (record && record.responseJson != null) {
+    let serialized: string | null = null;
+    try { serialized = JSON.stringify(record.responseJson); } catch { serialized = null; }
+    if (serialized === null || serialized.length > MAX_RESPONSE_JSON_CHARS) {
+      return { ...record, responseJson: null, responseJsonTruncated: true };
+    }
+  }
+  return record;
+}
 // Cap on HAR entries (each can include headers + bodies).
 const MAX_HAR_ENTRIES = 500;
 
@@ -242,7 +274,7 @@ export function getApiCallRecords() {
   const capped = lastN(apiRecords, MAX_API_RECORDS);
   return {
     success: true, count: apiRecords.length, truncated: apiRecords.length > MAX_API_RECORDS,
-    apiCalls: capped.map((r: any) => ({
+    apiCalls: capped.map((r: any) => capRecordResponseJson({
       url: r.url, method: r.method || 'GET', status: r.status,
       contentType: r.contentType, resourceType: r.resourceType,
       requestBody: r.requestBody || null, responseBody: r.responseBody || null,
@@ -333,7 +365,16 @@ export function exportHAR() {
   return { success: true, count: har.log.entries.length, truncated: responses.length > MAX_HAR_ENTRIES, har };
 }
 
-export function getFilteredRecords(filter: any) {
+// Paging for the `get` action: each record can carry headers plus up to
+// 5KB of body, so returning the whole 5000-record ring buffer in one result
+// produces multi-MB payloads that break strict MCP clients. Page instead:
+// `limit` defaults to 200 and is hard-capped at 1000; `offset` pages
+// through the filtered set. totalCount always reports the full match count
+// so the caller knows more records exist.
+const GET_RECORDS_DEFAULT_LIMIT = 200;
+const GET_RECORDS_MAX_LIMIT = 1000;
+
+export function getFilteredRecords(filter: any, limitArg?: number, offsetArg?: number) {
   let records = state.networkRecords;
   if (filter.resourceType) records = records.filter((r: any) => r.resourceType === filter.resourceType);
   if (filter.urlPattern) {
@@ -347,8 +388,17 @@ export function getFilteredRecords(filter: any) {
   }
   if (filter.type) records = records.filter((r: any) => r.type === filter.type);
   if (filter.mediaOnly) records = records.filter((r: any) => r.isMedia);
-  // Records are already ring-buffered at MAX_NETWORK_RECORDS (5000) in state,
-  // so the full filtered set is returned — no hidden truncation (count always
-  // matches the returned array length).
-  return { success: true, recording: state.isRecordingNetwork, count: records.length, records };
+
+  const totalCount = records.length;
+  const limit = Math.min(
+    GET_RECORDS_MAX_LIMIT,
+    Math.max(1, Math.floor(Number(limitArg)) || GET_RECORDS_DEFAULT_LIMIT)
+  );
+  const offset = Math.max(0, Math.floor(Number(offsetArg)) || 0);
+  const pageRecords = records.slice(offset, offset + limit).map(capRecordResponseJson);
+  return {
+    success: true, recording: state.isRecordingNetwork,
+    count: totalCount, totalCount, returned: pageRecords.length, offset, limit,
+    records: pageRecords
+  };
 }
