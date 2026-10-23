@@ -56,11 +56,11 @@ const TOOLS = [
         tabIndex: { type: 'number', description: 'Zero-based index of the tab to switch to or close' },
         autoSwitchNewTab: { type: 'boolean', default: true, description: 'Automatically switch to newly opened popups or blank target tabs' },
         waitUntil: { type: 'string', enum: ['load', 'domcontentloaded', 'networkidle', 'commit'], default: 'networkidle' },
-        timeout: { type: 'number', default: 30000 },
-        retries: { type: 'number', default: 3, description: 'Retry count on failure' },
+        timeout: { type: 'number', default: 30000, maximum: 60000 },
+        retries: { type: 'number', default: 3, maximum: 3, description: 'Retry count on failure' },
         smartWait: { type: 'boolean', default: true, description: 'Wait for page content to stabilize before returning' },
         waitForChallenge: { type: 'boolean', default: false, description: 'After navigation, wait for Cloudflare-style JS challenge ("Just a moment") to auto-solve; returns challenge status + clearance cookies' },
-        challengeTimeout: { type: 'number', default: 90000, description: 'Max ms to wait for challenge to clear (with waitForChallenge)' },
+        challengeTimeout: { type: 'number', default: 90000, maximum: 90000, description: 'Max ms to wait for challenge to clear (with waitForChallenge)' },
         challengePollInterval: { type: 'number', default: 2000, description: 'Poll interval ms while waiting for challenge' }
       }
     }
@@ -107,7 +107,7 @@ const TOOLS = [
       properties: {
         type: { type: 'string', enum: ['selector', 'navigation', 'timeout', 'networkidle'], default: 'timeout' },
         value: { type: 'string', description: 'Selector string or timeout value in ms' },
-        timeout: { type: 'number', default: 30000 }
+        timeout: { type: 'number', default: 30000, maximum: 60000 }
       }
     }
   },
@@ -140,10 +140,10 @@ const TOOLS = [
         humanLike: { type: 'boolean', default: true, description: 'Smooth cursor movement before click' },
         aiHeal: { type: 'boolean', default: true, description: 'Try alternative selector if primary fails' },
         autoAcceptDialogs: { type: 'boolean', default: true, description: 'Auto-dismiss browser dialogs (alerts, confirms)' },
-        retries: { type: 'number', default: 3, description: 'Retry count on failure' },
+        retries: { type: 'number', default: 3, maximum: 5, description: 'Retry count on failure' },
         clickCount: { type: 'number', default: 1 },
-        delay: { type: 'number', default: 0 },
-        timeout: { type: 'number', default: 60000, description: 'Max time to wait for element to appear (ms)' },
+        delay: { type: 'number', default: 0, maximum: 1000 },
+        timeout: { type: 'number', default: 60000, maximum: 60000, description: 'Max time to wait for element to appear (ms)' },
         hoverFirst: { type: 'boolean', default: false, description: 'Hover over element before clicking (for dynamic controls)' },
         hoverOnly: { type: 'boolean', default: false, description: 'Hover only, do not click (to reveal hidden controls)' },
         hoverDuration: { type: 'number', default: 500, description: 'Wait time after hover before clicking (ms)' },
@@ -154,7 +154,7 @@ const TOOLS = [
         autoDetectPlayer: { type: 'boolean', default: false, description: 'Detect and target embedded video player iframes automatically' },
         usePlayerAPI: { type: 'boolean', default: true, description: 'Control video player via its JavaScript API instead of DOM click' },
         waitForPlay: { type: 'boolean', default: false, description: 'Wait until the video starts playing after click' },
-        playerTimeout: { type: 'number', default: 15000, description: 'Max time to wait for video playback to start (ms)' }
+        playerTimeout: { type: 'number', default: 15000, maximum: 30000, description: 'Max time to wait for video playback to start (ms)' }
       },
       anyOf: [
         { required: ['selector'] },
@@ -177,8 +177,8 @@ const TOOLS = [
       properties: {
         selector: { type: 'string', description: 'CSS selector for the input field' },
         annotationId: { type: 'number', description: 'Annotation number from see_page(annotate:true) — use instead of selector' },
-        text: { type: 'string' },
-        delay: { type: 'number', default: 50, description: 'Delay between keystrokes in ms' },
+        text: { type: 'string', maxLength: 10000 },
+        delay: { type: 'number', default: 50, maximum: 200, description: 'Delay between keystrokes in ms' },
         clear: { type: 'boolean', default: true, description: 'Clear the field before typing' },
         aiHeal: { type: 'boolean', default: true, description: 'Try alternative selector if primary fails' },
         iframe: { type: 'number', description: 'Target a specific iframe by index' },
@@ -229,7 +229,7 @@ const TOOLS = [
           default: 'auto',
           description: 'Widget type: js_widget (JavaScript-based embedded challenge widget), text (text transcription verification), image (image-based input), auto (detect automatically).'
         },
-        timeout: { type: 'number', default: 30000 },
+        timeout: { type: 'number', default: 30000, maximum: 120000 },
         captchaSelector: { type: 'string', description: 'CSS selector targeting the verification element, canvas, image, or interactive widget container' },
         widgetSelector: { type: 'string', description: 'Alias for captchaSelector' },
         inputSelector: { type: 'string', description: 'CSS selector for the answer input field' },
@@ -341,7 +341,7 @@ const TOOLS = [
       properties: {
         key: { type: 'string', description: 'Key name (e.g. Enter, Tab, ArrowDown, a)' },
         modifiers: { type: 'array', items: { type: 'string' }, description: 'Modifier keys (Alt, Control, Meta, Shift)' },
-        count: { type: 'number', default: 1, description: 'Number of times to press the key' },
+        count: { type: 'number', default: 1, maximum: 100, description: 'Number of times to press the key' },
         humanDelay: { type: 'boolean', default: true, description: 'Add natural delay between repeated presses' }
       },
       required: ['key']
@@ -402,7 +402,7 @@ const TOOLS = [
         },
         aiDetectStreams: { type: 'boolean', default: true, description: 'Identify video and audio stream URLs in recorded requests' },
         captureXhrBody: { type: 'boolean', default: false, description: 'Capture fetch/XHR response bodies (JSON or form-urlencoded)' },
-        limit: { type: 'number', description: 'For the get action: maximum records to return (default 200, hard max 1000). The result includes totalCount so you know when more records exist.' },
+        limit: { type: 'number', maximum: 1000, description: 'For the get action: maximum records to return (default 200, hard max 1000). The result includes totalCount so you know when more records exist.' },
         offset: { type: 'number', description: 'For the get action: number of matching records to skip before returning (default 0). Use with limit to page through a recording.' }
       }
     }
@@ -436,7 +436,8 @@ const TOOLS = [
         decoderType: { type: 'string', enum: ['auto', 'url', 'base64', 'custom'], default: 'auto', description: 'Conversion type: auto-detect, url, base64, or custom' },
         decoderKey: { type: 'string', description: 'Optional transformation parameter (for custom conversion)' },
         decoderIV: { type: 'string', description: 'Optional secondary parameter (for custom conversion)' },
-        urls: { type: 'array', items: { type: 'string' }, description: 'List of URLs for batch_extract action' },
+        urls: { type: 'array', items: { type: 'string' }, maxItems: 50, description: 'List of URLs for batch_extract action' },
+        async: { type: 'boolean', default: false, description: 'For batch_extract only: run as a background job — returns a jobId immediately instead of blocking; poll async_job for the result.' },
         aiOptimize: { type: 'boolean', default: true, description: 'Select extraction strategy automatically' }
       }
     }
@@ -454,14 +455,14 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        code: { type: 'string', description: 'JavaScript code to execute in the page context (required unless action="fetch")' },
+        code: { type: 'string', maxLength: 200000, description: 'JavaScript code to execute in the page context (required unless action="fetch")' },
         action: { type: 'string', enum: ['execute', 'fetch'], default: 'execute', description: 'execute: run JS code; fetch: replay an HTTP request with page session' },
         url: { type: 'string', description: 'URL for fetch action' },
         method: { type: 'string', default: 'GET', description: 'HTTP method for fetch action' },
         headers: { type: 'object', description: 'Headers for fetch action' },
         body: { type: 'string', description: 'Body for fetch action (POST/PUT)' },
         returnValue: { type: 'boolean', default: true, description: 'Return the result of the expression' },
-        async: { type: 'boolean', default: false, description: 'Wrap code in an async function' },
+        async: { type: 'boolean', default: false, description: 'Run as a background job: returns a jobId immediately instead of blocking; poll async_job for the result. Inside the job the code is wrapped in an async function, so top-level await works.' },
         timeout: { type: 'number', default: 30000 },
         iframe: { type: 'number', description: 'Execute inside a specific iframe (0 = main frame, 1+ = iframe by index)' },
         iframeSelector: { type: 'string', description: 'Execute inside iframe matched by CSS selector' },
@@ -510,12 +511,14 @@ const TOOLS = [
         includeDomText: { type: 'boolean', default: false, description: 'Include the full DOM text content' },
         includePageText: { type: 'boolean', default: true, description: 'Include cleaned page text' },
         scanIframes: { type: 'boolean', default: true, description: 'List embedded iframes with their index and URL' },
-        maxElements: { type: 'number', default: 60, description: 'Maximum number of interactive elements to map' },
+        maxElements: { type: 'number', default: 60, maximum: 200, description: 'Maximum number of interactive elements to map' },
+        async: { type: 'boolean', default: false, description: 'When steps are present: run as a background job — returns a jobId immediately instead of blocking; poll async_job for the result.' },
         path: { type: 'string', description: 'File path to also save the screenshot image' },
         autoHover: { type: 'boolean', default: false, description: 'Hover over navigation menus before capturing to reveal dropdowns' },
         watchMutations: { type: 'boolean', default: false, description: 'Report DOM mutations (popups, alerts) since the last capture' },
         steps: {
           type: 'array',
+          maxItems: 100,
           description: 'Actions to run sequentially right after capturing the page, without re-capturing between steps. Supported: click, type, press_key, scroll, wait, extract, see, drag, hover, double_click, triple_click, idle.',
           items: {
             type: 'object',
@@ -555,6 +558,24 @@ const TOOLS = [
         stopOnError: { type: 'boolean', default: true, description: 'Stop step execution on first failure' },
         saveBaseline: { type: 'boolean', default: false, description: 'Save current screenshot as visual baseline for later comparison' },
         compareBaseline: { type: 'boolean', default: false, description: 'Compare current screenshot against saved baseline; returns diffPercent' }
+      }
+    }
+  },
+
+  // 20. Async Job (P2: background jobs for genuinely long work)
+  {
+    name: 'async_job',
+    emoji: '📦',
+    description: 'Poll or cancel background jobs started with async:true on media_extractor batch_extract, see_page steps, or execute_js. Read-only except cancel.',
+    descriptionHindi: 'बैकग्राउंड job की स्थिति देखना / result लेना / cancel करना',
+    category: 'utility',
+    requiresBrowser: false,
+    requiresPage: false,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['status', 'result', 'list', 'cancel'], default: 'status', description: 'status: job status + timing (no result payload); result: stored result/error once finished; list: recent jobs (metadata only); cancel: stop a running job' },
+        jobId: { type: 'string', description: 'Job id returned by an async:true call (required for status/result/cancel)' }
       }
     }
   },
