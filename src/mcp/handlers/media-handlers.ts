@@ -348,6 +348,31 @@ function raceAgainstDeadline<T>(op: Promise<T>, deadline: number): Promise<T> {
   });
 }
 
+/**
+ * Transient navigation failures worth ONE retry inside the per-URL budget:
+ * connection-level `net::ERR_*` codes (proxy hiccups, HTTP/2 resets) and the
+ * "interrupted by another navigation" bounce onto a chrome-error page. Live
+ * evidence: batch gotos died with ERR_CONNECTION_CLOSED /
+ * ERR_HTTP2_PROTOCOL_ERROR / interrupted-by-chrome-error on pages that
+ * navigated fine in the main page seconds earlier — whole batches scored
+ * 0/N while single-page extraction on the same pages worked. A Playwright
+ * navigation timeout ("Timeout …ms exceeded") counts too: heavy pages can
+ * keep the 'load' event from firing within the goto timeout through a slow
+ * proxy while the DOM itself is ready — the retry relaxes its wait
+ * condition to 'domcontentloaded' for exactly that case. Deterministic
+ * failures (invalid URL, SSRF-guard rejection) and the per-URL budget
+ * timeout itself (PER_URL_TIMEOUT_MESSAGE, from the deadline race) are NOT
+ * transient: retrying them would only burn budget.
+ */
+function isTransientNavError(error: any): boolean {
+  const message = String(error?.message || error || '');
+  if (message === PER_URL_TIMEOUT_MESSAGE) return false;
+  return message.includes('ERR_')
+    || message.includes('interrupted by another navigation')
+    || message.includes('chrome-error')
+    || (message.includes('Timeout') && message.includes('exceeded'));
+}
+
 export const mediaHandlers = {
 
   async media_extractor(params: MediaExtractorParams = {}) {
@@ -637,11 +662,47 @@ export const mediaHandlers = {
               // DOM was already usable. The short best-effort idle window
               // below preserves the quiet-page behaviour for pages that do
               // settle quickly.
-              const navTimeoutMs = Math.max(1000, Math.min(30000, urlDeadline - Date.now()));
-              await raceAgainstDeadline(
-                scratchPage.goto(url, { waitUntil: 'load', timeout: navTimeoutMs }),
-                urlDeadline
-              );
+              // One retry on a transient navigation error (see
+              // isTransientNavError): the main `navigate` tool has
+              // retry/recovery, this path previously had none. The retry
+              // stays INSIDE the per-URL budget — the goto is raced
+              // against urlDeadline exactly like the first attempt, and
+              // the recycle below is deadline-raced too, so total per-URL
+              // time still respects the budget; if the budget expires
+              // mid-retry the raced goto rejects with
+              // PER_URL_TIMEOUT_MESSAGE and the existing timedOut path
+              // applies. Before retrying, the scratch page is recycled
+              // (bounded close + reopen): a failed goto can leave it
+              // sitting on a chrome-error page, which is precisely the
+              // state behind the "interrupted by another navigation"
+              // failures. The retry also relaxes its wait condition to
+              // 'domcontentloaded': when the first attempt died on a
+              // navigation timeout it was the 'load' event that never
+              // fired on a heavy page, while the DOM the extractor needs
+              // was already there.
+              const gotoOnce = async (waitUntil: 'load' | 'domcontentloaded'): Promise<void> => {
+                const navTimeoutMs = Math.max(1000, Math.min(30000, urlDeadline - Date.now()));
+                await raceAgainstDeadline(
+                  scratchPage.goto(url, { waitUntil, timeout: navTimeoutMs }),
+                  urlDeadline
+                );
+              };
+              let navRetried = false;
+              try {
+                await gotoOnce('load');
+              } catch (gotoError: any) {
+                if (!isTransientNavError(gotoError)) throw gotoError;
+                navRetried = true;
+                notifyProgress('media_extractor', 'warn', `Transient navigation error, retrying once: ${url} (${gotoError?.message || gotoError})`);
+                await raceAgainstDeadline(closeScratchPage(scratchPage), urlDeadline)
+                  .catch(() => { /* budget spent mid-recycle — page reference is dropped either way */ });
+                scratchPage = await raceAgainstDeadline(
+                  openScratchPage(),
+                  Math.min(urlDeadline, Date.now() + SCRATCH_OPEN_TIMEOUT_MS)
+                ).catch(() => null);
+                if (!scratchPage) throw gotoError;
+                await gotoOnce('domcontentloaded');
+              }
               const idleWindowMs = Math.min(5000, urlDeadline - Date.now());
               if (idleWindowMs > 0) {
                 await scratchPage.waitForLoadState('networkidle', { timeout: idleWindowMs })
@@ -664,7 +725,8 @@ export const mediaHandlers = {
                 streams: dedupedStreams,
                 totalCount,
                 title: meta.title,
-                finalUrl: meta.url
+                finalUrl: meta.url,
+                ...(navRetried ? { retried: true } : {})
               });
             } catch (error: any) {
               const timedOut = error?.message === PER_URL_TIMEOUT_MESSAGE || Date.now() >= urlDeadline;
