@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { state, requireBrowser, notifyProgress } from './state';
+import { state, requireBrowser, notifyProgress, activeDeadlineExceeded } from './state';
 import { domHandlers } from './dom';
 import { browserHandlers } from './browser';
 import { extractHandlers } from './extract';
@@ -26,7 +26,7 @@ export async function seePage(params: SeePageParams = {}) {
     includeDomText = false,
     includePageText = true,
     scanIframes = true,
-    maxElements = 60,
+    maxElements: rawMaxElements = 60,
     path: savePath,
     autoHover = false,
     watchMutations = false,
@@ -39,6 +39,10 @@ export async function seePage(params: SeePageParams = {}) {
     saveBaseline = false,
     compareBaseline = false
   } = params;
+
+  // P1a clamp mirroring the schema ceiling (validator rejects beyond it;
+  // this guards internal/direct callers).
+  const maxElements = Math.min(Math.max(Math.floor(Number(rawMaxElements) || 60), 1), 200);
 
   notifyProgress('see_page', 'started', `👁️ Looking at the page (${fullPage ? 'full page' : 'viewport'})${annotate ? ' with Super Annotations' : ''}...`);
 
@@ -321,8 +325,17 @@ export async function seePage(params: SeePageParams = {}) {
 
     const stepResults: StepResult[] = [];
     const maxAttempts = 3;
+    let stoppedByDeadline = false;
 
     for (let i = 0; i < effectiveSteps.length; i++) {
+      // P1b: once the caller's deadline passes (or an async job is
+      // cancelled), stop cleanly with the partial results gathered so far
+      // instead of running on as a zombie on the shared page.
+      if (activeDeadlineExceeded()) {
+        stoppedByDeadline = true;
+        notifyProgress('see_page', 'warn', `Stopping steps at ${i}/${effectiveSteps.length}: deadline reached`);
+        break;
+      }
       const step = effectiveSteps[i] || {};
       const action = step.action;
       notifyProgress('see_page', 'progress', `Step ${i + 1}/${effectiveSteps.length}: ${action}`);
@@ -332,6 +345,13 @@ export async function seePage(params: SeePageParams = {}) {
       let stepSuccess = false;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        // P1b: check between attempts too — a retrying step must not burn
+        // minutes past the deadline.
+        if (attempt > 1 && activeDeadlineExceeded()) {
+          stoppedByDeadline = true;
+          err = 'deadline exceeded';
+          break;
+        }
         try {
           switch (action) {
             case 'click':
@@ -489,6 +509,17 @@ export async function seePage(params: SeePageParams = {}) {
         null, 2
       )}`,
     });
+    if (stoppedByDeadline) {
+      // P1b partial-results marker: steps above are complete and valid;
+      // the sequence stopped instead of overrunning the caller's budget.
+      mcpContent.push({
+        type: 'text',
+        text: JSON.stringify({
+          stoppedReason: 'deadline',
+          note: `Step sequence stopped early at the call deadline (or job cancellation) after ${stepResults.length}/${effectiveSteps.length} steps. Partial results above are complete and valid.`,
+        }),
+      });
+    }
   }
 
   // Core: visual baseline save/compare (no extra tool needed)
