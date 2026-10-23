@@ -183,6 +183,13 @@ export const utilityHandlers = {
       async: wantsAsync = false
     } = params;
 
+    // Result-size caps: an evaluated expression can return an entire page's
+    // outerHTML (or a fetched file's whole body) — serialized whole, that is
+    // a multi-MB tool result, which breaks strict MCP clients. Cap both the
+    // fetch action's body and the execute action's serialized return value.
+    const MAX_FETCH_BODY_CHARS = 100000;
+    const MAX_JS_RESULT_CHARS = 100000;
+
     // Merged from replay_request: fetch action replays HTTP requests with the
     // page's session (cookies/auth inherited), 30s abort timeout, structured output.
     if (action === 'fetch') {
@@ -201,6 +208,12 @@ export const utilityHandlers = {
             clearTimeout(timer);
           }
         }, { u: url, m: method, h: headers || {}, b: body });
+        // Cap the replayed body: fetching a large file through the page
+        // would otherwise return it whole into the conversation.
+        if (result && typeof result.body === 'string' && result.body.length > MAX_FETCH_BODY_CHARS) {
+          result.body = result.body.slice(0, MAX_FETCH_BODY_CHARS);
+          (result as any).truncated = true;
+        }
         notifyProgress('execute_js', 'completed', `Fetch finished with status ${result.status}`);
         return { success: true, action: 'fetch', result };
       } catch (e: any) {
@@ -280,6 +293,23 @@ export const utilityHandlers = {
         hasResult: result !== undefined,
         iframe: frameInfo
       });
+
+      // Cap the serialized return value: if the script returned something
+      // huge (a whole DOM dump, a giant array), return a flagged preview
+      // instead of the full payload.
+      if (returnValue && result !== undefined) {
+        let serialized: string | undefined;
+        try { serialized = JSON.stringify(result); } catch { serialized = undefined; }
+        if (serialized !== undefined && serialized.length > MAX_JS_RESULT_CHARS) {
+          return {
+            success: true,
+            truncated: true,
+            resultPreview: serialized.slice(0, 20000),
+            note: `execute_js result was ${serialized.length} chars when serialized (cap ${MAX_JS_RESULT_CHARS}) and was truncated. Return a smaller value from the page script — a summary, specific fields, or a substring.`,
+            iframe: frameInfo
+          };
+        }
+      }
 
       return { success: true, result: returnValue ? result : undefined, iframe: frameInfo };
 
