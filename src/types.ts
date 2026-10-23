@@ -297,6 +297,8 @@ export interface NetworkRecorderParams {
   };
   aiDetectStreams?: boolean;
   captureXhrBody?: boolean;
+  limit?: number;
+  offset?: number;
 }
 
 export interface NetworkFilter {
