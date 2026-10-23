@@ -1,5 +1,5 @@
 // Media handlers — Stream extraction, player control, media tools
-import { state, requireBrowser, notifyProgress, decoders } from './state';
+import { state, requireBrowser, notifyProgress, decoders, activeDeadlineExceeded } from './state';
 import { assertSafeUrl } from '../../shared/url-utils';
 import { logger } from '../../shared/logger';
 import type { MediaExtractorParams } from '../../types';
@@ -299,6 +299,55 @@ function deduplicateStreams(streams: any) {
   return streams;
 }
 
+/**
+ * Per-URL budget for batch_extract (default 90s, env override
+ * REAL_BROWSER_BATCH_PER_URL_BUDGET_MS — same pattern as jobTimeoutMs).
+ *
+ * One bad page must never stall the whole batch: the batch loop runs inside
+ * the server's serialize chain, so a single unbounded page operation starves
+ * every other tool call behind it. Live diagnosis (Wikipedia via proxy):
+ * the DOM scan itself takes ~30ms and the goto is capped at 30s, but
+ * `waitUntil: 'networkidle'` never fired (subresource requests stalled open
+ * for 28s+), and — the actual unbounded hang — `page.close()` on the wedged
+ * scratch page never resolved at all (>180s observed) while the handler sat
+ * in its finally block with all results already computed. Every scratch-page
+ * await in the batch loop is therefore raced against a deadline via
+ * raceAgainstDeadline() below.
+ */
+const PER_URL_TIMEOUT_MESSAGE = 'per-URL budget exceeded';
+const SCRATCH_CLOSE_TIMEOUT_MS = 5000;
+const SCRATCH_OPEN_TIMEOUT_MS = 10000;
+
+function batchPerUrlBudgetMs(): number {
+  const fromEnv = Number(process.env.REAL_BROWSER_BATCH_PER_URL_BUDGET_MS);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 90000;
+}
+
+/**
+ * Race a page operation against an absolute deadline (epoch ms). The
+ * underlying Playwright operation cannot be aborted (evaluate/close expose
+ * no cancellation), so on timeout the operation is orphaned: its late
+ * settlement is swallowed here so it can never surface as an unhandled
+ * rejection, and batch callers recycle the scratch page so the orphan
+ * cannot contaminate the next URL.
+ */
+function raceAgainstDeadline<T>(op: Promise<T>, deadline: number): Promise<T> {
+  // The orphan's late settlement is always swallowed (see docstring).
+  op.catch(() => { /* ignore */ });
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) {
+    return Promise.reject(new Error(PER_URL_TIMEOUT_MESSAGE));
+  }
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(PER_URL_TIMEOUT_MESSAGE)), remaining);
+    timer.unref?.();
+  });
+  return Promise.race([op, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 export const mediaHandlers = {
 
   async media_extractor(params: MediaExtractorParams = {}) {
@@ -496,9 +545,9 @@ export const mediaHandlers = {
           return { success: false, error: 'urls array is required for batch_extract action' };
         }
 
-        // Cap the batch: each URL costs up to ~30s of goto + settle time. An
-        // unbounded list (agent or prompt injection) could lock the server
-        // for hours even with the 5-minute watchdog.
+        // Cap the batch: even with the per-URL budget below, an unbounded
+        // list (agent or prompt injection) could lock the server for hours
+        // (50 URLs × budget), so the list is truncated.
         const MAX_BATCH = 50;
         const receivedCount = urls.length;
         let batchUrls: string[] = urls;
@@ -517,33 +566,97 @@ export const mediaHandlers = {
         // working on the user's original page.
         const originalPage = page;
         const context = page.context();
-        const scratchPage = await context.newPage();
-        if (state.setupPageFn) {
-          try { await state.setupPageFn(scratchPage); } catch { /* best-effort */ }
-        }
+
+        // Scratch-page lifecycle, deadline-bounded throughout (see the
+        // raceAgainstDeadline docstring): create and close are raced just
+        // like the per-URL operations, because page.close() on a wedged
+        // page is itself an unbounded await.
+        const openScratchPage = async (): Promise<any> => {
+          const p = await context.newPage();
+          if (state.setupPageFn) {
+            try { await state.setupPageFn(p); } catch { /* best-effort */ }
+          }
+          return p;
+        };
+        const closeScratchPage = async (p: any): Promise<void> => {
+          if (!p) return;
+          try {
+            await raceAgainstDeadline((async () => { await p.close(); })(), Date.now() + SCRATCH_CLOSE_TIMEOUT_MS);
+          } catch { /* wedged or already closed — browser shutdown reaps it */ }
+        };
 
         const results = [];
         const errors = [];
+        let stoppedByDeadline = false;
+        let scratchPage: any = null;
 
         try {
+          scratchPage = await raceAgainstDeadline(openScratchPage(), Date.now() + SCRATCH_OPEN_TIMEOUT_MS)
+            .catch(() => null);
+
           for (let i = 0; i < batchUrls.length; i++) {
+            // P1b: stop cleanly with partial results once the caller's
+            // deadline passes (or an async job is cancelled) — an unchecked
+            // batch could run on as a zombie long after the client was
+            // answered.
+            if (activeDeadlineExceeded()) {
+              stoppedByDeadline = true;
+              notifyProgress('media_extractor', 'warn', `Batch stopping at ${i}/${batchUrls.length}: deadline reached`);
+              break;
+            }
             const url = batchUrls[i];
+
+            if (!scratchPage) {
+              scratchPage = await raceAgainstDeadline(openScratchPage(), Date.now() + SCRATCH_OPEN_TIMEOUT_MS)
+                .catch(() => null);
+              if (!scratchPage) {
+                errors.push({ url, error: 'could not open a scratch page' });
+                results.push({ url, success: false, error: 'could not open a scratch page' });
+                continue;
+              }
+            }
+
+            // Per-URL budget: this URL must finish (or be recorded as a
+            // timeout) within batchPerUrlBudgetMs(), and never past the
+            // caller's own deadline. Every await in the per-URL path is
+            // raced against urlDeadline, so a single wedged page op can no
+            // longer stall the batch — or the serialize chain behind it.
+            const urlStartedAt = Date.now();
+            const callDeadline = state.activeCallDeadline ?? Number.POSITIVE_INFINITY;
+            const urlDeadline = Math.min(urlStartedAt + batchPerUrlBudgetMs(), callDeadline);
+
             try {
               // SSRF guard: reject private/loopback targets unless explicitly allowed.
-              await assertSafeUrl(url, 'media_extractor');
+              await raceAgainstDeadline(assertSafeUrl(url, 'media_extractor'), urlDeadline);
               notifyProgress('media_extractor', 'progress', `Processing ${i + 1}/${batchUrls.length}: ${url}`);
 
-              await scratchPage.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-              await new Promise(r => setTimeout(r, 2000));
+              // Navigation waits for the load event, NOT networkidle: real
+              // pages routinely keep subresource requests (analytics, lazy
+              // beacons, proxied bundles) open for tens of seconds, so
+              // networkidle burned the full 30s goto timeout on pages whose
+              // DOM was already usable. The short best-effort idle window
+              // below preserves the quiet-page behaviour for pages that do
+              // settle quickly.
+              const navTimeoutMs = Math.max(1000, Math.min(30000, urlDeadline - Date.now()));
+              await raceAgainstDeadline(
+                scratchPage.goto(url, { waitUntil: 'load', timeout: navTimeoutMs }),
+                urlDeadline
+              );
+              const idleWindowMs = Math.min(5000, urlDeadline - Date.now());
+              if (idleWindowMs > 0) {
+                await scratchPage.waitForLoadState('networkidle', { timeout: idleWindowMs })
+                  .catch(() => { /* never goes idle — page is still usable */ });
+              }
+              await raceAgainstDeadline(new Promise(r => setTimeout(r, 2000)), urlDeadline);
 
-              const streams = await extractStreamsFromContext(scratchPage, 'main');
+              const streams = await raceAgainstDeadline(extractStreamsFromContext(scratchPage, 'main'), urlDeadline);
               const dedupedStreams = deduplicateStreams(streams);
               const totalCount = Object.values(dedupedStreams as Record<string, any>).reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
 
-              const meta = await scratchPage.evaluate(() => ({
+              const meta = await raceAgainstDeadline<{ title: string; url: string }>(scratchPage.evaluate(() => ({
                 title: document.title,
                 url: window.location.href
-              }));
+              })), urlDeadline);
 
               results.push({
                 url,
@@ -554,12 +667,25 @@ export const mediaHandlers = {
                 finalUrl: meta.url
               });
             } catch (error: any) {
-              errors.push({ url, error: error.message });
-              results.push({ url, success: false, error: error.message });
+              const timedOut = error?.message === PER_URL_TIMEOUT_MESSAGE || Date.now() >= urlDeadline;
+              if (timedOut) {
+                errors.push({ url, error: PER_URL_TIMEOUT_MESSAGE });
+                results.push({ url, success: false, error: PER_URL_TIMEOUT_MESSAGE, timedOut: true });
+                notifyProgress('media_extractor', 'warn', `Per-URL budget exceeded (${batchPerUrlBudgetMs()}ms): ${url}`);
+                // The budget blew mid-operation: an orphaned page op or a
+                // wedged navigation may still be attached to the scratch
+                // page. Recycle it so the next URL starts from a clean page.
+                await closeScratchPage(scratchPage);
+                scratchPage = null;
+              } else {
+                errors.push({ url, error: error.message });
+                results.push({ url, success: false, error: error.message });
+              }
             }
           }
         } finally {
-          try { await scratchPage.close(); } catch { /* already closed */ }
+          await closeScratchPage(scratchPage);
+          scratchPage = null;
           // Restore the user's original page (see NOTE above).
           try {
             if (originalPage && !(originalPage as any).isClosed()) {
@@ -569,14 +695,17 @@ export const mediaHandlers = {
         }
 
         const successCount = results.filter(r => r.success).length;
-        notifyProgress('media_extractor', 'completed', `Batch extraction complete: ${successCount}/${batchUrls.length} successful`);
+        notifyProgress('media_extractor', 'completed', `Batch extraction complete: ${successCount}/${results.length} successful`);
 
         return {
           success: true,
           action: 'batch_extract',
           totalUrls: batchUrls.length,
+          processedUrls: results.length,
           successful: successCount,
-          failed: batchUrls.length - successCount,
+          failed: results.length - successCount,
+          // P1b: present only when the loop stopped early at the deadline.
+          ...(stoppedByDeadline ? { stoppedReason: 'deadline', note: `Batch stopped early at the call deadline after ${results.length}/${batchUrls.length} URLs. Partial results are complete and valid.` } : {}),
           results,
           errors
         };
