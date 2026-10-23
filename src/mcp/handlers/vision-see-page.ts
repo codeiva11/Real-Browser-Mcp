@@ -222,6 +222,26 @@ export async function seePage(params: SeePageParams = {}) {
   const shotOpts: any = { type: format, fullPage };
   if (format === 'jpeg' && typeof quality === 'number') shotOpts.quality = quality;
 
+  // Bound full-page screenshots: a very tall page produces a multi-MB image
+  // (returned inline as base64), which bloats the conversation and can break
+  // strict MCP clients. Above 10000px of page height, capture a clip of the
+  // top 10000px instead and say so in the result summary.
+  const MAX_FULLPAGE_HEIGHT_PX = 10000;
+  let screenshotNote: string | undefined;
+  if (fullPage) {
+    const fullHeight = await page.evaluate(() => Math.max(
+      document.body ? document.body.scrollHeight : 0,
+      document.documentElement ? document.documentElement.scrollHeight : 0
+    )).catch(() => 0);
+    if (fullHeight > MAX_FULLPAGE_HEIGHT_PX) {
+      const viewportWidth = (typeof page.viewportSize === 'function' && page.viewportSize()?.width)
+        || pageInfo.viewport?.width || 1280;
+      shotOpts.fullPage = false;
+      shotOpts.clip = { x: 0, y: 0, width: viewportWidth, height: MAX_FULLPAGE_HEIGHT_PX };
+      screenshotNote = `Full-page screenshot clipped to the top ${MAX_FULLPAGE_HEIGHT_PX}px of ${fullHeight}px — the page is too tall to return whole. Scroll and capture again for lower sections.`;
+    }
+  }
+
   let buffer;
   try {
     buffer = await page.screenshot(shotOpts);
@@ -238,7 +258,9 @@ export async function seePage(params: SeePageParams = {}) {
 
   let domText = undefined;
   if (includeDomText) {
-    domText = await page.evaluate(() => document.body ? document.body.innerText : '').catch(() => '');
+    // Capped at 8000 chars, mirroring pageText above — the full innerText of
+    // a large page is an unbounded payload inside the JSON summary.
+    domText = await page.evaluate(() => (document.body ? document.body.innerText : '').slice(0, 8000)).catch(() => '');
   }
 
   let savedTo = null;
@@ -265,6 +287,7 @@ export async function seePage(params: SeePageParams = {}) {
     pageText: pageInfo.pageText,
     iframes: pageInfo.iframes,
     domText,
+    screenshotNote,
     mutationsSinceLastCheck: watchMutations ? mutationsSinceLastCheck : undefined,
     elements,
     savedTo
