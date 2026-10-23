@@ -34,6 +34,8 @@ export const state: BrowserState = {
   sessionLastUrl: null,
   visualBaseline: null,
   visualBaselineAt: null,
+  activeCallDeadline: null,
+  activeCallCancelled: false,
 };
 
 export function detachNetworkRecorderListeners(): void {
@@ -69,6 +71,36 @@ export function pushNetworkRecord(record: NetworkRecord): void {
 
 export function setProgressCallback(callback: ProgressCallback): void {
   state.progressCallback = callback;
+}
+
+// ── P1b: cooperative cancellation for the currently executing call ──────────
+// executeTool (handlers/index.ts) sets the deadline before dispatching a
+// handler and clears it afterwards; async jobs set it to the job deadline.
+// Long-running loops poll these helpers and stop cleanly with partial results
+// once the budget is spent — previously an over-budget handler kept running
+// as a zombie on the shared page after the watchdog had already answered the
+// client, which is exactly how strict clients (Claude) ended up with
+// tool_use blocks whose tool_result never arrived.
+export function setActiveCallDeadline(ms: number | null): void {
+  state.activeCallDeadline = ms;
+  state.activeCallCancelled = false;
+}
+
+export function clearActiveCallDeadline(): void {
+  state.activeCallDeadline = null;
+  state.activeCallCancelled = false;
+}
+
+export function setActiveCallCancelled(): void {
+  state.activeCallCancelled = true;
+}
+
+export function pastActiveDeadline(): boolean {
+  return state.activeCallDeadline != null && Date.now() > state.activeCallDeadline;
+}
+
+export function activeDeadlineExceeded(): boolean {
+  return state.activeCallCancelled === true || pastActiveDeadline();
 }
 
 export function notifyProgress(
