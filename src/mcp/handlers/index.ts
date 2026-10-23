@@ -6,9 +6,10 @@ import { visionHandlers } from './vision';
 import { extractHandlers } from './extract';
 import { utilityHandlers } from './utility-handlers';
 import { mediaHandlers } from './media-handlers';
-import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser, detachNetworkRecorderListeners } from './state';
+import { state, setProgressCallback, notifyProgress, getHeadlessFromEnv, getState, requireBrowser, detachNetworkRecorderListeners, setActiveCallDeadline, clearActiveCallDeadline, setActiveCallCancelled } from './state';
 import { validateToolArgs, invalidArgsResult } from '../../shared/validate';
 import { logger } from '../../shared/logger';
+import { createJob, getJob, listJobs, jobMeta, requestJobCancel, finishJob, jobTimeoutMs, type JobRecord } from './jobs';
 
 // TOOLS uses module.exports (CJS), so it is not an ES export.
 const { TOOLS } = require('../../shared/tools') as { TOOLS: any[] };
@@ -21,7 +22,10 @@ export const handlers: any = {
   ...visionHandlers,
   ...extractHandlers,
   ...utilityHandlers,
-  ...mediaHandlers
+  ...mediaHandlers,
+  // P2: async_job is registry-only (see the P2 section below); it is
+  // special-cased in executeTool and never enters the serialize chain.
+  async_job: asyncJobHandler
 };
 
 // Global watchdog: no tool handler may block the MCP request forever.
@@ -100,6 +104,155 @@ function serialize<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// P1c heartbeat: while a handler (or job) runs, emit a progress notification
+// roughly every 15s. MCP clients that pass a progressToken get their 60s
+// request clock reset by each notification, so a legitimately busy server no
+// longer looks dead. The interval is unref'd and always cleared on settle —
+// it can never keep the process alive on its own.
+// ───────────────────────────────────────────────────────────────────────────
+function startHeartbeat(tool: string, startedAt: number): NodeJS.Timeout {
+  const timer = setInterval(() => {
+    const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
+    notifyProgress(tool, 'progress', `⏳ ${tool} still running (${elapsedSec}s elapsed)`);
+  }, 15000);
+  timer.unref?.();
+  return timer;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// P2 — async jobs for genuinely long work.
+//
+// Exactly three operations accept `async: true`: media_extractor
+// batch_extract, see_page with a steps array, and execute_js. The call
+// returns a jobId immediately (well inside the client's 60s clock, so the
+// tool_use/tool_result pairing is recorded), and the real work runs in the
+// background THROUGH the same serialize() chain — the shared page is still
+// only ever touched by one execution at a time. While a job runs, the P1b
+// active-call deadline is the job deadline, so the long loops inside those
+// handlers bail out cleanly at the job budget or on cancel.
+// ───────────────────────────────────────────────────────────────────────────
+function isAsyncCapable(name: string, args: any): boolean {
+  if (name === 'execute_js') return true;
+  if (name === 'see_page') return Array.isArray(args?.steps) && args.steps.length > 0;
+  if (name === 'media_extractor') return args?.action === 'batch_extract';
+  return false;
+}
+
+async function executeJobWork(job: JobRecord, name: string, args: any): Promise<void> {
+  const timeoutMs = jobTimeoutMs();
+  const deadline = job.startedAt + timeoutMs;
+  job.deadline = deadline;
+  try {
+    const result: any = await serialize(async () => {
+      setActiveCallDeadline(deadline);
+      const heartbeat = startHeartbeat(name, job.startedAt);
+      let cancelPoll: NodeJS.Timeout | undefined;
+      let budgetTimer: NodeJS.Timeout | undefined;
+      try {
+        const handlerPromise: Promise<any> = Promise.resolve().then(() => handlers[name](args));
+        // The guard races the handler: cancellation is cooperative (the
+        // handler's loops poll the P1b state and stop with partial results),
+        // but a handler stuck inside ONE long page op would never reach a
+        // checkpoint — the guard still ends the job promptly. The orphaned
+        // page op itself cannot be aborted (accepted, see research P1b).
+        const guard = new Promise<never>((_, reject) => {
+          cancelPoll = setInterval(() => {
+            if (job.cancelled) reject(new Error('cancelled'));
+          }, 250);
+          cancelPoll.unref?.();
+          budgetTimer = setTimeout(
+            () => reject(new Error(`Job "${name}" timed out after ${timeoutMs}ms`)),
+            Math.max(0, deadline - Date.now())
+          );
+          budgetTimer.unref?.();
+        });
+        return await Promise.race([handlerPromise, guard]);
+      } finally {
+        clearInterval(heartbeat);
+        if (cancelPoll) clearInterval(cancelPoll);
+        if (budgetTimer) clearTimeout(budgetTimer);
+        clearActiveCallDeadline();
+      }
+    });
+    if (job.cancelled) {
+      finishJob(job, 'error', { error: 'cancelled' });
+    } else {
+      finishJob(job, 'completed', { result });
+    }
+  } catch (error: any) {
+    if (job.cancelled || error?.message === 'cancelled') {
+      finishJob(job, 'error', { error: 'cancelled' });
+    } else {
+      finishJob(job, 'error', { error: error?.message || String(error) });
+    }
+  }
+}
+
+// async_job handler: registry reads/writes only. It NEVER touches the
+// browser, so executeTool dispatches it directly — no serialize chain, no
+// watchdog, no arrival deadline. (Hoisted function declaration: referenced
+// by the handlers map above.)
+async function asyncJobHandler(args: any = {}) {
+  const action: string = args?.action || 'status';
+
+  if (action === 'list') {
+    return { success: true, action: 'list', jobs: listJobs().map(jobMeta) };
+  }
+
+  const jobId: string | undefined = args?.jobId;
+  if (!jobId) {
+    return { success: false, error: `async_job: jobId is required for action "${action}"` };
+  }
+  const job = getJob(jobId);
+  if (!job) {
+    return { success: false, error: `async_job: unknown jobId "${jobId}"` };
+  }
+
+  switch (action) {
+    case 'status':
+      return { success: true, action: 'status', ...jobMeta(job) };
+    case 'result': {
+      if (job.status === 'running') {
+        return { success: true, action: 'result', jobId: job.id, status: 'running' };
+      }
+      if (job.status === 'error') {
+        // The QUERY succeeded — the job's outcome travels in status/error.
+        // (Returning success:false here would make the server render only
+        // {error}, hiding the status/timing a poller needs.)
+        return {
+          success: true, action: 'result', jobId: job.id, status: 'error', error: job.error,
+          startedAt: new Date(job.startedAt).toISOString(),
+          finishedAt: job.finishedAt ? new Date(job.finishedAt).toISOString() : undefined,
+          elapsedMs: (job.finishedAt ?? Date.now()) - job.startedAt,
+        };
+      }
+      return {
+        success: true, action: 'result', jobId: job.id, status: 'completed', result: job.result,
+        startedAt: new Date(job.startedAt).toISOString(),
+        finishedAt: job.finishedAt ? new Date(job.finishedAt).toISOString() : undefined,
+        elapsedMs: (job.finishedAt ?? Date.now()) - job.startedAt,
+      };
+    }
+    case 'cancel': {
+      if (job.status !== 'running') {
+        return { success: true, action: 'cancel', jobId: job.id, status: job.status, note: 'Job already finished; nothing to cancel.' };
+      }
+      requestJobCancel(job);
+      // If THIS job is the execution currently holding the shared page, trip
+      // the P1b cancel flag so its loops stop at their next checkpoint. The
+      // deadline comparison guards against poisoning an unrelated call that
+      // happens to be executing while this job is still queued.
+      if (state.activeCallDeadline != null && job.deadline !== undefined && state.activeCallDeadline === job.deadline) {
+        setActiveCallCancelled();
+      }
+      return { success: true, action: 'cancel', jobId: job.id, status: 'cancelling', note: 'Cancellation requested; the job stops at its next checkpoint.' };
+    }
+    default:
+      return { success: false, error: `async_job: unknown action "${action}". Supported: status, result, list, cancel` };
+  }
+}
+
 export async function executeTool(name: string, args: any = {}) {
   // Arrival timestamp for the per-call arrival deadline: the budget covers
   // validation + queue wait + execution, all measured from NOW — the same
@@ -118,6 +271,32 @@ export async function executeTool(name: string, args: any = {}) {
     } catch (e) {
       // Validation itself must never block tool execution.
     }
+    // P2: async_job only reads/writes the in-memory job registry — it must
+    // answer instantly even while a long job holds the serialize chain, so
+    // it bypasses serialization, the watchdog and the arrival deadline.
+    if (name === 'async_job') {
+      try {
+        return await handlers[name](args);
+      } catch (error: any) {
+        return { success: false, error: error?.message || String(error) };
+      }
+    }
+    // P2: `async: true` opt-in on the three long operations — register a
+    // background job and answer immediately with its jobId. The jobId reply
+    // is recorded by the client like any other tool_result, so the pairing
+    // stays intact no matter how long the real work takes.
+    if (args?.async === true && isAsyncCapable(name, args)) {
+      const job = createJob(name);
+      logger.info('tool_call', { tool: name, async: true, jobId: job.id });
+      void executeJobWork(job, name, args);
+      return {
+        success: true,
+        async: true,
+        jobId: job.id,
+        status: 'running',
+        note: 'Poll async_job for the result.',
+      };
+    }
     const startedAt = Date.now();
     try {
       const result: any = await serialize(async () => {
@@ -134,8 +313,20 @@ export async function executeTool(name: string, args: any = {}) {
           };
         }
         const toolBudget = LONG_RUNNING_TOOLS.has(name) ? LONG_TOOL_TIMEOUT_MS : TOOL_TIMEOUT_MS;
-        const handlerCall = handlers[name](args);
-        return withWatchdog(name, handlerCall, Math.min(toolBudget, remainingMs));
+        const effectiveDeadline = Math.min(arrivalDeadline, Date.now() + toolBudget);
+        // P1b: publish this call's deadline so long loops inside the handler
+        // can bail out cleanly (partial results) instead of running on as
+        // zombies after the watchdog answers the client. P1c: heartbeat
+        // progress while it runs.
+        setActiveCallDeadline(effectiveDeadline);
+        const heartbeat = startHeartbeat(name, startedAt);
+        try {
+          const handlerCall = handlers[name](args);
+          return await withWatchdog(name, handlerCall, effectiveDeadline - Date.now());
+        } finally {
+          clearInterval(heartbeat);
+          clearActiveCallDeadline();
+        }
       });
       // Structured per-call log line — the minimal observability signal for
       // production monitoring (tool, duration, outcome).
