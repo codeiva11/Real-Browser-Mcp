@@ -19,9 +19,55 @@ function isPlainObject(v: unknown): boolean {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+/**
+ * P1a: enforce the schema's size/range ceilings — `maximum`/`minimum` on
+ * numbers, `maxLength` on strings, `maxItems` on arrays — wherever they are
+ * declared, including nested object properties and array item schemas.
+ *
+ * This runs BEFORE dispatch so an absurd argument (a 10-minute wait, 99
+ * navigate retries, a 500-URL batch) is rejected as invalid-args instead of
+ * locking the shared page past the MCP client's ~60s timeout — the failure
+ * mode behind the Claude tool_use/tool_result pairing error. Only ceilings
+ * are enforced here (no nested type/enum checks), so nothing that was valid
+ * before can be newly rejected unless it exceeds a declared ceiling.
+ */
+function validateRanges(value: unknown, schema: any, path: string, errors: string[]): void {
+  if (schema === undefined || schema === null || value === undefined || value === null) return;
+
+  if (typeof value === 'number') {
+    if (typeof schema.maximum === 'number' && value > schema.maximum) {
+      errors.push(`${path}: must be <= ${schema.maximum} (schema ceiling; got ${value})`);
+    }
+    if (typeof schema.minimum === 'number' && value < schema.minimum) {
+      errors.push(`${path}: must be >= ${schema.minimum} (got ${value})`);
+    }
+  }
+  if (typeof value === 'string' && typeof schema.maxLength === 'number' && value.length > schema.maxLength) {
+    errors.push(`${path}: exceeds maxLength ${schema.maxLength} (got ${value.length} characters)`);
+  }
+  if (Array.isArray(value)) {
+    if (typeof schema.maxItems === 'number' && value.length > schema.maxItems) {
+      errors.push(`${path}: exceeds maxItems ${schema.maxItems} (got ${value.length} items)`);
+    }
+    if (schema.items) {
+      value.forEach((item, i) => validateRanges(item, schema.items, `${path}[${i}]`, errors));
+    }
+  }
+  if (isPlainObject(value) && schema.properties) {
+    for (const [key, subSchema] of Object.entries(schema.properties)) {
+      if ((value as Record<string, unknown>)[key] !== undefined) {
+        validateRanges((value as Record<string, unknown>)[key], subSchema, `${path}.${key}`, errors);
+      }
+    }
+  }
+}
+
 function validateValue(value: unknown, schema: any, path: string, errors: string[]): void {
   if (schema === undefined || schema === null) return;
   const type = schema.type;
+
+  // P1a ceilings first — they apply regardless of which type branch follows.
+  validateRanges(value, schema, path, errors);
 
   if (schema.enum && value !== undefined && value !== null) {
     if (!schema.enum.includes(value)) {
