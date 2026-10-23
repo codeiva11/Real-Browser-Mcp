@@ -1,4 +1,4 @@
-import { requireBrowser, notifyProgress, decoders } from './state';
+import { requireBrowser, notifyProgress, decoders, activeDeadlineExceeded } from './state';
 import { validateHttpUrl } from '../../shared/url-utils';
 import { logger } from '../../shared/logger';
 import type { ExtractDataParams } from '../../types';
@@ -320,15 +320,26 @@ async function deobfuscateJS(page: any) {
   ).catch(() => []);
 
   let allJs = scriptContents;
+  // P1b bounds for the fetch phase: a shared ~20s total budget across ALL
+  // script fetches (not 10s each), a ~2MB total JS corpus cap, and the
+  // caller's active deadline — whichever trips first stops fetching and the
+  // parse proceeds on whatever was gathered (partial results, no hang).
+  const FETCH_BUDGET_MS = 20000;
+  const MAX_CORPUS_CHARS = 2_000_000;
+  const fetchStartedAt = Date.now();
   for (const src of externalScripts.slice(0, 10)) {
+    if (activeDeadlineExceeded()) break;
+    if (Date.now() - fetchStartedAt > FETCH_BUDGET_MS) break;
+    if (allJs.length >= MAX_CORPUS_CHARS) break;
     // SSRF guard: never server-fetch private/loopback URLs found in page HTML.
     if (!validateHttpUrl(src).valid) continue;
-    // 10s abort so a stalled script fetch can never hang the tool.
+    // Per-fetch abort bounded by the remaining shared budget.
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
+    const timer = setTimeout(() => controller.abort(), Math.max(1000, FETCH_BUDGET_MS - (Date.now() - fetchStartedAt)));
     try {
       const resp = await fetch(src, { signal: controller.signal });
-      allJs += '\n' + await resp.text();
+      const text = await resp.text();
+      allJs += '\n' + text.slice(0, Math.max(0, MAX_CORPUS_CHARS - allJs.length));
     } catch (e) {
       logger.debug('deobfuscate: script fetch failed', { src, error: (e as Error)?.message || String(e) });
     } finally {
