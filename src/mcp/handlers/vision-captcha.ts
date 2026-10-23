@@ -6,7 +6,7 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
   const { page } = requireBrowser();
   const {
     type = 'auto',
-    timeout = 30000,
+    timeout: rawTimeout = 30000,
     captchaSelector,
     widgetSelector,
     inputSelector,
@@ -25,6 +25,10 @@ export async function solveCaptcha(params: SolveCaptchaParams = {}) {
     aiMatch = true,
     preferTextFallback = false,
   } = params;
+
+  // P1a clamp mirroring the schema ceiling (validator rejects beyond it;
+  // this guards internal/direct callers).
+  const timeout = Math.min(Math.max(Number(rawTimeout) || 30000, 0), 120000);
 
   let targetFrame: any = page;
   if (iframe !== null && iframe !== undefined || iframeSelector) {
