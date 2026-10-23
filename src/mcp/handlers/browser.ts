@@ -429,6 +429,11 @@ export const browserHandlers = {
     if (!url) {
       throw new Error('url parameter is required for navigation');
     }
+    // P1a defense-in-depth clamps: the schema validator already rejects
+    // values beyond these ceilings; clamping here guards internal/direct
+    // callers so one navigation can never outlive the caller's budget.
+    timeout = Math.min(Math.max(Number(timeout) || 30000, 0), 60000);
+    retries = Math.min(Math.max(Math.floor(Number(retries) || 0), 0), 3);
     waitUntil = resolveWaitUntil(waitUntil) as WaitUntilState;
 
     const checkedUrl = await assertSafeUrl(url, 'navigate');
@@ -490,7 +495,7 @@ export const browserHandlers = {
             const { waitForChallengeToClear } = await import('./advanced');
             challenge = await waitForChallengeToClear(
               page,
-              (params as any).challengeTimeout || 90000,
+              Math.min((params as any).challengeTimeout || 90000, 90000), // P1a clamp
               (params as any).challengePollInterval || 2000
             );
             title = challenge.title || title;
@@ -550,21 +555,27 @@ export const browserHandlers = {
     const { page } = requireBrowser();
     const { type = 'timeout', value, timeout = 30000 } = params;
 
+    // P1a clamps: `value` arrives as a string for type:'timeout' and bypasses
+    // the numeric schema ceiling, so clamp the parsed sleep here too. A wait
+    // must never sleep past the caller's request budget.
+    const clampedTimeout = Math.min(Math.max(Number(timeout) || 30000, 0), 60000);
+    const sleepMs = Math.min(Math.max(parseInt(value || '1000') || 1000, 0), 60000);
+
     notifyProgress('wait', 'started', `Waiting for ${type}: ${value}`);
 
     switch (type) {
       case 'selector':
-        await page.waitForSelector(value!, { timeout });
+        await page.waitForSelector(value!, { timeout: clampedTimeout });
         break;
       case 'navigation':
-        await page.waitForNavigation({ timeout });
+        await page.waitForNavigation({ timeout: clampedTimeout });
         break;
       case 'networkidle':
-        await page.waitForLoadState('networkidle', { timeout });
+        await page.waitForLoadState('networkidle', { timeout: clampedTimeout });
         break;
       case 'timeout':
       default:
-        await new Promise(r => setTimeout(r, parseInt(value || '1000') || 1000));
+        await new Promise(r => setTimeout(r, sleepMs));
     }
 
     notifyProgress('wait', 'completed', `Wait completed: ${type}`, { type, value });
