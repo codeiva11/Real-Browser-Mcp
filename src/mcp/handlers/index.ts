@@ -29,10 +29,25 @@ export const handlers: any = {
 // would otherwise hang indefinitely and the MCP client would report
 // "-32001 Request timed out". Racing each handler against a hard timeout
 // guarantees the server always answers promptly.
-const TOOL_TIMEOUT_MS = parseInt(process.env.REAL_BROWSER_TOOL_TIMEOUT_MS || '120000', 10);
-// Long-lived tools (network_recorder, media batch jobs, async JS) still get a
-// generous hard budget so a crashed browser can never hang the server forever.
-const LONG_TOOL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+//
+// The budgets are deliberately BELOW the MCP client's default request
+// timeout (60s in the official SDK). Strict clients (Anthropic) require
+// every tool_use to be answered by a tool_result that stays in the
+// conversation: a call the client has already given up on is never recorded,
+// and its orphaned tool_use makes the NEXT request fail with a 400
+// ("tool_use ids were found without tool_result blocks"). Answering at ~50s
+// — even with a timeout error — is always better than answering perfectly
+// at 120s, because a recorded error preserves the pairing and a late
+// answer does not.
+const TOOL_TIMEOUT_MS = parseInt(process.env.REAL_BROWSER_TOOL_TIMEOUT_MS || '50000', 10);
+// Long-lived tools (network_recorder, media batch jobs, async JS) get a
+// slightly larger budget, still inside the client's 60s patience.
+const LONG_TOOL_TIMEOUT_MS = parseInt(process.env.REAL_BROWSER_LONG_TOOL_TIMEOUT_MS || '55000', 10);
+// Total per-call budget measured from ARRIVAL at executeTool (queue wait +
+// execution). A parallel pair dispatched together shares the same client
+// clock, so a call that waited in the serialization queue must not get a
+// fresh full budget when its turn finally comes — see executeTool.
+const ARRIVAL_BUDGET_MS = parseInt(process.env.REAL_BROWSER_ARRIVAL_BUDGET_MS || '55000', 10);
 
 function withWatchdog<T>(name: string, promise: Promise<T>, budgetMs: number = TOOL_TIMEOUT_MS): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -47,7 +62,7 @@ function withWatchdog<T>(name: string, promise: Promise<T>, budgetMs: number = T
 }
 
 // Some tools (network_recorder, media_extractor, execute_js)
-// are legitimately long-lived and get the larger 5-minute budget above.
+// are legitimately long-lived and get the larger budget above.
 const LONG_RUNNING_TOOLS = new Set([
   'network_recorder',
   'media_extractor',
@@ -68,6 +83,13 @@ const LONG_RUNNING_TOOLS = new Set([
 // previous one to settle (success, error, or watchdog timeout) before
 // touching the browser. The watchdog on every handler guarantees the chain
 // can never deadlock.
+//
+// Because calls queue here, executeTool enforces an arrival deadline
+// (ARRIVAL_BUDGET_MS from when the call arrived, not from when it starts):
+// a queued call whose turn comes after its deadline returns a fast
+// structured "busy" error instead of starting late — a recorded error
+// result keeps the client's tool_use/tool_result pairing intact, while a
+// late answer (or silence) breaks it on strict clients.
 // ───────────────────────────────────────────────────────────────────────────
 let executionChain: Promise<unknown> = Promise.resolve();
 
@@ -79,6 +101,10 @@ function serialize<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export async function executeTool(name: string, args: any = {}) {
+  // Arrival timestamp for the per-call arrival deadline: the budget covers
+  // validation + queue wait + execution, all measured from NOW — the same
+  // moment the client's own request clock started ticking.
+  const arrivalDeadline = Date.now() + ARRIVAL_BUDGET_MS;
   if (handlers[name]) {
     // Validate args against the registered schema before dispatching. Returns
     // a clean, machine-readable error instead of a raw handler crash when the
@@ -94,13 +120,22 @@ export async function executeTool(name: string, args: any = {}) {
     }
     const startedAt = Date.now();
     try {
-      // Long-running tools still get a generous hard budget (5 min) so a
-      // crashed page can never hang the server forever.
-      const result: any = await serialize(() => {
+      const result: any = await serialize(async () => {
+        // Arrival deadline: this call may have waited in the serialization
+        // queue behind a previous call. Whatever is left of its arrival
+        // budget is all it gets — if nothing is left, do NOT start late:
+        // return a fast structured busy error instead, so the client can
+        // record a tool_result for this call and retry it sequentially.
+        const remainingMs = arrivalDeadline - Date.now();
+        if (remainingMs <= 0) {
+          return {
+            success: false,
+            error: 'Server busy: a previous tool call is still running. Retry this call sequentially.',
+          };
+        }
+        const toolBudget = LONG_RUNNING_TOOLS.has(name) ? LONG_TOOL_TIMEOUT_MS : TOOL_TIMEOUT_MS;
         const handlerCall = handlers[name](args);
-        return LONG_RUNNING_TOOLS.has(name)
-          ? withWatchdog(name, handlerCall, LONG_TOOL_TIMEOUT_MS)
-          : withWatchdog(name, handlerCall);
+        return withWatchdog(name, handlerCall, Math.min(toolBudget, remainingMs));
       });
       // Structured per-call log line — the minimal observability signal for
       // production monitoring (tool, duration, outcome).
