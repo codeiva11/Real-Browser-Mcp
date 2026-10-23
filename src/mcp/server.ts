@@ -79,14 +79,22 @@ let activeProgressToken: unknown = undefined;
 
 /**
  * Deliver progress notifications to the MCP client as real JSON-RPC
- * notifications (notifications/progress). The client only opts in when it
- * negotiated the 'progress' capability; an unfiltered stream of
- * notifications can spam STDIO, so we gate delivery behind an env flag that
- * is opt-in: REAL_BROWSER_SEND_PROGRESS=1.
+ * notifications (notifications/progress).
+ *
+ * P1c: notifications flow whenever the in-flight request carried a
+ * _meta.progressToken — that token IS the client's opt-in per the MCP spec,
+ * and each notification resets the client's request timeout, which is the
+ * spec-sanctioned way to keep a long call alive. Previously delivery was
+ * gated behind REAL_BROWSER_SEND_PROGRESS=1, so in practice no client ever
+ * saw progress and long calls died at the client's 60s clock (the Claude
+ * tool_use/tool_result pairing failure). The env var remains as an opt-OUT:
+ * REAL_BROWSER_SEND_PROGRESS=0 disables delivery. Without a token, nothing
+ * is ever sent.
  */
 function wireProgressNotifications(server: any) {
   setProgressCallback((notification: any) => {
-    if (process.env.REAL_BROWSER_SEND_PROGRESS !== '1') return;
+    if (process.env.REAL_BROWSER_SEND_PROGRESS === '0') return;
+    if (activeProgressToken === undefined || activeProgressToken === null) return;
     try {
       const { tool, status, message, timestamp, data } = notification;
       // MCP spec: `progress` must be a number 0-100. We don't have real
