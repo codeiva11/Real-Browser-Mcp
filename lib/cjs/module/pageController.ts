@@ -12,7 +12,12 @@ async function pageController({ browser, page, proxy, turnstile }: { browser: an
 
     async function turnstileSolver() {
         while (solveStatus) {
+            if (!page || page.isClosed()) {
+                solveStatus = false;
+                break;
+            }
             await checkTurnstile({ page }).catch(() => { });
+            if (!solveStatus || !page || page.isClosed()) break;
             // Unref the idle timer so this background loop never keeps the
             // Node process alive on its own.
             await new Promise(r => {
@@ -31,16 +36,23 @@ async function pageController({ browser, page, proxy, turnstile }: { browser: an
         context._popupBlockerApplied = true;
         context.on('page', async (newPage: any) => {
             try {
-                const opener = await newPage.opener();
-                if (!opener) return;
+                if (newPage.isClosed()) return;
+                const opener = await newPage.opener().catch(() => null);
+                if (!opener || newPage.isClosed()) return;
 
                 // FIX: Wait for the page to navigate away from about:blank before
                 // judging its URL. Firing immediately catches every legitimate popup
                 // (OAuth, payment windows, new tabs) while they are still blank.
                 // We wait up to 2s for a real URL to appear.
-                let url = newPage.url();
+                let url = '';
+                try {
+                    url = newPage.url();
+                } catch {
+                    return;
+                }
                 if (url === 'about:blank' || url === '') {
                     await newPage.waitForURL((u: { href: string }) => u.href !== 'about:blank', { timeout: 2000 }).catch(() => {});
+                    if (newPage.isClosed()) return;
                     url = newPage.url();
                 }
 
@@ -52,7 +64,7 @@ async function pageController({ browser, page, proxy, turnstile }: { browser: an
                     (url === 'about:blank' || url === '') ||
                     /\/(ad|ads|adserv|adclick|popup|popunder|clicktrack|banner)\b/i.test(url);
 
-                if (isAdPopup) {
+                if (isAdPopup && !newPage.isClosed()) {
                     await newPage.close().catch(() => { });
                     console.error('[popup-blocker] Blocked popup:', url.substring(0, 80));
                 }

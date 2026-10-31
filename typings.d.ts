@@ -29,6 +29,8 @@ declare module "real-browser-mcp-server" {
 		executablePath?: string;
 		/** Enable blocker on all pages (default: true) */
 		enableBlocker?: boolean;
+		/** Ignore default browser arguments (e.g. true or string array) */
+		ignoreDefaultArgs?: boolean | string[];
 	}
 
 	interface ProxyOptions {

@@ -1,6 +1,7 @@
 const checkTurnstile = async ({ page }: { page: any }): Promise<boolean> => {
     try {
-        const elements = await page.locator('[name="cf-turnstile-response"]').all();
+        if (!page || page.isClosed()) return false;
+        const elements = await page.locator('[name="cf-turnstile-response"]').all().catch(() => []);
         if (elements.length <= 0) {
             const isChallenge = await page.evaluate(() => {
                 return document.title.includes('Just a moment') || 

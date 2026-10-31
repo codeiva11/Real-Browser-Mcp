@@ -142,11 +142,16 @@ export function setupRealPage(page: Page & Record<string, any>): Page & Record<s
   };
 
   try {
-    const cursor = createCursor(page);
+    const cursorPromise = Promise.resolve(createCursor(page)).catch(() => null);
     page.realCursor = {
       move: async (selector: string, options: Record<string, unknown> = {}) => {
         try {
-          await (cursor as any).actions.move(selector, options);
+          const cursor = await cursorPromise;
+          if (cursor && (cursor as any).actions) {
+            await (cursor as any).actions.move(selector, options);
+          } else {
+            await page.hover(selector);
+          }
         } catch (e) {
           try { await page.hover(selector); } catch (_) {}
         }
@@ -154,7 +159,12 @@ export function setupRealPage(page: Page & Record<string, any>): Page & Record<s
     };
     page.realClick = async (selector: string, options: Record<string, unknown> = {}) => {
       try {
-        await (cursor as any).actions.click({ target: selector, ...options });
+        const cursor = await cursorPromise;
+        if (cursor && (cursor as any).actions) {
+          await (cursor as any).actions.click({ target: selector, ...options });
+        } else {
+          await page.click(selector, options as any);
+        }
       } catch (e) {
         await page.click(selector, options as any);
       }
@@ -179,6 +189,7 @@ export function setupRealPage(page: Page & Record<string, any>): Page & Record<s
 
 export async function applyUserAgentOverride(page: Page, userAgent: string, userAgentMetadata: any): Promise<void> {
   try {
+    if (page.isClosed()) return;
     const client = await page.context().newCDPSession(page);
     await client.send('Emulation.setUserAgentOverride', {
       userAgent,
@@ -199,6 +210,58 @@ function getGreaseBrand(majorVersion: number): string {
   return greaseBrands[majorVersion % 3];
 }
 
+/**
+ * Patchright (derived from Playwright) passes `--disable-features=...` by default,
+ * which includes `ThirdPartyStoragePartitioning`.
+ * Real browsers have third-party storage partitioning enabled by default; disabling it
+ * is an immediate automation tell detected by bot detectors like Rebrowser.
+ * We extract Patchright's default disabledFeatures list and remove
+ * `ThirdPartyStoragePartitioning` so storage partitioning remains active as in real Chrome.
+ */
+const DEFAULT_PATCHRIGHT_DISABLED_FEATURES = [
+  'AvoidUnnecessaryBeforeUnloadCheckSync',
+  'DestroyProfileOnBrowserClose',
+  'DialMediaRouteProvider',
+  'GlobalMediaControls',
+  'HttpsUpgrades',
+  'LensOverlay',
+  'PaintHolding',
+  'ThirdPartyStoragePartitioning',
+  'BlockOriginHeaderModificationOnRedirect',
+  'AvoidCorsURLLoaderRestartOnRedirect',
+  'Translate',
+  'AutoDeElevate',
+  'OptimizationHints',
+  'NetworkTimeServiceQuerying',
+  'AimEnabled',
+  'msForceBrowserSignIn',
+  'msEdgeUpdateLaunchServicesPreferredVersion'
+];
+
+let cachedDisabledFeatures: string[] | null = null;
+
+function getPatchrightDisabledFeatures(): string[] {
+  if (cachedDisabledFeatures) return cachedDisabledFeatures;
+  try {
+    const coreDir = path.dirname(require.resolve('patchright-core'));
+    const bundlePath = path.join(coreDir, 'lib', 'coreBundle.js');
+    if (fs.existsSync(bundlePath)) {
+      const content = fs.readFileSync(bundlePath, 'utf8');
+      const match = content.match(/disabledFeatures\s*=\s*\[([\s\S]*?)\]\.filter/);
+      if (match) {
+        const strings = Array.from(match[1].matchAll(/"([^"]+)"|'([^']+)'/g)).map(m => m[1] || m[2]);
+        const filtered = strings.filter(f => f && f !== 'MediaRouter');
+        if (filtered.length > 0) {
+          cachedDisabledFeatures = filtered;
+          return cachedDisabledFeatures;
+        }
+      }
+    }
+  } catch { /* ignore fallback */ }
+  cachedDisabledFeatures = DEFAULT_PATCHRIGHT_DISABLED_FEATURES;
+  return cachedDisabledFeatures;
+}
+
 export function createConnect(pageController: (opts: { browser: Browser; page: Page; proxy: Record<string, unknown>; turnstile: boolean }) => Promise<Page>) {
   return async function connect({
     args = [],
@@ -208,6 +271,16 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
     turnstile = false,
     enableBlocker = true,
     executablePath = undefined as string | undefined,
+    ignoreDefaultArgs = undefined as boolean | string[] | undefined,
+  }: {
+    args?: string[];
+    headless?: boolean;
+    proxy?: Record<string, unknown>;
+    contextOptions?: Record<string, unknown>;
+    turnstile?: boolean;
+    enableBlocker?: boolean;
+    executablePath?: string;
+    ignoreDefaultArgs?: boolean | string[];
   } = {}) {
     let playwrightProxy: Record<string, unknown> | undefined = undefined;
     if (proxy && proxy.host && proxy.port) {
@@ -267,9 +340,21 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       wow64: false
     };
 
+    const defaultDisabled = getPatchrightDisabledFeatures();
+    const exactPatchrightDisableArg = '--disable-features=' + defaultDisabled.join(',');
+    const sanitizedDisableArg = '--disable-features=' + defaultDisabled.filter(f => f !== 'ThirdPartyStoragePartitioning').join(',');
+
+    const launchIgnoreDefaultArgs: boolean | string[] = ignoreDefaultArgs === true
+      ? true
+      : [
+          ...(Array.isArray(ignoreDefaultArgs) ? ignoreDefaultArgs : []),
+          exactPatchrightDisableArg
+        ];
+
     const chromiumArgs = [
       `--user-agent=${ua}`,
       '--disable-blink-features=AutomationControlled',
+      sanitizedDisableArg,
       // FIX: only disable the Chromium sandbox when required (CI, containers,
       // root). On normal desktops the OS-level sandbox stays enabled — it is a
       // strong security boundary for untrusted page content.
@@ -291,6 +376,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
     const browser = await chromium.launch({
       headless: launchHeadless,
       args: chromiumArgs,
+      ignoreDefaultArgs: launchIgnoreDefaultArgs,
       proxy: playwrightProxy as any,
       ...(executablePath ? { executablePath } : {}),
     });
@@ -324,15 +410,22 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
 
     // FIX: new pages from window.open / target=_blank also get full setup + blocking
     context.on('page', async (newPage: Page) => {
-      await applyUserAgentOverride(newPage, ua, userAgentMetadata as any);
-      setupRealPage(newPage);
-      if (enableBlocker) await enableBlockingInPage(newPage);
-      await pageController({
-        browser,
-        page: newPage,
-        proxy,
-        turnstile,
-      });
+      try {
+        if (newPage.isClosed()) return;
+        await applyUserAgentOverride(newPage, ua, userAgentMetadata as any);
+        if (newPage.isClosed()) return;
+        setupRealPage(newPage);
+        if (enableBlocker) await enableBlockingInPage(newPage);
+        if (newPage.isClosed()) return;
+        await pageController({
+          browser,
+          page: newPage,
+          proxy,
+          turnstile,
+        });
+      } catch (_) {
+        // Page might have already closed
+      }
     });
 
     return {
