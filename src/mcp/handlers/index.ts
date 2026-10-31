@@ -320,6 +320,15 @@ export async function executeTool(name: string, args: any = {}) {
         // progress while it runs.
         setActiveCallDeadline(effectiveDeadline);
         const heartbeat = startHeartbeat(name, startedAt);
+        // Auto-Initialize: If the tool requires browser, start it automatically if not running!
+        const toolDef = TOOLS.find((t: any) => t.name === name);
+        if (toolDef?.requiresBrowser !== false && name !== 'browser_init') {
+          if (!state.browserInstance || !state.pageInstance) {
+            notifyProgress(name, 'progress', 'Browser not running. Auto-starting browser...');
+            await handlers['browser_init']({});
+          }
+        }
+
         try {
           const handlerCall = handlers[name](args);
           return await withWatchdog(name, handlerCall, effectiveDeadline - Date.now());

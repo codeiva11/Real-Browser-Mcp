@@ -1,0 +1,82 @@
+name: 🔄 Auto Upstream Sync & Patch
+
+on:
+  schedule:
+    # Run daily at 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Force test and sync even if versions match'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  sync:
+    name: 🔄 Check Upstream & Auto-Patch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN || github.token }}
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: ⚙️ Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: 🔍 Check Upstream Version
+        id: check_version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').dependencies['patchright'] || ''")
+          INSTALLED_VERSION=$(node -p "try { require('./node_modules/patchright/package.json').version } catch { '' }")
+          LATEST_VERSION=$(npm view patchright version)
+
+          echo "Current in package.json: $CURRENT_VERSION"
+          echo "Installed: $INSTALLED_VERSION"
+          echo "Latest on npm: $LATEST_VERSION"
+
+          if [ "$INSTALLED_VERSION" != "$LATEST_VERSION" ] || [ "${{ github.event.inputs.force_run }}" = "true" ]; then
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+            echo "new_version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+            echo "✅ Already up to date with upstream Patchright $LATEST_VERSION."
+          fi
+
+      - name: 📦 Install Latest Upstream & Build
+        if: steps.check_version.outputs.needs_update == 'true'
+        run: |
+          echo "🚀 Updating to latest patchright..."
+          npm install patchright@latest
+          echo "📥 Installing latest patchright chromium..."
+          npx patchright install chromium
+          echo "🔨 Building project with latest upstream..."
+          npm run build
+
+      - name: 🧪 Run Comprehensive Test Suite
+        if: steps.check_version.outputs.needs_update == 'true'
+        run: |
+          echo "🧪 Running full test suite (Rebrowser, Cloudflare WAF, Turnstile, Pixelscan, Recaptcha)..."
+          npm test
+
+      - name: 🚀 Commit and Push Patched Update
+        if: steps.check_version.outputs.needs_update == 'true'
+        run: |
+          NEW_VER="${{ steps.check_version.outputs.new_version }}"
+          git add package.json package-lock.json lib/ dist/
+          git commit -m "chore(upstream): auto-sync patchright to v$NEW_VER [skip ci]" || exit 0
+          git push origin main
+          echo "✅ Successfully synced and pushed upstream patchright v$NEW_VER"

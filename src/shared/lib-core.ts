@@ -141,48 +141,100 @@ export function setupRealPage(page: Page & Record<string, any>): Page & Record<s
     }
   };
 
-  try {
-    const cursorPromise = Promise.resolve(createCursor(page)).catch(() => null);
-    page.realCursor = {
-      move: async (selector: string, options: Record<string, unknown> = {}) => {
-        try {
-          const cursor = await cursorPromise;
-          if (cursor && (cursor as any).actions) {
-            await (cursor as any).actions.move(selector, options);
-          } else {
-            await page.hover(selector);
-          }
-        } catch (e) {
-          try { await page.hover(selector); } catch (_) {}
-        }
+  const cursorPromise = Promise.resolve(createCursor(page)).catch(() => null);
+
+  // Preserve original Playwright native methods
+  const origClick = page.click ? page.click.bind(page) : async () => {};
+  const origHover = page.hover ? page.hover.bind(page) : async () => {};
+  const origType = page.type ? page.type.bind(page) : async () => {};
+  const origGoto = page.goto ? page.goto.bind(page) : async () => {};
+
+  // 1. Transparent Auto-Human page.click
+  (page as any).click = async (selector: string, options: any = {}) => {
+    if (options?.noHuman === true || options?.force === true) {
+      return origClick(selector, options);
+    }
+    try {
+      const cursor = await cursorPromise;
+      if (cursor && (cursor as any).actions) {
+        const delay = options?.delay ?? (35 + Math.floor(Math.random() * 60));
+        await (cursor as any).actions.click({ target: selector, delay, ...options });
+        return;
       }
-    };
-    page.realClick = async (selector: string, options: Record<string, unknown> = {}) => {
+    } catch (_) {}
+    return origClick(selector, options);
+  };
+
+  // 2. Transparent Auto-Human page.hover
+  (page as any).hover = async (selector: string, options: any = {}) => {
+    if (options?.noHuman === true) {
+      return origHover(selector, options);
+    }
+    try {
+      const cursor = await cursorPromise;
+      if (cursor && (cursor as any).actions) {
+        await (cursor as any).actions.move(selector, options);
+        return;
+      }
+    } catch (_) {}
+    return origHover(selector, options);
+  };
+
+  // 3. Transparent Auto-Human page.type
+  (page as any).type = async (selector: string, text: string, options: any = {}) => {
+    if (options?.noHuman === true) {
+      return origType(selector, text, options);
+    }
+    try {
+      await (page as any).click(selector, { ...options, noHuman: false });
+    } catch (_) {}
+    for (const char of text) {
+      const keyDelay = options?.delay ?? (35 + Math.floor(Math.random() * 65));
+      await page.keyboard.press(char, { delay: keyDelay });
+    }
+  };
+
+  // 4. Transparent Auto-WAF page.goto
+  (page as any).goto = async (url: string, options: any = {}) => {
+    const response = await origGoto(url, { waitUntil: 'domcontentloaded', ...options });
+    if (options?.autoWafWait !== false && !page.isClosed()) {
       try {
-        const cursor = await cursorPromise;
-        if (cursor && (cursor as any).actions) {
-          await (cursor as any).actions.click({ target: selector, ...options });
-        } else {
-          await page.click(selector, options as any);
+        const isChallenge = await page.evaluate(() => {
+          const title = (document.title || '').toLowerCase();
+          return title.includes('just a moment') ||
+                 title.includes('attention required') ||
+                 document.querySelector('#challenge-stage') !== null ||
+                 document.querySelector('.cf-turnstile') !== null;
+        }).catch(() => false);
+
+        if (isChallenge) {
+          const startWait = Date.now();
+          while (!page.isClosed() && (Date.now() - startWait) < 20000) {
+            await new Promise(r => setTimeout(r, 1000));
+            const stillChallenge = await page.evaluate(() => {
+              const title = (document.title || '').toLowerCase();
+              return title.includes('just a moment') ||
+                     title.includes('attention required') ||
+                     document.querySelector('#challenge-stage') !== null;
+            }).catch(() => false);
+            if (!stillChallenge) break;
+          }
         }
-      } catch (e) {
-        await page.click(selector, options as any);
-      }
-    };
-  } catch (e) {
-    if (!page.realClick) {
-      page.realClick = async (selector: string, options: Record<string, unknown>) => {
-        await page.click(selector, options as any);
-      };
+      } catch (_) {}
     }
-    if (!page.realCursor) {
-      page.realCursor = {
-        move: async (selector: string) => {
-          try { await page.hover(selector); } catch (_) {}
-        }
-      };
+    return response;
+  };
+
+  // Backward compatibility: keep realClick and realCursor explicitly mapped
+  page.realClick = async (selector: string, options: Record<string, unknown> = {}) => {
+    return page.click(selector, options);
+  };
+
+  page.realCursor = {
+    move: async (selector: string, options: Record<string, unknown> = {}) => {
+      return page.hover(selector, options);
     }
-  }
+  };
 
   return page;
 }
