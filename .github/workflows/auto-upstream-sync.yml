@@ -70,7 +70,7 @@ jobs:
         if: steps.check_version.outputs.needs_update == 'true'
         run: |
           echo "🧪 Running full test suite (Rebrowser, Cloudflare WAF, Turnstile, Pixelscan, Recaptcha)..."
-          npm test
+          xvfb-run -a npm test
 
       - name: 🚀 Commit and Push Patched Update
         if: steps.check_version.outputs.needs_update == 'true'
