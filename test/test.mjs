@@ -139,48 +139,63 @@ test('Recaptcha V3 Score', async () => {
 
 test('Pixelscan Fingerprint Check', async () => {
     let result = false;
+    let failReason = '';
     for (let attempt = 1; attempt <= 2 && !result; attempt++) {
         await warmUp();
         await goto("https://pixelscan.net/fingerprint-check");
-        
+
         // Natural user interactions for Pixelscan behavioral metrics
         if (page.realCursor) {
             await page.realCursor.move('body', { paddingPercentage: 30 }).catch(() => {});
         }
         await page.mouse.wheel(0, 150).catch(() => {});
 
+        // Wait until the scan actually finishes (event-driven): poll for a
+        // verdict instead of a fixed window. On slow networks the scan is
+        // still 'Collecting Data...' at 35s and only finishes around 90s,
+        // so the old 30s window failed before any verdict existed.
+        // The 300s bound is only a hang guard for a dead page, not a
+        // verdict window: the loop exits the moment a verdict appears.
         const startTime = Date.now();
-        // Allow up to 30 seconds for Pixelscan to complete all canvas/webgl/fingerprint evaluations
-        while (!result && (Date.now() - startTime) < 30000) {
-            result = await page.evaluate(() => {
+        while (Date.now() - startTime < 300000) {
+            const verdict = await page.evaluate(() => {
                 const bodyText = (document.body ? document.body.innerText : '').toLowerCase();
                 const statusBar = document.querySelector('.status-content, .result-status, .status-banner, [class*="status-"]');
                 const statusText = (statusBar ? statusBar.innerText : bodyText).toLowerCase();
 
+                // Negative verdict first: 'inconsistent' contains
+                // 'consistent' as a substring, so it must be checked first.
                 if (statusText.includes('inconsistent') || statusText.includes('bot detected') || statusText.includes('automation detected')) {
-                    return false;
+                    return { state: 'fail', reason: statusText.slice(0, 120) };
                 }
 
                 const cards = Array.from(document.querySelectorAll('.checker-card, [class*="card"]'));
-                const isScanning = cards.some(c => c.innerText.toLowerCase().includes('scanning') || c.innerText.toLowerCase().includes('collecting') || c.innerText.toLowerCase().includes('evaluating'));
-                if (isScanning && cards.length > 0) return false;
+                const isScanning = cards.some(c => { const t = c.innerText.toLowerCase(); return t.includes('scanning') || t.includes('collecting') || t.includes('evaluating'); });
+                if (isScanning && cards.length > 0) return { state: 'scanning' };
 
                 const isConsistent = statusText.includes('consistent') || statusText.includes('no automated framework') || statusText.includes('clean') || bodyText.includes('no automated framework detected');
                 const fingerprintCard = cards.find(c => c.innerText.toLowerCase().includes('fingerprint'));
                 const hasMasking = fingerprintCard ? (fingerprintCard.innerText.toLowerCase().includes('masking detected') && !fingerprintCard.innerText.toLowerCase().includes('no masking')) : false;
+                if (hasMasking) return { state: 'fail', reason: 'fingerprint masking detected' };
+                if (isConsistent) return { state: 'pass' };
 
-                return isConsistent && !hasMasking;
-            }).catch(() => false);
+                // Scan finished but no verdict text yet - keep waiting.
+                return { state: 'scanning' };
+            }).catch(() => ({ state: 'scanning' }));
 
-            if (!result) await new Promise(r => setTimeout(r, 3000));
+            if (verdict.state === 'pass') { result = true; break; }
+            if (verdict.state === 'fail') { failReason = verdict.reason || ''; break; }
+            await new Promise(r => setTimeout(r, 3000));
         }
+        if (!result && !failReason) failReason = 'scan did not finish (hang guard reached)';
     }
-    assert.strictEqual(result, true, "Pixelscan Fingerprint Check failed after 2 attempts!");
+    assert.strictEqual(result, true, `Pixelscan Fingerprint Check failed after 2 attempts! ${failReason}`);
 });
 
 
 test('Pixelscan Bot Check', async () => {
     let result = false;
+    let failReason = '';
     for (let attempt = 1; attempt <= 2 && !result; attempt++) {
         await warmUp();
         await goto("https://pixelscan.net/bot-check");
@@ -191,9 +206,10 @@ test('Pixelscan Bot Check', async () => {
         }
         await page.mouse.wheel(0, 120).catch(() => {});
 
+        // Event-driven wait for the verdict (see Fingerprint Check above).
         const startTime = Date.now();
-        while (!result && (Date.now() - startTime) < 30000) {
-            result = await page.evaluate(() => {
+        while (Date.now() - startTime < 300000) {
+            const verdict = await page.evaluate(() => {
                 // Check active state header on Pixelscan (active state has opacity === '1')
                 const activeHeaderState = Array.from(document.querySelectorAll('.checker-header > div')).find(el => {
                     return window.getComputedStyle(el).opacity === '1';
@@ -201,18 +217,21 @@ test('Pixelscan Bot Check', async () => {
 
                 if (activeHeaderState) {
                     const text = activeHeaderState.innerText.toLowerCase();
-                    if (text.includes('human') || text.includes('consistent') || text.includes('clean')) {
-                        return true;
-                    }
+                    // Negative verdict first: 'inconsistent' contains
+                    // 'consistent' as a substring, so checking 'consistent'
+                    // first would pass an 'inconsistent' verdict.
                     if (text.includes('bot') || text.includes('error') || text.includes('inconsistent')) {
-                        return false;
+                        return { state: 'fail', reason: text.slice(0, 120) };
+                    }
+                    if (text.includes('human') || text.includes('consistent') || text.includes('clean')) {
+                        return { state: 'pass' };
                     }
                 }
 
                 // Check for explicit failed bot check section
                 const failedSection = document.querySelector('.failed-bot-check');
                 if (failedSection && window.getComputedStyle(failedSection).display !== 'none') {
-                    return false;
+                    return { state: 'fail', reason: 'failed-bot-check section visible' };
                 }
 
                 // Fallback check for visible result status element
@@ -220,10 +239,10 @@ test('Pixelscan Bot Check', async () => {
                 if (statusBar) {
                     const statusText = statusBar.innerText.toLowerCase();
                     if (statusText.includes('inconsistent') || statusText.includes('automation detected') || statusText.includes('bot detected')) {
-                        return false;
+                        return { state: 'fail', reason: statusText.slice(0, 120) };
                     }
                     if (statusText.includes('consistent') || statusText.includes('no automated framework') || statusText.includes('clean')) {
-                        return true;
+                        return { state: 'pass' };
                     }
                 }
 
@@ -232,13 +251,16 @@ test('Pixelscan Bot Check', async () => {
                     const txt = c.innerText.toLowerCase();
                     return txt.includes('scanning') || txt.includes('collecting') || txt.includes('evaluating') || txt.includes('running');
                 });
-                if (isScanning && cards.length > 0) return false;
+                if (isScanning && cards.length > 0) return { state: 'scanning' };
 
-                return false;
-            }).catch(() => false);
+                return { state: 'scanning' };
+            }).catch(() => ({ state: 'scanning' }));
 
-            if (!result) await new Promise(r => setTimeout(r, 3000));
+            if (verdict.state === 'pass') { result = true; break; }
+            if (verdict.state === 'fail') { failReason = verdict.reason || ''; break; }
+            await new Promise(r => setTimeout(r, 3000));
         }
+        if (!result && !failReason) failReason = 'scan did not finish (hang guard reached)';
     }
-    assert.strictEqual(result, true, "Pixelscan Bot Check failed!");
+    assert.strictEqual(result, true, `Pixelscan Bot Check failed! ${failReason}`);
 });
