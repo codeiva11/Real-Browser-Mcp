@@ -1,3 +1,4 @@
+SHA: c5a40796b8b0b4d8d904c3b329b53fd4c86a40fb SIZE: 4088
 name: 🔄 Auto Upstream Sync & Patch
 
 on:
@@ -77,11 +78,59 @@ jobs:
           # osFontsStatus=false, and adding Ubuntu + Droid Sans Fallback +
           # Liberation Sans Narrow flips it to true). Install the
           # real-desktop font set before the test suite runs.
+          # NOTE: fonts-liberation2 (Liberation 2.x, Croscore-based) does
+          # NOT contain Liberation Sans Narrow — it was dropped in 2.0 and
+          # split into its own upstream project (liberationfonts/
+          # liberation-sans-narrow). That is why run 44723268530 still
+          # failed: the package installed but no "Liberation Sans Narrow"
+          # family ever appeared in fc-list. Install Narrow from the
+          # upstream 1.07.5 release tarball instead.
           sudo apt-get update -qq
           sudo apt-get install -y -qq fonts-ubuntu fonts-droid-fallback fonts-liberation2 fonts-freefont-ttf
+          sudo mkdir -p /usr/share/fonts/truetype/liberation-narrow
+          curl -fsSL --retry 3 -o /tmp/liberation-narrow-ttf.tar.gz https://github.com/liberationfonts/liberation-sans-narrow/releases/download/1.07.5/liberation-narrow-fonts-ttf-1.07.5.tar.gz
+          sudo tar -xzf /tmp/liberation-narrow-ttf.tar.gz -C /tmp
+          sudo find /tmp -name 'LiberationSansNarrow-*.ttf' -exec cp {} /usr/share/fonts/truetype/liberation-narrow/ \; -print
           fc-cache -f
           echo "Desktop font families now present:"
           fc-list : family | sort -u | grep -E "Ubuntu|Droid Sans Fallback|Liberation Sans Narrow|FreeSerif|FreeSans|FreeMono" || true
+          echo "Full installed font families:"
+          fc-list : family | sort -u || true
+          # Diagnostic (never fails the step): ask Pixelscan's own server
+          # whether the fonts this runner actually exposes score as a
+          # coherent Linux desktop (osFontsStatus), using its /gf core
+          # list intersected with fc-list.
+          python3 - <<'PYEOF' || true
+          import json, subprocess, time, urllib.request
+          UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36"}
+          def post(url, payload):
+              last = None
+              for _ in range(3):
+                  try:
+                      req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST", headers={"Content-Type": "application/json", **UA})
+                      with urllib.request.urlopen(req, timeout=30) as r:
+                          return json.load(r)
+                  except Exception as e:
+                      last = e
+                      time.sleep(3)
+              raise last
+          try:
+              core = post("https://pixelscan.net/s/api/gf", {"ic": True, "im": False})["value"]["core"]
+              fams = set()
+              out = subprocess.check_output(["fc-list", ":", "family"], text=True)
+              for line in out.splitlines():
+                  for f in line.split(","):
+                      f = f.strip()
+                      if f:
+                          fams.add(f)
+              detected = [f for f in core if f in fams]
+              v = post("https://pixelscan.net/s/api/co", {"af": 0, "platform": "Linux x86_64", "fonts": detected, "canvas": True})["value"]
+              print("[pixelscan-diag] core fonts probed:", len(core), "| detected on runner:", len(detected))
+              print("[pixelscan-diag] Ubuntu detected:", "Ubuntu" in detected, "| Droid Sans Fallback:", "Droid Sans Fallback" in detected, "| Liberation Sans Narrow:", "Liberation Sans Narrow" in detected)
+              print("[pixelscan-diag] osFontsStatus:", v.get("osFontsStatus"), "| os match:", v.get("comparedResult", {}).get("match"))
+          except Exception as e:
+              print("[pixelscan-diag] FAILED:", repr(e))
+          PYEOF
 
       - name: 🧪 Run Comprehensive Test Suite
         if: steps.check_version.outputs.needs_update == 'true'
@@ -97,4 +146,5 @@ jobs:
           git commit -m "chore(upstream): auto-sync patchright to v$NEW_VER [skip ci]" || exit 0
           git push origin main
           echo "✅ Successfully synced and pushed upstream patchright v$NEW_VER"
+
 
