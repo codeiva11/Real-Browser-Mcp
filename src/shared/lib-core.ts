@@ -4,6 +4,7 @@ import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import * as http from 'http';
 import { getHeadlessFromEnv, shouldDisableChromiumSandbox } from './env-utils';
 import type { Browser, Page } from 'patchright';
 
@@ -15,7 +16,7 @@ let adBlockerPromise: Promise<PlaywrightBlocker | null> | null = null;
  * require.resolve('patchright-core') returns .../patchright-core/index.js
  * dirname() gives us the patchright-core/ directory directly (1 level up).
  */
-function getPatchrightChromiumVersion(): string {
+export function getPatchrightChromiumVersion(): string {
   try {
     const coreDir = path.dirname(require.resolve('patchright-core'));
     const browsersJsonPath = path.join(coreDir, 'browsers.json');
@@ -56,11 +57,16 @@ let uaRotationIndex = 0;
 function buildUserAgent(): string {
   const isMac = os.platform() === 'darwin';
   const isWin = os.platform() === 'win32';
+  const isArm = os.arch() === 'arm64' || os.arch() === 'arm';
+  // The OS token comes from the real runtime (platform + arch). Chrome on
+  // Apple Silicon still reports the Intel macOS token, so macOS keeps it;
+  // Windows/Linux report the real arch (x64 vs ARM64/aarch64). A hard-coded
+  // 'x86_64' would be a lie on arm64.
   const osString = isMac
     ? 'Macintosh; Intel Mac OS X 10_15_7'
     : isWin
-    ? 'Windows NT 10.0; Win64; x64'
-    : 'X11; Linux x86_64';
+    ? (isArm ? 'Windows NT 10.0; Win64; ARM64' : 'Windows NT 10.0; Win64; x64')
+    : (isArm ? 'X11; Linux aarch64' : 'X11; Linux x86_64');
 
   const chromiumVersion = getPatchrightChromiumVersion() || '149.0.7827.55';
   const generated = `Mozilla/5.0 (${osString}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromiumVersion} Safari/537.36`;
@@ -72,6 +78,146 @@ function buildUserAgent(): string {
   }
 
   return generated;
+}
+
+/**
+ * --- Fingerprint coherence: every value derives from the real runtime ---
+ * A fingerprint is only consistent when each value agrees with the machine
+ * the browser actually runs on. Nothing here is hard-coded to one device:
+ * the OS, arch, kernel, Chromium version and the egress IP's geo are all
+ * read from the live environment, on every platform. The browser reports
+ * its TRUE values; the only alignment applied is timezone/locale, which
+ * must match the network the browser exits from (a browser claiming UTC
+ * while its IP geolocates elsewhere is flagged "Timezone spoofed").
+ */
+
+const COUNTRY_LOCALE: Record<string, string> = {
+  US: 'en-US', GB: 'en-GB', DE: 'de-DE', FR: 'fr-FR', JP: 'ja-JP', IN: 'en-IN',
+  AU: 'en-AU', CA: 'en-CA', ES: 'es-ES', IT: 'it-IT', NL: 'nl-NL', BR: 'pt-BR',
+  MX: 'es-MX', KR: 'ko-KR', CN: 'zh-CN', RU: 'ru-RU', PL: 'pl-PL', SE: 'sv-SE',
+  NO: 'nb-NO', DK: 'da-DK', FI: 'fi-FI', PT: 'pt-PT', TR: 'tr-TR', AE: 'ar-AE',
+  SA: 'ar-SA', IL: 'he-IL', ZA: 'en-ZA', NZ: 'en-NZ', IE: 'en-IE', CH: 'de-CH',
+  AT: 'de-AT', BE: 'nl-BE', CZ: 'cs-CZ', HU: 'hu-HU', GR: 'el-GR', UA: 'uk-UA',
+};
+
+type RuntimeGeo = { timezone: string; countryCode: string; lat: number; lon: number };
+let cachedGeo: RuntimeGeo | null | undefined;
+let geoInFlight: Promise<RuntimeGeo | null> | null = null;
+
+function fetchJsonViaHttpProxy(url: string, proxy: Record<string, unknown>): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const headers: Record<string, string> = {};
+    if (proxy.username && proxy.password) {
+      headers['Proxy-Authorization'] = 'Basic ' + Buffer.from(`${proxy.username}:${proxy.password}`).toString('base64');
+    }
+    const req = http.request(
+      { host: String(proxy.host), port: Number(proxy.port), method: 'GET', path: url, headers, timeout: 8000 },
+      (res) => {
+        let body = '';
+        res.on('data', (chunk) => { body += chunk; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+        });
+      },
+    );
+    req.on('timeout', () => { req.destroy(new Error('geo lookup via proxy timed out')); });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+/**
+ * Resolve the egress IP's geolocation so the browser's timezone/locale
+ * match the network it actually exits from. Best-effort: any failure
+ * returns null and the caller keeps the host defaults — a failed lookup
+ * must never fail connect(). Result is cached per process. The 8s bound
+ * is a failure guard for a hung endpoint, not a wait for work to finish.
+ */
+async function resolveRuntimeGeo(proxy: Record<string, unknown>): Promise<RuntimeGeo | null> {
+  if (cachedGeo !== undefined) return cachedGeo;
+  if (geoInFlight) return geoInFlight;
+  geoInFlight = (async (): Promise<RuntimeGeo | null> => {
+    try {
+      const fields = 'status,timezone,countryCode,lat,lon';
+      const endpoint = `http://ip-api.com/json/?fields=${fields}`;
+      let data: any = null;
+      if (proxy && proxy.host && proxy.port) {
+        // Same proxy the browser will use, so the geo is the exit IP the
+        // sites will actually see (not this machine's own IP).
+        data = await fetchJsonViaHttpProxy(endpoint, proxy);
+      } else {
+        const res = await fetch(endpoint, { signal: AbortSignal.timeout(8000) });
+        data = await res.json();
+      }
+      if (data && data.status === 'success' && typeof data.timezone === 'string' && data.timezone) {
+        cachedGeo = {
+          timezone: data.timezone,
+          countryCode: typeof data.countryCode === 'string' ? data.countryCode : '',
+          lat: typeof data.lat === 'number' ? data.lat : 0,
+          lon: typeof data.lon === 'number' ? data.lon : 0,
+        };
+        return cachedGeo;
+      }
+      cachedGeo = null;
+      return null;
+    } catch {
+      cachedGeo = null;
+      return null;
+    }
+  })();
+  return geoInFlight;
+}
+
+/**
+ * Derive the client-hints platformVersion from the real OS. Chrome reports
+ * the kernel version on Linux, the macOS version on macOS (Darwin major - 9),
+ * and 15.0.0 on Windows 11 / 10.0.0 on Windows 10. A hard-coded version
+ * (e.g. '6.6.0') is a lie on every other kernel/build.
+ */
+export function derivePlatformVersion(platformName: string): string {
+  const rel = os.release() || '';
+  if (platformName === 'Linux') {
+    const m = rel.match(/^(\d+)\.(\d+)\.(\d+)/);
+    return m ? `${m[1]}.${m[2]}.${m[3]}` : '6.6.0';
+  }
+  if (platformName === 'macOS') {
+    const major = parseInt(rel.split('.')[0], 10);
+    if (!Number.isNaN(major) && major >= 20) return `${major - 9}.0.0`;
+    if (major === 19) return '10.15.0';
+    return '14.0.0';
+  }
+  // Windows: NT build >= 22000 is Windows 11 (Chrome reports 15.0.0).
+  const m = rel.match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (m) {
+    if (parseInt(m[1], 10) === 10 && parseInt(m[3], 10) >= 22000) return '15.0.0';
+    return `${m[1]}.0.0`;
+  }
+  return '15.0.0';
+}
+
+/** Derive the client-hints architecture/bitness from the real CPU. */
+export function deriveArchitecture(): { architecture: string; bitness: string } {
+  const arch = os.arch();
+  if (arch === 'arm64') return { architecture: 'arm', bitness: '64' };
+  if (arch === 'arm') return { architecture: 'arm', bitness: '32' };
+  if (arch === 'ia32') return { architecture: 'x86', bitness: '32' };
+  return { architecture: 'x86', bitness: '64' };
+}
+
+/**
+ * True only on a GPU-less Linux host (Xvfb/CI). Headed Chromium there
+ * creates NO WebGL context at all — a "Chrome" with no WebGL is itself a
+ * fingerprint contradiction. The SwiftShader flags are applied only here;
+ * real desktops (and macOS/Windows, which always have a GPU path) keep
+ * hardware rendering.
+ */
+function needsSoftwareWebGL(): boolean {
+  if (os.platform() !== 'linux') return false;
+  try {
+    return !fs.existsSync('/dev/dri/card0') && !fs.existsSync('/dev/dri/renderD128');
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -345,6 +491,10 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       }
     }
 
+    // Start the egress-geo lookup now so it overlaps the browser launch
+    // (resolveRuntimeGeo caches the in-flight promise; awaited below).
+    const geoLookup = resolveRuntimeGeo(proxy);
+
     // Build UA fresh every time from patchright's actual Chromium version.
     const ua = buildUserAgent();
 
@@ -374,10 +524,10 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       { brand: greaseBrand, version: '24.0.0.0' }
     ];
 
-    // Platform version: Windows 11 → "15.0.0", macOS Sonoma → "14.0.0", Linux → "6.6.0"
-    let platformVersion = '15.0.0';
-    if (platformName === 'macOS') platformVersion = '14.0.0';
-    else if (platformName === 'Linux') platformVersion = '6.6.0';
+    // Platform version + architecture: derived from the real OS/CPU, never
+    // hard-coded (see derivePlatformVersion / deriveArchitecture).
+    const platformVersion = derivePlatformVersion(platformName);
+    const { architecture, bitness } = deriveArchitecture();
 
     const userAgentMetadata: Record<string, unknown> = {
       brands,
@@ -386,9 +536,9 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       mobile: false,
       platform: platformName,
       platformVersion,
-      architecture: 'x86',
+      architecture,
       model: '',
-      bitness: '64',
+      bitness,
       wow64: false
     };
 
@@ -414,6 +564,11 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       // FIX: removed --window-size — it caused browser to open maximized/fullscreen.
       // Browser window size is controlled by the OS/user, not forced by the server.
       '--disable-dev-shm-usage',
+      // Coherence: on a GPU-less Linux host (Xvfb/CI) headed Chromium creates
+      // NO WebGL context without a software GL backend. Force SwiftShader
+      // there so WebGL exists and matches headless behaviour; real desktops
+      // keep hardware rendering (see needsSoftwareWebGL).
+      ...(needsSoftwareWebGL() ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : []),
       ...args
     ];
 
@@ -440,8 +595,21 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       await getAdBlocker();
     }
 
+    // Align the browser's timezone/locale with the egress IP's geo (the
+    // network the browser actually exits from). A browser claiming UTC while
+    // its IP geolocates elsewhere is flagged "Timezone spoofed". Explicit
+    // caller options always win; a failed lookup keeps host defaults.
+    const runtimeGeo = await geoLookup;
+    const geoContextOptions: Record<string, unknown> = {};
+    if (runtimeGeo) {
+      if (contextOptions.timezoneId === undefined) geoContextOptions.timezoneId = runtimeGeo.timezone;
+      if (contextOptions.locale === undefined) geoContextOptions.locale = COUNTRY_LOCALE[runtimeGeo.countryCode] || 'en-US';
+      if (contextOptions.geolocation === undefined) geoContextOptions.geolocation = { latitude: runtimeGeo.lat, longitude: runtimeGeo.lon };
+    }
+
     const context = await browser.newContext({
       viewport: null,
+      ...geoContextOptions,
       ...contextOptions,
     });
 
