@@ -57,8 +57,10 @@ function pickRandomFingerprint(): FingerprintConfig {
   // Only presets for the OS this browser actually runs on. A profile claiming
   // another OS (different fonts/GPU) is flagged as masking.
   const runtimeOS = os.platform() === 'darwin' ? 'Macintosh' : os.platform() === 'win32' ? 'Windows NT' : 'X11; Linux';
-  const matching = FINGERPRINT_PRESETS.filter(p => p.userAgent.includes(runtimeOS));
-  const pool = matching.length > 0 ? matching : FINGERPRINT_PRESETS;
+  // userAgent is optional in FingerprintConfig: narrow to presets that have one.
+  const withUA = FINGERPRINT_PRESETS.filter((pr): pr is FingerprintConfig & { userAgent: string } => typeof pr.userAgent === 'string');
+  const matching = withUA.filter(pr => pr.userAgent.includes(runtimeOS));
+  const pool = matching.length > 0 ? matching : withUA;
   const base = pool[Math.floor(Math.random() * pool.length)];
   // Rebuild the UA from the REAL Chromium version + real arch: a stored
   // Chrome 130/131 UA would mismatch the client-hints brands (real 156+),
