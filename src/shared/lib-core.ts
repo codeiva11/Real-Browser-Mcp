@@ -5,6 +5,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as http from 'http';
+import * as net from 'net';
+import * as tls from 'tls';
 import { getHeadlessFromEnv, shouldDisableChromiumSandbox } from './env-utils';
 import type { Browser, Page } from 'patchright';
 
@@ -105,6 +107,9 @@ let cachedGeo: RuntimeGeo | null | undefined;
 let geoInFlight: Promise<RuntimeGeo | null> | null = null;
 
 function fetchJsonViaHttpProxy(url: string, proxy: Record<string, unknown>): Promise<any> {
+  // Plain-HTTP fetch through a proxy (some proxies support it; the sandbox
+  // local forward proxy does NOT — it answers 400 — so this is only a
+  // fallback for proxies that do).
   return new Promise((resolve, reject) => {
     const headers: Record<string, string> = {};
     if (proxy.username && proxy.password) {
@@ -127,43 +132,135 @@ function fetchJsonViaHttpProxy(url: string, proxy: Record<string, unknown>): Pro
 }
 
 /**
+ * HTTPS JSON fetch through an HTTP proxy via CONNECT + TLS. This is the
+ * only way to reach an https endpoint through a CONNECT-only proxy (the
+ * sandbox local forward proxy answers 400 to plain-HTTP requests).
+ */
+function fetchJsonViaProxyHttps(url: string, proxy: Record<string, unknown>): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const socket = net.connect(Number(proxy.port), String(proxy.host), () => {
+      const lines = [`CONNECT ${u.hostname}:443 HTTP/1.1`, `Host: ${u.hostname}:443`];
+      if (proxy.username && proxy.password) {
+        lines.push('Proxy-Authorization: Basic ' + Buffer.from(`${proxy.username}:${proxy.password}`).toString('base64'));
+      }
+      lines.push('', '');
+      socket.write(lines.join('\r\n'));
+    });
+    socket.setTimeout(8000, () => { socket.destroy(new Error('proxy CONNECT timed out')); });
+    let headBuf = Buffer.alloc(0);
+    let tunneled = false;
+    const onData = (chunk: Buffer) => {
+      headBuf = Buffer.concat([headBuf, chunk]);
+      if (tunneled) return;
+      const idx = headBuf.indexOf('\r\n\r\n');
+      if (idx === -1) return;
+      const head = headBuf.subarray(0, idx).toString();
+      if (!/^HTTP\/\d\.\d 200/.test(head)) {
+        socket.destroy();
+        reject(new Error('proxy CONNECT failed: ' + head.split('\r\n')[0]));
+        return;
+      }
+      tunneled = true;
+      const rest = headBuf.subarray(idx + 4);
+      socket.removeListener('data', onData);
+      const secure = tls.connect({ socket, servername: u.hostname }, () => {
+        secure.write(`GET ${u.pathname}${u.search} HTTP/1.1\r\nHost: ${u.hostname}\r\nConnection: close\r\nAccept: application/json\r\n\r\n`);
+      });
+      secure.setTimeout(8000, () => { secure.destroy(new Error('geo fetch via proxy timed out')); });
+      let body = Buffer.concat([rest]);
+      secure.on('data', (c: Buffer) => { body = Buffer.concat([body, c]); });
+      secure.on('end', () => {
+        const s = body.toString('utf8');
+        const bi = s.indexOf('\r\n\r\n');
+        const payload = bi >= 0 ? s.slice(bi + 4) : s;
+        try { resolve(JSON.parse(payload)); } catch (e) { reject(e); }
+      });
+      secure.on('error', reject);
+    };
+    socket.on('data', onData);
+    socket.on('error', reject);
+  });
+}
+
+function normalizeIpApi(d: any): RuntimeGeo | null {
+  if (d && d.status === 'success' && typeof d.timezone === 'string' && d.timezone) {
+    return {
+      timezone: d.timezone,
+      countryCode: typeof d.countryCode === 'string' ? d.countryCode : '',
+      lat: typeof d.lat === 'number' ? d.lat : 0,
+      lon: typeof d.lon === 'number' ? d.lon : 0,
+    };
+  }
+  return null;
+}
+
+function normalizeIpWho(d: any): RuntimeGeo | null {
+  if (d && d.success === true && d.timezone && typeof d.timezone.id === 'string' && d.timezone.id) {
+    return {
+      timezone: d.timezone.id,
+      countryCode: typeof d.country_code === 'string' ? d.country_code : '',
+      lat: typeof d.latitude === 'number' ? d.latitude : 0,
+      lon: typeof d.longitude === 'number' ? d.longitude : 0,
+    };
+  }
+  return null;
+}
+
+/**
  * Resolve the egress IP's geolocation so the browser's timezone/locale
- * match the network it actually exits from. Best-effort: any failure
- * returns null and the caller keeps the host defaults — a failed lookup
- * must never fail connect(). Result is cached per process. The 8s bound
- * is a failure guard for a hung endpoint, not a wait for work to finish.
+ * match the network it actually exits from. Best-effort: every endpoint is
+ * tried in order and any failure returns null — the caller keeps the host
+ * defaults, and a failed lookup must never fail connect(). Result is cached
+ * per process. The 8s bounds are failure guards for hung endpoints, not
+ * waits for work to finish. Endpoints: ip-api over plain http (free tier,
+ * no redirect) and ipwho.is over https (free, no key). The proxy path uses
+ * https via CONNECT because CONNECT-only proxies reject plain HTTP.
  */
 async function resolveRuntimeGeo(proxy: Record<string, unknown>): Promise<RuntimeGeo | null> {
   if (cachedGeo !== undefined) return cachedGeo;
   if (geoInFlight) return geoInFlight;
   geoInFlight = (async (): Promise<RuntimeGeo | null> => {
-    try {
-      const fields = 'status,timezone,countryCode,lat,lon';
-      const endpoint = `http://ip-api.com/json/?fields=${fields}`;
-      let data: any = null;
-      if (proxy && proxy.host && proxy.port) {
-        // Same proxy the browser will use, so the geo is the exit IP the
-        // sites will actually see (not this machine's own IP).
-        data = await fetchJsonViaHttpProxy(endpoint, proxy);
-      } else {
-        const res = await fetch(endpoint, { signal: AbortSignal.timeout(8000) });
-        data = await res.json();
-      }
-      if (data && data.status === 'success' && typeof data.timezone === 'string' && data.timezone) {
-        cachedGeo = {
-          timezone: data.timezone,
-          countryCode: typeof data.countryCode === 'string' ? data.countryCode : '',
-          lat: typeof data.lat === 'number' ? data.lat : 0,
-          lon: typeof data.lon === 'number' ? data.lon : 0,
-        };
-        return cachedGeo;
-      }
-      cachedGeo = null;
-      return null;
-    } catch {
-      cachedGeo = null;
-      return null;
+    const ipApiFields = 'status,timezone,countryCode,lat,lon';
+    const attempts: Array<{ name: string; run: () => Promise<RuntimeGeo | null> }> = [];
+    if (proxy && proxy.host && proxy.port) {
+      attempts.push({
+        name: 'ipwho.is via proxy (https)',
+        run: async () => normalizeIpWho(await fetchJsonViaProxyHttps('https://ipwho.is/', proxy)),
+      });
+      attempts.push({
+        name: 'ip-api via proxy (http)',
+        run: async () => normalizeIpApi(await fetchJsonViaHttpProxy(`http://ip-api.com/json/?fields=${ipApiFields}`, proxy)),
+      });
+    } else {
+      attempts.push({
+        name: 'ip-api (http)',
+        run: async () => {
+          const res = await fetch(`http://ip-api.com/json/?fields=${ipApiFields}`, { signal: AbortSignal.timeout(8000) });
+          return normalizeIpApi(await res.json());
+        },
+      });
+      attempts.push({
+        name: 'ipwho.is (https)',
+        run: async () => {
+          const res = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(8000) });
+          return normalizeIpWho(await res.json());
+        },
+      });
     }
+    for (const a of attempts) {
+      try {
+        const g = await a.run();
+        if (g) {
+          cachedGeo = g;
+          console.log(`[fingerprint] egress geo: ${g.timezone} (${g.countryCode}) via ${a.name}`);
+          return g;
+        }
+      } catch { /* try the next endpoint */ }
+    }
+    cachedGeo = null;
+    console.log('[fingerprint] egress geo lookup failed; keeping host timezone');
+    return null;
   })();
   return geoInFlight;
 }
@@ -212,6 +309,11 @@ export function deriveArchitecture(): { architecture: string; bitness: string } 
  * hardware rendering.
  */
 function needsSoftwareWebGL(): boolean {
+  // CI runners (GitHub Actions sets CI=true) never have a GPU; force
+  // SwiftShader there regardless of /dev/dri, so the headed WebGL context
+  // exists deterministically. Restricted to Linux: macOS/Windows runners
+  // have a GPU path.
+  if (process.env.CI === 'true' && os.platform() === 'linux') return true;
   if (os.platform() !== 'linux') return false;
   try {
     return !fs.existsSync('/dev/dri/card0') && !fs.existsSync('/dev/dri/renderD128');
@@ -541,6 +643,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       bitness,
       wow64: false
     };
+    console.log(`[fingerprint] platform ${platformName} ${platformVersion} | arch ${architecture}/${bitness}`);
 
     const defaultDisabled = getPatchrightDisabledFeatures();
     const exactPatchrightDisableArg = '--disable-features=' + defaultDisabled.join(',');
@@ -552,6 +655,9 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
           ...(Array.isArray(ignoreDefaultArgs) ? ignoreDefaultArgs : []),
           exactPatchrightDisableArg
         ];
+
+    const useSoftwareWebGL = needsSoftwareWebGL();
+    if (useSoftwareWebGL) console.log('[fingerprint] software WebGL (SwiftShader) forced: no GPU on this host');
 
     const chromiumArgs = [
       `--user-agent=${ua}`,
@@ -568,7 +674,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       // NO WebGL context without a software GL backend. Force SwiftShader
       // there so WebGL exists and matches headless behaviour; real desktops
       // keep hardware rendering (see needsSoftwareWebGL).
-      ...(needsSoftwareWebGL() ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : []),
+      ...(useSoftwareWebGL ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : []),
       ...args
     ];
 
