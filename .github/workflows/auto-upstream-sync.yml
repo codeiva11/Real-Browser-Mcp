@@ -66,6 +66,23 @@ jobs:
           echo "🔨 Building project with latest upstream..."
           npm run build
 
+      - name: 🔤 Install desktop fonts (Pixelscan coherence)
+        if: steps.check_version.outputs.needs_update == 'true'
+        run: |
+          # Pixelscan's fingerprint check verifies the installed font set
+          # against the claimed OS (server-side osFontsStatus). The bare
+          # ubuntu runner image lacks the signature fonts of a real Ubuntu
+          # desktop, so the masking card fails even though every other
+          # signal is coherent (verified: the exact runner font set scores
+          # osFontsStatus=false, and adding Ubuntu + Droid Sans Fallback +
+          # Liberation Sans Narrow flips it to true). Install the
+          # real-desktop font set before the test suite runs.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-ubuntu fonts-droid-fallback fonts-liberation2 fonts-freefont-ttf
+          fc-cache -f
+          echo "Desktop font families now present:"
+          fc-list : family | sort -u | grep -E "Ubuntu|Droid Sans Fallback|Liberation Sans Narrow|FreeSerif|FreeSans|FreeMono" || true
+
       - name: 🧪 Run Comprehensive Test Suite
         if: steps.check_version.outputs.needs_update == 'true'
         run: |
@@ -80,3 +97,4 @@ jobs:
           git commit -m "chore(upstream): auto-sync patchright to v$NEW_VER [skip ci]" || exit 0
           git push origin main
           echo "✅ Successfully synced and pushed upstream patchright v$NEW_VER"
+
