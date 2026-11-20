@@ -6,8 +6,14 @@ import { maybeAutosaveSession } from './advanced';
 import { getEnvBool } from '../../shared/env-utils';
 import { assertSafeUrl } from '../../shared/url-utils';
 import type { BrowserInitParams, NavigateParams, WaitParams, WaitUntilState, FingerprintConfig } from '../../types';
+import { getPatchrightChromiumVersion, derivePlatformVersion, deriveArchitecture } from '../../shared/lib-core';
 
-/** Realistic desktop fingerprint presets for rotation (coherent UA+platform+locale+tz). */
+/** Realistic desktop fingerprint presets for rotation (coherent viewport+timezone+locale per OS).
+ * The UA is NOT stored here: it is built at runtime from the real Chromium version
+ * (a hard-coded Chrome 130/131 UA would mismatch the client-hints brands of the
+ * actual browser). A preset only ever claims the OS the browser really runs on —
+ * claiming another OS (with its fonts/GPU) is exactly what fingerprint checkers
+ * flag as masking. */
 const FINGERPRINT_PRESETS: FingerprintConfig[] = [
   {
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -48,7 +54,22 @@ const FINGERPRINT_PRESETS: FingerprintConfig[] = [
 ];
 
 function pickRandomFingerprint(): FingerprintConfig {
-  return FINGERPRINT_PRESETS[Math.floor(Math.random() * FINGERPRINT_PRESETS.length)];
+  // Only presets for the OS this browser actually runs on. A profile claiming
+  // another OS (different fonts/GPU) is flagged as masking.
+  const runtimeOS = os.platform() === 'darwin' ? 'Macintosh' : os.platform() === 'win32' ? 'Windows NT' : 'X11; Linux';
+  const matching = FINGERPRINT_PRESETS.filter(p => p.userAgent.includes(runtimeOS));
+  const pool = matching.length > 0 ? matching : FINGERPRINT_PRESETS;
+  const base = pool[Math.floor(Math.random() * pool.length)];
+  // Rebuild the UA from the REAL Chromium version + real arch: a stored
+  // Chrome 130/131 UA would mismatch the client-hints brands (real 156+),
+  // and 'x86_64' would be a lie on arm64.
+  const realVersion = getPatchrightChromiumVersion();
+  let userAgent = base.userAgent;
+  if (realVersion) userAgent = userAgent.replace(/Chrome\/[\d.]+/, `Chrome/${realVersion}`);
+  if (os.arch() === 'arm64' || os.arch() === 'arm') {
+    userAgent = userAgent.replace('Linux x86_64', 'Linux aarch64').replace('Win64; x64', 'Win64; ARM64');
+  }
+  return { ...base, userAgent };
 }
 
 export const browserHandlers = {
@@ -119,10 +140,14 @@ export const browserHandlers = {
       mergedContextOptions['acceptDownloads'] = true;
     }
 
-    // Fingerprint profile: 'random' picks a coherent realistic profile,
-    // an object applies a custom one. Explicit contextOptions win on conflict.
-    // NOTE: lib-core applies its own UA via CDP after context creation, so a
-    // custom userAgent is re-applied via CDP below (stored for that step).
+    // Fingerprint profile: 'random' picks a coherent realistic profile for
+    // the OS this browser runs on, an object applies a custom one. Explicit
+    // contextOptions win on conflict. A 'random' preset's timezone/locale are
+    // guesses — the live egress IP's geo decides them (lib-core), so they are
+    // NOT merged here; an explicit object preset is the user's own choice
+    // and IS merged. NOTE: lib-core applies its own UA via CDP after context
+    // creation, so a custom userAgent is re-applied via CDP below (stored
+    // for that step).
     const fingerprint = (params as any).fingerprint;
     let fingerprintUA: string | null = null;
     if (fingerprint) {
@@ -130,6 +155,10 @@ export const browserHandlers = {
       if (profile && typeof profile === 'object') {
         for (const [k, v] of Object.entries(profile)) {
           if (k === 'userAgent') continue; // applied via CDP below
+          // 'random' preset timezone/locale are guesses, not a choice: the
+          // live IP geo sets them (lib-core). An explicit object preset is
+          // the user's own choice and wins.
+          if (fingerprint === 'random' && (k === 'timezoneId' || k === 'locale' || k === 'geolocation')) continue;
           if (mergedContextOptions[k] === undefined && v !== undefined) {
             mergedContextOptions[k] = v;
           }
@@ -174,16 +203,48 @@ export const browserHandlers = {
     state.setupPageFn = result.setupPage;
     state.aiHealingEnabled = aiHealing; // stored for click/type handlers
 
-    // Re-apply fingerprint UA via CDP (lib-core's own UA override runs first)
+    // Re-apply fingerprint UA via CDP with FULL client-hints metadata
+    // (lib-core's own UA override runs first). Sending only the UA string
+    // leaves the brands at the real version while the UA claims another —
+    // a version mismatch fingerprint checkers flag.
     if (fingerprintUA && state.pageInstance) {
       try {
         const client: any = await (state.pageInstance as any).context().newCDPSession(state.pageInstance);
-        await client.send('Emulation.setUserAgentOverride', { userAgent: fingerprintUA });
+        const versionMatch = fingerprintUA.match(/Chrome\/([\d.]+)/);
+        const chromeVersion = versionMatch ? versionMatch[1] : getPatchrightChromiumVersion();
+        const majorVersion = parseInt(chromeVersion.split('.')[0], 10) || 0;
+        const platformName = fingerprintUA.includes('Macintosh') ? 'macOS' : fingerprintUA.includes('Windows') ? 'Windows' : 'Linux';
+        const { architecture, bitness } = deriveArchitecture();
+        const greaseBrand = ['Not/A)Brand', 'Not A;Brand', 'Not?A_Brand'][majorVersion % 3];
+        const userAgentMetadata = {
+          brands: [
+            { brand: 'Google Chrome', version: String(majorVersion) },
+            { brand: 'Chromium', version: String(majorVersion) },
+            { brand: greaseBrand, version: '24' },
+          ],
+          fullVersionList: [
+            { brand: 'Google Chrome', version: chromeVersion },
+            { brand: 'Chromium', version: chromeVersion },
+            { brand: greaseBrand, version: '24.0.0.0' },
+          ],
+          fullVersion: chromeVersion,
+          mobile: false,
+          platform: platformName,
+          platformVersion: derivePlatformVersion(platformName),
+          architecture,
+          model: '',
+          bitness,
+          wow64: false,
+        };
+        await client.send('Emulation.setUserAgentOverride', { userAgent: fingerprintUA, userAgentMetadata });
         notifyProgress('browser_init', 'progress', 'Custom User-Agent applied via CDP');
       } catch { /* UA override is best-effort */ }
     }
 
-    const { spoofFingerprint = true, blockWebRTCLeaks = true } = params;
+    // spoofFingerprint is deprecated and ignored (see the init-script note
+    // below): the browser reports its true hardware values. Only WebRTC leak
+    // protection remains as an init-script hardening.
+    const { blockWebRTCLeaks = true } = params;
 
     // Hook auto-switch for popup / target="_blank" new tabs
     try {
@@ -255,67 +316,37 @@ export const browserHandlers = {
         };
       });
 
-      // Anti-detection: Hardware & WebGL Spoofing, AudioContext Jitter, WebRTC Protection
-      if (spoofFingerprint || blockWebRTCLeaks) {
-        await state.pageInstance.addInitScript(({ doSpoof, doWebRTC }: { doSpoof: boolean; doWebRTC: boolean }) => {
-          if (doSpoof) {
-            try {
-              // WebGL Vendor / Renderer Spoofing
-              const spoofVendor = (ctx: any) => {
-                if (!ctx) return;
-                const origGetParameter = ctx.prototype.getParameter;
-                ctx.prototype.getParameter = function (param: number) {
-                  // UNMASKED_VENDOR_WEBGL
-                  if (param === 37445) return 'Google Inc. (NVIDIA)';
-                  // UNMASKED_RENDERER_WEBGL
-                  if (param === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0, D3D11)';
-                  return origGetParameter.apply(this, [param]);
-                };
-              };
-              if (window.WebGLRenderingContext) spoofVendor(window.WebGLRenderingContext);
-              if (window.WebGL2RenderingContext) spoofVendor(window.WebGL2RenderingContext);
-
-              // AudioContext micro-jitter to prevent static audio hash tracking
-              if (window.AudioBuffer) {
-                const origGetChannelData = AudioBuffer.prototype.getChannelData;
-                AudioBuffer.prototype.getChannelData = function (channel: number) {
-                  const data = origGetChannelData.apply(this, [channel]);
-                  for (let i = 0; i < data.length; i += 100) {
-                    data[i] += (Math.random() - 0.5) * 0.0000001;
+      // Anti-detection: WebRTC leak protection ONLY. The browser reports its
+      // TRUE hardware values (WebGL vendor/renderer, hardwareConcurrency,
+      // deviceMemory, AudioContext). Faking a different device — e.g. a
+      // Windows NVIDIA RTX 4070 GPU on a Linux host — is itself detectable
+      // as masking, and no single hard-coded profile can be coherent on
+      // every OS/arch. Coherence comes from truth + IP-timezone alignment
+      // (lib-core), not from spoofing. (spoofFingerprint is deprecated and
+      // ignored; the init script it used to drive is removed.)
+      if (blockWebRTCLeaks) {
+        await state.pageInstance.addInitScript(() => {
+          try {
+            // WebRTC leak protection: sanitize local IP address leak in ICE candidates
+            if (window.RTCPeerConnection) {
+              const origCreateOffer = RTCPeerConnection.prototype.createOffer;
+              RTCPeerConnection.prototype.createOffer = function (...args: any[]) {
+                return origCreateOffer.apply(this, args as any).then((offer: any) => {
+                  if (offer && offer.sdp) {
+                    // Strip private IPv4 patterns from SDP
+                    offer.sdp = offer.sdp.replace(/(\d{1,3}\.){3}\d{1,3}/g, (ip: string) => {
+                      if (ip.startsWith('10.') || ip.startsWith('192.168.') || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)) {
+                        return '0.0.0.0';
+                      }
+                      return ip;
+                    });
                   }
-                  return data;
-                };
-              }
-
-              // Hardware Concurrency & Memory Consistency
-              Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
-              Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
-            } catch { /* ignore */ }
-          }
-
-          if (doWebRTC) {
-            try {
-              // WebRTC leak protection: sanitize local IP address leak in ICE candidates
-              if (window.RTCPeerConnection) {
-                const origCreateOffer = RTCPeerConnection.prototype.createOffer;
-                RTCPeerConnection.prototype.createOffer = function (...args: any[]) {
-                  return origCreateOffer.apply(this, args as any).then((offer: any) => {
-                    if (offer && offer.sdp) {
-                      // Strip private IPv4 patterns from SDP
-                      offer.sdp = offer.sdp.replace(/(\d{1,3}\.){3}\d{1,3}/g, (ip: string) => {
-                        if (ip.startsWith('10.') || ip.startsWith('192.168.') || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)) {
-                          return '0.0.0.0';
-                        }
-                        return ip;
-                      });
-                    }
-                    return offer;
-                  });
-                };
-              }
-            } catch { /* ignore */ }
-          }
-        }, { doSpoof: spoofFingerprint, doWebRTC: blockWebRTCLeaks });
+                  return offer;
+                });
+              };
+            }
+          } catch { /* ignore */ }
+        });
       }
       }
     }
