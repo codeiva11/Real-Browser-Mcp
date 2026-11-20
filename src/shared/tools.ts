@@ -3,8 +3,8 @@ const TOOLS = [
   {
     name: 'browser_init',
     emoji: '🚀',
-    description: 'Initialize a browser session with configurable options: headless mode, proxy, viewport, video recording, resource filtering, biometric anti-detection hardware spoofing (WebGL, Canvas, AudioContext), and WebRTC leak protection. Automatically recovers stale sessions.',
-    descriptionHindi: 'ब्राउज़र सेशन शुरू करना (एंटी-डिटेक्शन + हार्डवेयर स्पूफिंग + WebRTC सुरक्षा)',
+    description: 'Initialize a browser session with configurable options: headless mode, proxy, viewport, video recording, resource filtering, WebRTC leak protection, and coherent fingerprint profiles. Automatically recovers stale sessions.',
+    descriptionHindi: 'ब्राउज़र सेशन शुरू करना (WebRTC सुरक्षा + फिंगरप्रिंट प्रोफाइल)',
     category: 'browser',
     requiresBrowser: false,
     requiresPage: false,
@@ -29,11 +29,11 @@ const TOOLS = [
         enableBlocker: { type: 'boolean', default: true, description: 'Filter auxiliary scripts, telemetry, and background tracking requests' },
         aiHealing: { type: 'boolean', default: true, description: 'Enable selector fallback when a selector does not match' },
         recordVideo: { type: 'boolean', default: false, description: 'Record continuous video of the session' },
-        spoofFingerprint: { type: 'boolean', default: true, description: 'Spoof WebGL vendor/renderer, Canvas noise, and AudioContext to defeat bot fingerprinting' },
+        spoofFingerprint: { type: 'boolean', default: false, description: 'Deprecated no-op, kept for backward compatibility. The browser reports its true hardware values; faking a device is detectable as masking. Use the fingerprint profile for a coherent preset.' },
         blockWebRTCLeaks: { type: 'boolean', default: true, description: 'Prevent local IP leaks via WebRTC when using proxies' },
         fingerprint: {
           type: ['string', 'object'],
-          description: "Fingerprint profile: 'random' picks a coherent realistic profile (UA + viewport + timezone + locale), or pass an object {userAgent, viewport:{width,height}, timezoneId, locale, geolocation, colorScheme}. Explicit contextOptions win on conflict."
+          description: "Fingerprint profile: 'random' picks a coherent realistic profile (UA + viewport) for the OS this browser runs on, with timezone/locale taken from the live egress IP geo; or pass an object {userAgent, viewport:{width,height}, timezoneId, locale, geolocation, colorScheme}. Explicit contextOptions win on conflict."
         }
       }
     }
