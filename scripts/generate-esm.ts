@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 
 // Read CJS source directly from project root lib/cjs
 const cjsDir = path.join(__dirname, '..', '..', 'lib', 'cjs');
@@ -43,6 +44,25 @@ function convertCjsToEsm(content: string, _filename: string): string {
   out = out.replace(/:\s*(string|number|boolean|any|void|null|undefined)\b/g, '');
   out = out.replace(/\)\s*:\s*\w+/g, ')');
   out = out.replace(/as\s+(any|string|number|boolean)\b/g, '');
+
+  // Union-typed declarations: the Array<...>/Promise<...>/primitive strips
+  // above remove only the first half of `const x: Array<...> | undefined = ...`
+  // and leave `const x | undefined = ...`, which is a SyntaxError in the
+  // generated .mjs (this broke lib/esm/module/turnstile.mjs after the
+  // evaluateNoGesture change added `Array<...> | undefined` declarations).
+  // In a const/let/var declaration the text between `:` and the first `=` is
+  // always the type annotation, so drop it whole. This runs after the strips
+  // above, so object types (`: { ... }`) are already gone and the `[^=;]`
+  // class cannot cut inside one.
+  out = out.replace(/\b(const|let|var)\s+(\w+)\s*:[^=;]+?(?=\s*=)/g, '$1 $2');
+  // Safety net for union tails left in any other position (e.g. a parameter
+  // `(x: string | undefined)` becomes `(x | undefined)` after the `: string`
+  // strip). No real expression in this repo uses `| undefined` / `| null`
+  // as a bitwise-or, so removing the tail is safe.
+  out = out.replace(/\s*\|\s*(undefined|null)\b/g, '');
+  // The `as any` strip leaves `(page ).foo` — valid but noisy; drop the
+  // redundant parens around a lone identifier before a member access.
+  out = out.replace(/\(\s*([A-Za-z_$][\w$]*)\s*\)\./g, '$1.');
 
   return out;
 }
@@ -99,6 +119,18 @@ function validateDir(cjsSubDir: string, esmSubDir: string): void {
       const content = fs.readFileSync(esmPath, 'utf8');
       if (!content.trim()) {
         console.error(`❌ Empty ESM output for ${cjsPath}`);
+        failed = true;
+        continue;
+      }
+      // Syntax-check the generated module: a regex type-strip that leaves a
+      // fragment behind (e.g. `const x | undefined = ...`) is a silent
+      // breakage that only surfaces when the ESM build is imported. Fail the
+      // build here instead of shipping it. (`node --check` on a .mjs file
+      // parses it as a module.)
+      try {
+        execFileSync('node', ['--check', esmPath], { stdio: 'pipe' });
+      } catch {
+        console.error(`❌ ESM output does not parse: ${esmPath}`);
         failed = true;
         continue;
       }
