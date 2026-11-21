@@ -43,7 +43,14 @@ test.after(async () => {
 
 test('Rebrowser Bot Detector', async () => {
     await warmUp();
-    await goto("https://bot-detector.rebrowser.net/");
+    // Wait for 'load': the detector runs its checks (incl. popupBlocking) at
+    // window.onload. The page.evaluate() calls below grant transient user
+    // activation (Playwright passes userGesture: true), so the onload tests
+    // must already have run before the first evaluate, or the popup test
+    // sees a user-initiated popup. (The lib's own goto probes no longer
+    // grant activation — they use a raw CDP evaluate — but the test's own
+    // reads still do, so the load wait stays necessary.)
+    await page.goto("https://bot-detector.rebrowser.net/", { waitUntil: 'load', timeout: 30000 });
     await new Promise(r => setTimeout(r, 100));
     const client = await page.context().newCDPSession(page);
     await client.send('Runtime.evaluate', { expression: 'window.dummyFn()' }).catch(() => { });

@@ -8,6 +8,7 @@ import * as http from 'http';
 import * as net from 'net';
 import * as tls from 'tls';
 import { getHeadlessFromEnv, shouldDisableChromiumSandbox } from './env-utils';
+import { evaluateNoGesture } from '../../lib/cjs/module/turnstile';
 import type { Browser, Page } from 'patchright';
 
 let adBlockerInstance: PlaywrightBlocker | null = null;
@@ -88,19 +89,18 @@ function buildUserAgent(): string {
  * the browser actually runs on. Nothing here is hard-coded to one device:
  * the OS, arch, kernel, Chromium version and the egress IP's geo are all
  * read from the live environment, on every platform. The browser reports
- * its TRUE values; the only alignment applied is timezone/locale, which
- * must match the network the browser exits from (a browser claiming UTC
- * while its IP geolocates elsewhere is flagged "Timezone spoofed").
+ * its TRUE values; the only alignment applied is timezone (and geolocation),
+ * which must match the network the browser exits from (a browser claiming
+ * UTC while its IP geolocates elsewhere is flagged "Timezone spoofed").
+ *
+ * The locale is deliberately NOT overridden from the egress geo: Playwright
+ * applies a context locale via CDP Emulation.setLocaleOverride, which is
+ * per-frame and never reaches Web Workers — the page reported the geo locale
+ * (e.g. en-IN) while workers reported the browser default (e.g. en-GB,
+ * en-US, en), which bot-detector.rebrowser.net flags as workerConsistency.
+ * With no override, page, worker and Accept-Language all report the same
+ * real browser default, which is both truthful and maximally consistent.
  */
-
-const COUNTRY_LOCALE: Record<string, string> = {
-  US: 'en-US', GB: 'en-GB', DE: 'de-DE', FR: 'fr-FR', JP: 'ja-JP', IN: 'en-IN',
-  AU: 'en-AU', CA: 'en-CA', ES: 'es-ES', IT: 'it-IT', NL: 'nl-NL', BR: 'pt-BR',
-  MX: 'es-MX', KR: 'ko-KR', CN: 'zh-CN', RU: 'ru-RU', PL: 'pl-PL', SE: 'sv-SE',
-  NO: 'nb-NO', DK: 'da-DK', FI: 'fi-FI', PT: 'pt-PT', TR: 'tr-TR', AE: 'ar-AE',
-  SA: 'ar-SA', IL: 'he-IL', ZA: 'en-ZA', NZ: 'en-NZ', IE: 'en-IE', CH: 'de-CH',
-  AT: 'de-AT', BE: 'nl-BE', CZ: 'cs-CZ', HU: 'hu-HU', GR: 'el-GR', UA: 'uk-UA',
-};
 
 type RuntimeGeo = { timezone: string; countryCode: string; lat: number; lon: number };
 let cachedGeo: RuntimeGeo | null | undefined;
@@ -208,9 +208,9 @@ function normalizeIpWho(d: any): RuntimeGeo | null {
 }
 
 /**
- * Resolve the egress IP's geolocation so the browser's timezone/locale
- * match the network it actually exits from. Best-effort: every endpoint is
- * tried in order and any failure returns null — the caller keeps the host
+ * Resolve the egress IP's geolocation so the browser's timezone (and
+ * geolocation) can be aligned with the network it actually exits from.
+ * Best-effort: every endpoint is tried in order and any failure returns null — the caller keeps the host
  * defaults, and a failed lookup must never fail connect(). Result is cached
  * per process. The 8s bounds are failure guards for hung endpoints, not
  * waits for work to finish. Endpoints: ip-api over plain http (free tier,
@@ -384,7 +384,8 @@ export function setupRealPage(page: Page & Record<string, any>): Page & Record<s
       }
     } catch (e) {
       try {
-        await page.evaluate((y: number) => window.scrollBy({ top: y, behavior: 'smooth' }), deltaY);
+        // No-gesture read: a fallback scroll must not grant user activation.
+        await evaluateNoGesture(page, `(() => window.scrollBy({ top: ${deltaY}, behavior: 'smooth' }))()`);
       } catch (_) {}
     }
   };
@@ -444,27 +445,22 @@ export function setupRealPage(page: Page & Record<string, any>): Page & Record<s
 
   // 4. Transparent Auto-WAF page.goto
   (page as any).goto = async (url: string, options: any = {}) => {
+    // The challenge probes below MUST NOT use page.evaluate(): Playwright
+    // passes userGesture: true there, granting the page transient user
+    // activation (~5s). A page script that opens a popup inside that window
+    // (e.g. bot-detector.rebrowser.net's popupBlocking test at window.onload)
+    // then sees a user-initiated popup. evaluateNoGesture() reads the same
+    // DOM via a raw CDP Runtime.evaluate, which grants no activation.
     const response = await origGoto(url, { waitUntil: 'domcontentloaded', ...options });
     if (options?.autoWafWait !== false && !page.isClosed()) {
       try {
-        const isChallenge = await page.evaluate(() => {
-          const title = (document.title || '').toLowerCase();
-          return title.includes('just a moment') ||
-                 title.includes('attention required') ||
-                 document.querySelector('#challenge-stage') !== null ||
-                 document.querySelector('.cf-turnstile') !== null;
-        }).catch(() => false);
+        const isChallenge = await evaluateNoGesture(page, `(() => { const title = (document.title || '').toLowerCase(); return title.includes('just a moment') || title.includes('attention required') || document.querySelector('#challenge-stage') !== null || document.querySelector('.cf-turnstile') !== null; })()`).catch(() => false);
 
         if (isChallenge) {
           const startWait = Date.now();
           while (!page.isClosed() && (Date.now() - startWait) < 20000) {
             await new Promise(r => setTimeout(r, 1000));
-            const stillChallenge = await page.evaluate(() => {
-              const title = (document.title || '').toLowerCase();
-              return title.includes('just a moment') ||
-                     title.includes('attention required') ||
-                     document.querySelector('#challenge-stage') !== null;
-            }).catch(() => false);
+            const stillChallenge = await evaluateNoGesture(page, `(() => { const title = (document.title || '').toLowerCase(); return title.includes('just a moment') || title.includes('attention required') || document.querySelector('#challenge-stage') !== null; })()`).catch(() => false);
             if (!stillChallenge) break;
           }
         }
@@ -472,6 +468,69 @@ export function setupRealPage(page: Page & Record<string, any>): Page & Record<s
     }
     return response;
   };
+
+  // 5. No-gesture injection on the main frame.
+  // The adblocker injects cosmetics (scriptlets, styles) and queries the DOM
+  // via frame.addScriptTag / frame.addStyleTag / frame.$$eval, which Playwright
+  // implements with Runtime.callFunctionOn (userGesture: true) — granting the
+  // page transient user activation. On navigation the injections land right
+  // after domcontentloaded, so the activation window covers window.onload and
+  // a page script's window.open() succeeds (Rebrowser popupBlocking yellow).
+  // Route the main frame's injection methods through a raw CDP
+  // Runtime.evaluate (no gesture) instead. Activation is per-frame, so
+  // subframes are left alone: their evaluates cannot activate the top frame.
+  // Any call that is not safely CDP-able falls back to the original method.
+  try {
+    const mainFrame: any = (page as any).mainFrame?.();
+    if (mainFrame && !mainFrame._noGesturePatched) {
+      mainFrame._noGesturePatched = true;
+      const origAddScriptTag = mainFrame.addScriptTag.bind(mainFrame);
+      const origAddStyleTag = mainFrame.addStyleTag.bind(mainFrame);
+      const origEvalAll = mainFrame.$$eval.bind(mainFrame);
+      mainFrame.addScriptTag = async (options: any = {}) => {
+        try {
+          let content: string | undefined = options?.content;
+          if (content === undefined && options?.path) content = fs.readFileSync(options.path, 'utf8');
+          const typeAttr = options?.type ? `s.type = ${JSON.stringify(options.type)};` : '';
+          if (content !== undefined) {
+            const ok = await evaluateNoGesture(page, `(() => { const s = document.createElement('script'); ${typeAttr} s.textContent = ${JSON.stringify(content)}; (document.head || document.documentElement).appendChild(s); return true; })()`);
+            if (ok === true) return undefined as any;
+          } else if (options?.url) {
+            const ok = await evaluateNoGesture(page, `(() => { const s = document.createElement('script'); ${typeAttr} s.src = ${JSON.stringify(options.url)}; (document.head || document.documentElement).appendChild(s); return true; })()`);
+            if (ok === true) return undefined as any;
+          }
+        } catch (_) {}
+        return origAddScriptTag(options);
+      };
+      mainFrame.addStyleTag = async (options: any = {}) => {
+        try {
+          let content: string | undefined = options?.content;
+          if (content === undefined && options?.path) content = fs.readFileSync(options.path, 'utf8');
+          if (content !== undefined) {
+            const ok = await evaluateNoGesture(page, `(() => { const s = document.createElement('style'); s.textContent = ${JSON.stringify(content)}; (document.head || document.documentElement).appendChild(s); return true; })()`);
+            if (ok === true) return undefined as any;
+          } else if (options?.url) {
+            const ok = await evaluateNoGesture(page, `(() => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = ${JSON.stringify(options.url)}; (document.head || document.documentElement).appendChild(l); return true; })()`);
+            if (ok === true) return undefined as any;
+          }
+        } catch (_) {}
+        return origAddStyleTag(options);
+      };
+      mainFrame.$$eval = async (selector: string, pageFunction: any, arg?: any) => {
+        try {
+          const fnSrc = typeof pageFunction === 'function' ? Function.prototype.toString.call(pageFunction) : null;
+          if (fnSrc) {
+            const argJson = arg === undefined ? 'undefined' : JSON.stringify(arg);
+            if (argJson !== undefined) {
+              const result = await evaluateNoGesture(page, `(() => { try { const els = Array.from(document.querySelectorAll(${JSON.stringify(selector)})); return { __noGestureOk: true, value: (${fnSrc})(els, ${argJson}) }; } catch (e) { return { __noGestureOk: false, error: String((e && e.message) || e) }; } })()`);
+              if (result && result.__noGestureOk) return result.value;
+            }
+          }
+        } catch (_) {}
+        return origEvalAll(selector, pageFunction, arg);
+      };
+    }
+  } catch (_) {}
 
   // Backward compatibility: keep realClick and realCursor explicitly mapped
   page.realClick = async (selector: string, options: Record<string, unknown> = {}) => {
@@ -701,15 +760,16 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       await getAdBlocker();
     }
 
-    // Align the browser's timezone/locale with the egress IP's geo (the
+    // Align the browser's timezone/geolocation with the egress IP's geo (the
     // network the browser actually exits from). A browser claiming UTC while
-    // its IP geolocates elsewhere is flagged "Timezone spoofed". Explicit
-    // caller options always win; a failed lookup keeps host defaults.
+    // its IP geolocates elsewhere is flagged "Timezone spoofed". The locale
+    // is NOT aligned here (see the header comment): a context locale override
+    // never reaches Web Workers, so the page and its workers would disagree.
+    // Explicit caller options always win; a failed lookup keeps host defaults.
     const runtimeGeo = await geoLookup;
     const geoContextOptions: Record<string, unknown> = {};
     if (runtimeGeo) {
       if (contextOptions.timezoneId === undefined) geoContextOptions.timezoneId = runtimeGeo.timezone;
-      if (contextOptions.locale === undefined) geoContextOptions.locale = COUNTRY_LOCALE[runtimeGeo.countryCode] || 'en-US';
       if (contextOptions.geolocation === undefined) geoContextOptions.geolocation = { latitude: runtimeGeo.lat, longitude: runtimeGeo.lon };
     }
 
