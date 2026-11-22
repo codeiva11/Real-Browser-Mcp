@@ -368,6 +368,24 @@ export function setupRealPage(page: Page & Record<string, any>): Page & Record<s
   if ((page as any)._setupApplied) return page;
   (page as any)._setupApplied = true;
 
+  // Real-browser popup blocking emulation: script-initiated popups without user click return null
+  page.addInitScript(() => {
+    try {
+      const origOpen = window.open;
+      window.open = function(this: any, ...args: any[]) {
+        const evt = (window as any).event;
+        const isUserClick = evt && evt.isTrusted && (evt.type === 'click' || evt.type === 'pointerup' || evt.type === 'mouseup');
+        if (!isUserClick) {
+          return null;
+        }
+        return (origOpen as any).apply(this, args);
+      };
+      Object.defineProperty(window.open, 'name', { value: 'open' });
+      Object.defineProperty(window.open, 'length', { value: 0 });
+      window.open.toString = () => 'function open() { [native code] }';
+    } catch (_) {}
+  }).catch(() => {});
+
   page.realScroll = async (deltaY: number, duration = 600) => {
     try {
       const stepDelay = 15;

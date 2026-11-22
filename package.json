@@ -45,6 +45,14 @@
   ],
   "author": "codeiva11",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codeiva11/Real-Browser-Mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/codeiva11/Real-Browser-Mcp/issues"
+  },
+  "homepage": "https://github.com/codeiva11/Real-Browser-Mcp#readme",
   "dependencies": {
     "@ghostery/adblocker-playwright": "latest",
     "@modelcontextprotocol/sdk": "latest",

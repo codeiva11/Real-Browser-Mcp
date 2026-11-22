@@ -35,11 +35,13 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
 
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v5
         with:
+          ref: ${{ github.ref_name }}
           fetch-depth: 0
           token: ${{ secrets.GH_TOKEN || github.token }}
 
@@ -60,6 +62,7 @@ jobs:
         # postinstall still downloads it for end users.
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+          PATCHRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         run: npm ci || npm install
 
       - name: 🧪 Pre-Publish Verification
@@ -129,12 +132,12 @@ jobs:
       - name: 🚀 Push Version Bump & Tag
         if: github.event.inputs.dry_run != 'true'
         run: |
-          git push origin HEAD --follow-tags
+          git push origin "HEAD:${{ github.ref_name }}" --follow-tags
 
       - name: 📦 Publish Package to NPM
         if: github.event.inputs.dry_run != 'true'
         run: |
-          npm publish --access public
+          npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -178,12 +181,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN || github.token }}
 
+      - name: 🐳 Set Lowercase Repo for Docker
+        if: github.event.inputs.dry_run != 'true'
+        run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
       - name: 🏷️ Extract Docker metadata
         if: github.event.inputs.dry_run != 'true'
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ env.REPO_LC }}
           tags: |
             type=raw,value=latest,enable=true
             type=raw,value=${{ steps.versioning.outputs.NEW_VERSION }}
