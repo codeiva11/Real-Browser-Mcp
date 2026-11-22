@@ -1,5 +1,5 @@
 declare module "real-browser-mcp-server" {
-	import type { Browser, Page } from "patchright";
+	import type { Browser, Page } from "patchwright-core";
 	import type { GhostCursor } from "ghost-cursor-patchright";
 
 	export function connect(options?: Options): Promise<ConnectResult>;

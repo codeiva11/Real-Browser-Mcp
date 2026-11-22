@@ -9,8 +9,8 @@
 // Browser & Page Types (from patchright)
 // ─────────────────────────────────────────────
 
-/** Re-export Playwright/Patchright core types */
-import type { Browser, Page, Frame, BrowserContext, ElementHandle } from 'patchright';
+/** Re-export Playwright/Patchwright-core types */
+import type { Browser, Page, Frame, BrowserContext, ElementHandle } from 'patchwright-core';
 export type { Browser, Page, Frame, BrowserContext, ElementHandle };
 
 /** Blocker from @ghostery/adblocker-playwright */

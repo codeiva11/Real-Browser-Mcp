@@ -1,7 +1,7 @@
 {
   "name": "real-browser-mcp-server",
   "version": "3.3.17",
-  "description": "MCP Server for Real Browser - Patchright Blocker.",
+  "description": "MCP Server for Real Browser - Patchwright Blocker.",
   "main": "dist/lib/cjs/index.js",
   "module": "lib/esm/index.mjs",
   "type": "commonjs",
@@ -40,7 +40,7 @@
   "keywords": [
     "mcp-server",
     "model-context-protocol",
-    "patchright",
+    "patchwright-core",
     "playwright"
   ],
   "author": "codeiva11",
@@ -57,7 +57,7 @@
     "@ghostery/adblocker-playwright": "latest",
     "@modelcontextprotocol/sdk": "latest",
     "ghost-cursor-patchright": "latest",
-    "patchright": "latest"
+    "patchwright-core": "^1.65.1"
   },
   "devDependencies": {
     "@types/node": "latest",

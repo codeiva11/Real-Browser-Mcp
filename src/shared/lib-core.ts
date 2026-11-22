@@ -1,4 +1,4 @@
-import { chromium } from 'patchright';
+import { chromium } from 'patchwright-core';
 import { createCursor } from 'ghost-cursor-patchright';
 import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
 import * as fs from 'fs';
@@ -9,19 +9,19 @@ import * as net from 'net';
 import * as tls from 'tls';
 import { getHeadlessFromEnv, shouldDisableChromiumSandbox } from './env-utils';
 import { evaluateNoGesture } from '../../lib/cjs/module/turnstile';
-import type { Browser, Page } from 'patchright';
+import type { Browser, Page } from 'patchwright-core';
 
 let adBlockerInstance: PlaywrightBlocker | null = null;
 let adBlockerPromise: Promise<PlaywrightBlocker | null> | null = null;
 
 /**
- * Resolve the current patchright-core Chromium version from browsers.json.
- * require.resolve('patchright-core') returns .../patchright-core/index.js
- * dirname() gives us the patchright-core/ directory directly (1 level up).
+ * Resolve the current patchwright-core Chromium version from browsers.json.
+ * require.resolve('patchwright-core') returns .../patchwright-core/index.js
+ * dirname() gives us the patchwright-core/ directory directly (1 level up).
  */
 export function getPatchrightChromiumVersion(): string {
   try {
-    const coreDir = path.dirname(require.resolve('patchright-core'));
+    const coreDir = path.dirname(require.resolve('patchwright-core'));
     const browsersJsonPath = path.join(coreDir, 'browsers.json');
     if (fs.existsSync(browsersJsonPath)) {
       const browsersJson = JSON.parse(fs.readFileSync(browsersJsonPath, 'utf8'));
@@ -31,7 +31,7 @@ export function getPatchrightChromiumVersion(): string {
   } catch { /* ignore */ }
   // Fallback: search in node_modules relative to cwd
   try {
-    const altPath = path.join(process.cwd(), 'node_modules', 'patchright-core', 'browsers.json');
+    const altPath = path.join(process.cwd(), 'node_modules', 'patchwright-core', 'browsers.json');
     if (fs.existsSync(altPath)) {
       const browsersJson = JSON.parse(fs.readFileSync(altPath, 'utf8'));
       const chromiumObj = browsersJson.browsers.find((b: any) => b.name === 'chromium' || b.name === 'chrome');
@@ -39,6 +39,70 @@ export function getPatchrightChromiumVersion(): string {
     }
   } catch { /* ignore */ }
   return '';
+}
+
+/**
+ * Automatically locate an existing system browser (Brave -> Edge -> Chrome -> ms-playwright fallback)
+ */
+export function findSystemBrowserExecutable(): string | undefined {
+  const platform = os.platform();
+  const localAppData = process.env.LOCALAPPDATA || '';
+  const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+  const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+  const home = os.homedir();
+
+  const candidates: string[] = [];
+
+  if (platform === 'win32') {
+    candidates.push(
+      // 1. Brave Browser
+      path.join(programFiles, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
+      path.join(programFilesX86, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
+      path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
+      // 2. Microsoft Edge
+      path.join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      path.join(programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      path.join(localAppData, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      // 3. Google Chrome
+      path.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      path.join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      path.join(localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe')
+    );
+    // ms-playwright existing installed versions
+    const msPlaywrightDir = path.join(localAppData, 'ms-playwright');
+    if (fs.existsSync(msPlaywrightDir)) {
+      try {
+        const dirs = fs.readdirSync(msPlaywrightDir);
+        for (const dir of dirs) {
+          if (dir.startsWith('chromium-')) {
+            const chromeExe = path.join(msPlaywrightDir, dir, 'chrome-win64', 'chrome.exe');
+            if (fs.existsSync(chromeExe)) candidates.push(chromeExe);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  } else if (platform === 'darwin') {
+    candidates.push(
+      '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+      path.join(home, 'Applications/Brave Browser.app/Contents/MacOS/Brave Browser'),
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    );
+  } else {
+    // Linux
+    candidates.push(
+      '/usr/bin/brave-browser',
+      '/usr/bin/brave',
+      '/snap/bin/brave',
+      '/usr/bin/microsoft-edge',
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser'
+    );
+  }
+
+  return candidates.find(p => p && fs.existsSync(p));
 }
 
 /**
@@ -763,12 +827,25 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
       }
     }
 
+    let resolvedExecutablePath = executablePath;
+    if (!resolvedExecutablePath) {
+      try {
+        const defaultExe = chromium.executablePath();
+        if (defaultExe && fs.existsSync(defaultExe)) {
+          resolvedExecutablePath = defaultExe;
+        }
+      } catch { /* ignore */ }
+      if (!resolvedExecutablePath) {
+        resolvedExecutablePath = findSystemBrowserExecutable();
+      }
+    }
+
     const browser = await chromium.launch({
       headless: launchHeadless,
       args: chromiumArgs,
       ignoreDefaultArgs: launchIgnoreDefaultArgs,
       proxy: playwrightProxy as any,
-      ...(executablePath ? { executablePath } : {}),
+      ...(resolvedExecutablePath ? { executablePath: resolvedExecutablePath } : {}),
     });
 
     // FIX: await adblocker init BEFORE creating the page so enableBlockingInPage
