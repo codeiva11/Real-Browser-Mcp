@@ -121,7 +121,13 @@ jobs:
       - name: 🧪 Run Detector Suite
         run: |
           echo "🧪 Running detector suite (Rebrowser, Sannysoft, Cloudflare WAF, Turnstile, Recaptcha V3, Pixelscan Fingerprint, Pixelscan Bot Check)..."
-          xvfb-run -a npm test > test-output.log 2>&1 || true
+          # Run both suites independently: `npm test` chains them with &&, so a
+          # failing cjs suite would skip esm entirely. Each suite gets its own
+          # browser run; both results land in test-output.log for the verdict.
+          echo "--- CJS suite ---"
+          xvfb-run -a npm run cjs_test > test-output.log 2>&1 || true
+          echo "--- ESM suite ---"
+          xvfb-run -a npm run esm_test >> test-output.log 2>&1 || true
           cat test-output.log
 
       - name: 📋 Verdict
