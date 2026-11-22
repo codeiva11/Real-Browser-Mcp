@@ -48,6 +48,10 @@ test.beforeEach(async (t) => {
     testStartTime = Date.now();
     const testName = t?.name || 'test';
     console.log(`\n▶️ [RUNNING]: ${testName}`);
+    if (page && !page.isClosed()) {
+        const ctx = page.context();
+        if (ctx) await ctx.clearCookies().catch(() => {});
+    }
 });
 
 test.afterEach(async (t) => {

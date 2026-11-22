@@ -775,6 +775,7 @@ export function createConnect(pageController: (opts: { browser: Browser; page: P
     const launchIgnoreDefaultArgs: boolean | string[] = ignoreDefaultArgs === true
       ? true
       : [
+          '--disable-popup-blocking',
           ...(Array.isArray(ignoreDefaultArgs) ? ignoreDefaultArgs : []),
           exactPatchrightDisableArg
         ];
