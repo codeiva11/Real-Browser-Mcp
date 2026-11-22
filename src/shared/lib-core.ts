@@ -55,18 +55,18 @@ export function findSystemBrowserExecutable(): string | undefined {
 
   if (platform === 'win32') {
     candidates.push(
-      // 1. Brave Browser
-      path.join(programFiles, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
-      path.join(programFilesX86, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
-      path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
-      // 2. Microsoft Edge
+      // 1. Google Chrome (Cleanest fingerprint, universal WAF compatibility)
+      path.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      path.join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      path.join(localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      // 2. Microsoft Edge (Pre-installed on every Windows system)
       path.join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
       path.join(programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
       path.join(localAppData, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-      // 3. Google Chrome
-      path.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-      path.join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-      path.join(localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe')
+      // 3. Brave Browser (Fallback)
+      path.join(programFiles, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
+      path.join(programFilesX86, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
+      path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe')
     );
     // ms-playwright existing installed versions
     const msPlaywrightDir = path.join(localAppData, 'ms-playwright');
@@ -83,22 +83,22 @@ export function findSystemBrowserExecutable(): string | undefined {
     }
   } else if (platform === 'darwin') {
     candidates.push(
-      '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
-      path.join(home, 'Applications/Brave Browser.app/Contents/MacOS/Brave Browser'),
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
       '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+      '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+      path.join(home, 'Applications/Brave Browser.app/Contents/MacOS/Brave Browser')
     );
   } else {
     // Linux
     candidates.push(
-      '/usr/bin/brave-browser',
-      '/usr/bin/brave',
-      '/snap/bin/brave',
-      '/usr/bin/microsoft-edge',
       '/usr/bin/google-chrome',
       '/usr/bin/google-chrome-stable',
+      '/usr/bin/microsoft-edge',
       '/usr/bin/chromium',
-      '/usr/bin/chromium-browser'
+      '/usr/bin/chromium-browser',
+      '/usr/bin/brave-browser',
+      '/usr/bin/brave',
+      '/snap/bin/brave'
     );
   }
 
@@ -431,24 +431,6 @@ export { getHeadlessFromEnv };
 export function setupRealPage(page: Page & Record<string, any>): Page & Record<string, any> {
   if ((page as any)._setupApplied) return page;
   (page as any)._setupApplied = true;
-
-  // Real-browser popup blocking emulation: script-initiated popups without user click return null
-  page.addInitScript(() => {
-    try {
-      const origOpen = window.open;
-      window.open = function(this: any, ...args: any[]) {
-        const evt = (window as any).event;
-        const isUserClick = evt && evt.isTrusted && (evt.type === 'click' || evt.type === 'pointerup' || evt.type === 'mouseup');
-        if (!isUserClick) {
-          return null;
-        }
-        return (origOpen as any).apply(this, args);
-      };
-      Object.defineProperty(window.open, 'name', { value: 'open' });
-      Object.defineProperty(window.open, 'length', { value: 0 });
-      window.open.toString = () => 'function open() { [native code] }';
-    } catch (_) {}
-  }).catch(() => {});
 
   page.realScroll = async (deltaY: number, duration = 600) => {
     try {

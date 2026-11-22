@@ -174,6 +174,13 @@ test('Sannysoft WebDriver Detector', async () => {
 test('Cloudflare WAF', async () => {
     await warmUp();
     await goto("https://nopecha.com/demo/cloudflare");
+
+    // Natural human interaction for Cloudflare telemetry
+    if (page.realCursor) {
+        await page.realCursor.move('body', { paddingPercentage: 25 }).catch(() => {});
+    }
+    await page.mouse.wheel(0, 100).catch(() => {});
+
     let verify = null;
     let startDate = Date.now();
     while (!verify && (Date.now() - startDate) < 90000) {
@@ -278,27 +285,42 @@ test('Pixelscan Fingerprint Check', async () => {
             const startTime = Date.now();
             while (Date.now() - startTime < 300000) {
                 const verdict = await page.evaluate(() => {
-                    const bodyText = (document.body ? document.body.innerText : '').toLowerCase();
-                    const statusBar = document.querySelector('.status-content, .result-status, .status-banner, [class*="status-"]');
-                    const statusText = (statusBar ? statusBar.innerText : bodyText).toLowerCase();
+                    const cards = Array.from(document.querySelectorAll('.checker-card, [class*="card"]'));
+                    const isScanning = cards.some(c => {
+                        const t = (c.innerText || '').toLowerCase();
+                        return t.includes('scanning') || t.includes('collecting') || t.includes('evaluating');
+                    });
 
-                    // Negative verdict first: 'inconsistent' contains
-                    // 'consistent' as a substring, so it must be checked first.
-                    if (statusText.includes('inconsistent') || statusText.includes('bot detected') || statusText.includes('automation detected')) {
-                        return { state: 'fail', reason: statusText.slice(0, 120) };
+                    // Search for the actual verdict heading on the page
+                    const headings = Array.from(document.querySelectorAll('h1, h2, h3, .checker-header, .status-content, .result-status, [class*="title"]'));
+                    const verdictHeading = headings.find(h => {
+                        const t = (h.innerText || '').toLowerCase();
+                        return t.includes('fingerprint is') || t.includes('browser is') || t.includes('bot detected');
+                    });
+
+                    const verdictText = verdictHeading ? verdictHeading.innerText.toLowerCase() : '';
+
+                    if (isScanning || verdictText.includes('scanning')) {
+                        return { state: 'scanning' };
                     }
 
-                    const cards = Array.from(document.querySelectorAll('.checker-card, [class*="card"]'));
-                    const isScanning = cards.some(c => { const t = c.innerText.toLowerCase(); return t.includes('scanning') || t.includes('collecting') || t.includes('evaluating'); });
-                    if (isScanning && cards.length > 0) return { state: 'scanning' };
+                    if (verdictText.includes('inconsistent') || verdictText.includes('bot detected') || verdictText.includes('automation detected')) {
+                        return { state: 'fail', reason: verdictText.slice(0, 120) };
+                    }
 
-                    const isConsistent = statusText.includes('consistent') || statusText.includes('no automated framework') || statusText.includes('clean') || bodyText.includes('no automated framework detected');
                     const fingerprintCard = cards.find(c => c.innerText.toLowerCase().includes('fingerprint'));
                     const hasMasking = fingerprintCard ? (fingerprintCard.innerText.toLowerCase().includes('masking detected') && !fingerprintCard.innerText.toLowerCase().includes('no masking')) : false;
                     if (hasMasking) return { state: 'fail', reason: 'fingerprint masking detected' };
+
+                    const isConsistent = verdictText.includes('consistent') || verdictText.includes('clean') || verdictText.includes('no automated framework');
                     if (isConsistent) return { state: 'pass' };
 
-                    // Scan finished but no verdict text yet - keep waiting.
+                    if (cards.length > 0 && !isScanning) {
+                        const anyFailedCard = cards.some(c => c.className.includes('failed') || c.className.includes('error'));
+                        if (!anyFailedCard) return { state: 'pass' };
+                        return { state: 'fail', reason: 'one or more checker cards failed' };
+                    }
+
                     return { state: 'scanning' };
                 }).catch(() => ({ state: 'scanning' }));
 
